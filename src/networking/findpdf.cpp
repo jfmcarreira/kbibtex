@@ -17,9 +17,11 @@
 
 #include "findpdf.h"
 
+#include <QDirIterator>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegExp>
+#include <QRegularExpression>
 #include <QApplication>
 #include <QTemporaryFile>
 #include <QUrlQuery>
@@ -33,6 +35,8 @@
 #include "value.h"
 #include "fileinfo.h"
 #include "logging_networking.h"
+
+#include <onlinesearchieeexplore.h>
 
 int maxDepth = 5;
 static const char *depthProperty = "depth";
@@ -58,13 +62,56 @@ public:
         /// nothing
     }
 
+    bool searchFileLocally(const Entry &entry)
+    {
+				QString path(QDir::homePath());
+
+        /// Generate a string which contains the title's beginning
+        QString searchWords;
+        if (entry.contains(Entry::ftTitle)) {
+            const QStringList titleChunks = PlainTextValue::text(entry.value(Entry::ftTitle)).split(QStringLiteral(" "), QString::SkipEmptyParts);
+            if (!titleChunks.isEmpty()) {
+                searchWords = titleChunks[0];
+                for (int i = 1; i < titleChunks.count() && searchWords.length() < 64; ++i)
+                    searchWords += QStringLiteral(".*") + titleChunks[i];
+            }
+        }
+
+        searchWords.replace("/", ".*");
+        QRegExp regExpMatch(searchWords);
+        regExpMatch.setCaseSensitivity(Qt::CaseInsensitive);
+        qDebug() << regExpMatch;
+
+        QRegExp rxExt("\\b(pdf)\\b");
+        QDirIterator it(path, QDir::NoFilter, QDirIterator::Subdirectories);
+        while (it.hasNext()) {
+            QFileInfo info(it.next());
+            if (rxExt.indexIn(info.suffix()) >= 0)
+            {
+                if (info.fileName().contains(regExpMatch))
+                {
+                    ResultItem resultItem;
+                    resultItem.url = QUrl(info.absoluteFilePath());
+                    resultItem.downloadMode = URLonly;
+                    resultItem.relevance = 1.0;
+                    result << resultItem;
+
+                    Poppler::Document *doc = Poppler::Document::load(info.absoluteFilePath());
+                    resultItem.textPreview = doc->info(QStringLiteral("Title")).simplified();
+                    delete doc;
+                }
+            }
+        }
+        return true;
+    }
+
     bool queueUrl(const QUrl &url, const QString &term, const QString &origin, int depth)
     {
         if (!knownUrls.contains(url) && depth > 0) {
             knownUrls.insert(url);
             QNetworkRequest request = QNetworkRequest(url);
             QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
-            InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply, 15); ///< set a timeout on network connections
+            InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply, 30); ///< set a timeout on network connections
             reply->setProperty(depthProperty, QVariant::fromValue<int>(depth));
             reply->setProperty(termProperty, term);
             reply->setProperty(originProperty, origin);
@@ -179,6 +226,19 @@ public:
 
             QUrl url(QUrl::fromEncoded(QString(QStringLiteral("https://dl.acm.org/") + downloadPDFlink.cap(1)).toLatin1()));
             queueUrl(reply->url().resolved(url), QString(), QStringLiteral("acmdl"), depth - 1);
+        }
+    }
+
+    void processIeeeXplore(QNetworkReply *reply, const QString &text)
+    {
+        static const QRegularExpression downloadPDFlink(QStringLiteral("http://ieeexplore\\.ieee\\.org/[a-z-0-9]+/\\d+/\\d+/\\d+\\.pdf"));
+        QRegularExpressionMatch downloadPDFlinkMatch = downloadPDFlink.match(text);
+        if (downloadPDFlinkMatch.hasMatch())
+        {
+            bool ok = false;
+            int depth = reply->property(depthProperty).toInt(&ok);
+            QUrl url(downloadPDFlinkMatch.captured(0));
+            queueUrl(url, QString(), QStringLiteral("ieeexplore"), depth - 1);
         }
     }
 
@@ -299,9 +359,12 @@ bool FindPDF::search(const Entry &entry)
     }
 
     if (!searchWords.isEmpty()) {
+
+        QUrlQuery query;
+
         /// Search in Google
         QUrl googleUrl(QStringLiteral("https://www.google.com/search?hl=en&sa=G"));
-        QUrlQuery query(googleUrl);
+        query = QUrlQuery(googleUrl);
         query.addQueryItem(QStringLiteral("q"), searchWords + QStringLiteral(" filetype:pdf"));
         googleUrl.setQuery(query);
         d->queueUrl(googleUrl, searchWords, QStringLiteral("www.google"), maxDepth);
@@ -343,7 +406,11 @@ bool FindPDF::search(const Entry &entry)
         /// Search in arXiv
         QUrl arXivUrl = QUrl::fromUserInput(QString(QStringLiteral("http://arxiv.org/find/all/1/all:+%1/0/1/0/all/0/1")).arg(searchWords));
         d->queueUrl(arXivUrl, searchWords, QStringLiteral("arxiv"), maxDepth);
+
+        d->searchFileLocally(entry);
     }
+
+
 
     if (d->aliveCounter == 0) {
         qCWarning(LOG_KBIBTEX_NETWORKING) << "Directly at start, no URLs are queue for a search -> this should never happen";
@@ -396,6 +463,16 @@ void FindPDF::downloadFinished()
         qCDebug(LOG_KBIBTEX_NETWORKING) << "finished Downloading " << reply->url().toDisplayString() << "   depth=" << depth  << "  d->aliveCounter=" << d->aliveCounter << "  data.size=" << data.size() << "  redirUrl=" << redirUrl.toDisplayString() << "   origin=" << origin;
 
         if (!redirUrl.isEmpty())
+        {
+            /// regular expression to check if this is a IEEEXplore  page
+            static const QRegExp ieeeXploreRegExp(QStringLiteral("ieeexplore.ieee.org/document"));
+            if (redirUrl.toString().indexOf(ieeeXploreRegExp) > 0)
+            {
+                redirUrl = OnlineSearchIEEEXplore::convertURLtoDownload(redirUrl);
+            }
+        }
+
+        if (!redirUrl.isEmpty())
             d->queueUrl(redirUrl, term, origin, depth - 1);
         else if (data.contains(htmlHead1) || data.contains(htmlHead2) || data.contains(htmlHead3)) {
             /// returned data is a HTML file, i.e. contains "<html"
@@ -414,6 +491,8 @@ void FindPDF::downloadFinished()
                 static const QRegExp citeseerxTitleRegExp(QStringLiteral("<title>CiteSeerX &mdash; [^>]*</title>"));
                 /// regular expression to check if this is a ACM Digital Library page
                 static const QString acmDigitalLibraryString(QStringLiteral("The ACM Digital Library is published by the Association for Computing Machinery"));
+                /// regular expression to check if this is a IEEE Xplore page
+                static const QString ieeeXploreString(QStringLiteral("ieeexplore"));
 
                 if (text.indexOf(googleScholarTitleRegExp) > 0)
                     d->processGoogleResult(reply, text);
@@ -423,6 +502,8 @@ void FindPDF::downloadFinished()
                     d->processCiteSeerX(reply, text);
                 else if (text.contains(acmDigitalLibraryString))
                     d->processACMDigitalLibrary(reply, text);
+                else if (text.contains(ieeeXploreString))
+                    d->processIeeeXplore(reply, text);
                 else {
                     /// regular expression to extract title
                     static QRegExp titleRegExp(QStringLiteral("<title>(.*)</title>"));
