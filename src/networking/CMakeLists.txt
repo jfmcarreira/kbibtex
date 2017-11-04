@@ -26,6 +26,7 @@ set(
     onlinesearch/onlinesearchbiorxiv.cpp
     associatedfiles.cpp
     findpdf.cpp
+    findlocalpdf.cpp
     internalnetworkaccessmanager.cpp
     ${CMAKE_SOURCE_DIR}/src/global/kbibtex.cpp
     logging_networking.cpp
@@ -80,6 +81,7 @@ set(
     zotero/oauthwizard.h
     associatedfiles.h
     findpdf.h
+    findlocalpdf.h
     internalnetworkaccessmanager.h
 )
 

@@ -35,6 +35,7 @@
 #include "value.h"
 #include "fileinfo.h"
 #include "logging_networking.h"
+#include "findlocalpdf.h"
 
 #include <onlinesearchieeexplore.h>
 
@@ -55,54 +56,12 @@ public:
     Entry currentEntry;
     QSet<QUrl> knownUrls;
     QSet<QNetworkReply *> runningDownloads;
+    FindLocalPDF *localSearch;
 
     Private(FindPDF *parent)
             : p(parent), aliveCounter(0)
     {
         /// nothing
-    }
-
-    bool searchFileLocally(const Entry &entry)
-    {
-				QString path(QDir::homePath());
-
-        /// Generate a string which contains the title's beginning
-        QString searchWords;
-        if (entry.contains(Entry::ftTitle)) {
-            const QStringList titleChunks = PlainTextValue::text(entry.value(Entry::ftTitle)).split(QStringLiteral(" "), QString::SkipEmptyParts);
-            if (!titleChunks.isEmpty()) {
-                searchWords = titleChunks[0];
-                for (int i = 1; i < titleChunks.count() && searchWords.length() < 64; ++i)
-                    searchWords += QStringLiteral(".*") + titleChunks[i];
-            }
-        }
-
-        searchWords.replace("/", ".*");
-        QRegExp regExpMatch(searchWords);
-        regExpMatch.setCaseSensitivity(Qt::CaseInsensitive);
-        qDebug() << regExpMatch;
-
-        QRegExp rxExt("\\b(pdf)\\b");
-        QDirIterator it(path, QDir::NoFilter, QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            QFileInfo info(it.next());
-            if (rxExt.indexIn(info.suffix()) >= 0)
-            {
-                if (info.fileName().contains(regExpMatch))
-                {
-                    ResultItem resultItem;
-                    resultItem.url = QUrl(info.absoluteFilePath());
-                    resultItem.downloadMode = URLonly;
-                    resultItem.relevance = 1.0;
-                    result << resultItem;
-
-                    Poppler::Document *doc = Poppler::Document::load(info.absoluteFilePath());
-                    resultItem.textPreview = doc->info(QStringLiteral("Title")).simplified();
-                    delete doc;
-                }
-            }
-        }
-        return true;
     }
 
     bool queueUrl(const QUrl &url, const QString &term, const QString &origin, int depth)
@@ -308,6 +267,7 @@ FindPDF::FindPDF(QObject *parent)
 FindPDF::~FindPDF()
 {
     abort();
+    delete d->localSearch;
     delete d;
 }
 
@@ -407,7 +367,10 @@ bool FindPDF::search(const Entry &entry)
         QUrl arXivUrl = QUrl::fromUserInput(QString(QStringLiteral("http://arxiv.org/find/all/1/all:+%1/0/1/0/all/0/1")).arg(searchWords));
         d->queueUrl(arXivUrl, searchWords, QStringLiteral("arxiv"), maxDepth);
 
-        d->searchFileLocally(entry);
+        d->localSearch = new FindLocalPDF(this);
+        d->localSearch->search(entry);
+        d->aliveCounter++;
+
     }
 
 
@@ -436,6 +399,19 @@ void FindPDF::abort() {
         QNetworkReply *reply = *it;
         it = d->runningDownloads.erase(it);
         reply->abort();
+    }
+}
+
+void FindPDF::appendLocalResults() {
+    d->result << d->localSearch->results();
+    --d->aliveCounter;
+    if (d->aliveCounter == 0) {
+        /// no more running downloads left
+        emit finished();
+    }
+    else
+    {
+        emit progress(d->knownUrls.count(), d->aliveCounter, d->result.count());
     }
 }
 

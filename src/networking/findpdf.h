@@ -98,6 +98,7 @@ public slots:
      * Abort any running downloads.
      */
     void abort();
+    void appendLocalResults();
 
 private slots:
     void downloadFinished();
@@ -107,4 +108,6 @@ private:
     Private *const d;
 };
 
+Q_DECLARE_METATYPE(FindPDF::ResultItem);
+Q_DECLARE_METATYPE(QList<FindPDF::ResultItem>);
 #endif // KBIBTEX_NETWORKING_FINDPDF_H
