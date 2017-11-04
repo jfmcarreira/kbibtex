@@ -173,6 +173,26 @@ QUrl OnlineSearchIEEEXplore::homepage() const
     return QUrl(QStringLiteral("https://ieeexplore.ieee.org/"));
 }
 
+QUrl OnlineSearchIEEEXplore::convertURLtoDownload(QUrl url)
+{
+    QUrl outUrl;
+    QStringList urlList = url.toString().split("/");
+    for (int i = 0; i < urlList.length(); i++)
+    {
+        if (urlList.at(i).size() > 1)
+        {
+            QRegExp re("\\d*");
+            if (re.exactMatch(urlList.at(i)))
+            {
+                QString text =  QStringLiteral("http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=") + urlList.at(i);
+                outUrl = QUrl::fromUserInput(text);
+                break;
+            }
+        }
+    }
+    return outUrl;
+}
+
 void OnlineSearchIEEEXplore::sanitizeEntry(QSharedPointer<Entry> entry)
 {
     OnlineSearchAbstract::sanitizeEntry(entry);

@@ -35,6 +35,8 @@ public:
     QString label() const override;
     QUrl homepage() const override;
 
+    static QUrl convertURLtoDownload(QUrl url);
+
 protected:
     QString favIconUrl() const override;
     void sanitizeEntry(QSharedPointer<Entry> entry) override;
