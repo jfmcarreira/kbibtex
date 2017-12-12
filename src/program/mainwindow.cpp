@@ -119,7 +119,7 @@ public:
          * - "Element Editor" is hidden
          */
         dockDocumentList = new QDockWidget(i18n("List of Documents"), p);
-        dockDocumentList->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+				dockDocumentList->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
         p->addDockWidget(Qt::LeftDockWidgetArea, dockDocumentList);
         listDocumentList = new DocumentList(dockDocumentList);
         dockDocumentList->setWidget(listDocumentList);
