@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -34,9 +34,6 @@
 
 class LyX::LyXPrivate
 {
-private:
-    // UNUSED LyX *p;
-
 public:
     QWidget *widget;
     QAction *action;
@@ -45,8 +42,9 @@ public:
     KSharedConfigPtr config;
     const KConfigGroup group;
 
-    LyXPrivate(LyX */* UNUSED parent*/, QWidget *widget)
-        : /* UNUSED p(parent),*/ action(nullptr), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), group(config, LyX::configGroupName) {
+    LyXPrivate(LyX *parent, QWidget *widget)
+            : action(nullptr), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), group(config, LyX::configGroupName) {
+        Q_UNUSED(parent)
         this->widget = widget;
     }
 
@@ -79,9 +77,7 @@ public:
 
 const QString LyX::keyUseAutomaticLyXPipeDetection = QStringLiteral("UseAutomaticLyXPipeDetection");
 const QString LyX::keyLyXPipePath = QStringLiteral("LyXPipePath");
-#ifdef QT_LSTAT
 const bool LyX::defaultUseAutomaticLyXPipeDetection = true;
-#endif // QT_LSTAT
 const QString LyX::defaultLyXPipePath = QString();
 const QString LyX::configGroupName = QStringLiteral("LyXPipe");
 
@@ -144,35 +140,16 @@ QString LyX::guessLyXPipeLocation()
 {
     QT_STATBUF statBuffer;
     const QStringList nameFilter = QStringList() << QStringLiteral("*lyxpipe*in*");
-    QString result;
-
-    /// Start with scanning the user's home directory for pipes
-    QDir home = QDir::home();
-    const QStringList files = home.entryList(nameFilter, QDir::Hidden | QDir::System | QDir::Writable, QDir::Unsorted);
-    for (const QString &filename : files) {
-        QString const absoluteFilename = home.absolutePath() + QDir::separator() + filename;
-        if (QT_LSTAT(absoluteFilename.toLatin1(), &statBuffer) == 0 && S_ISFIFO(statBuffer.st_mode)) {
-            result = absoluteFilename;
-            break;
+    const QVector<QDir> directoriesToScan = QVector<QDir>(4) << QDir::home() << QDir(QDir::homePath() + QStringLiteral("/.lyx")) << QDir::temp();
+    for (const QDir &directory : directoriesToScan) {
+        const QStringList files = directory.entryList(nameFilter, QDir::Hidden | QDir::System | QDir::Writable, QDir::Unsorted);
+        for (const QString &filename : files) {
+            const QString canonicalFilename = QFileInfo(directory.absolutePath() + QDir::separator() + filename).canonicalFilePath();
+            if (QT_LSTAT(canonicalFilename.toLatin1(), &statBuffer) == 0 && S_ISFIFO(statBuffer.st_mode))
+                return canonicalFilename;
         }
     }
 
-    /// No hit yet? Search LyX's configuration directory
-    if (result.isEmpty()) {
-        QDir home = QDir::home();
-        if (home.cd(QStringLiteral(".lyx"))) {
-            /// Same search again here
-            const QStringList files = home.entryList(nameFilter, QDir::Hidden | QDir::System | QDir::Writable, QDir::Unsorted);
-            for (const QString &filename : files) {
-                QString const absoluteFilename = home.absolutePath() + QDir::separator() + filename;
-                if (QT_LSTAT(absoluteFilename.toLatin1(), &statBuffer) == 0 && S_ISFIFO(statBuffer.st_mode)) {
-                    result = absoluteFilename;
-                    break;
-                }
-            }
-        }
-    }
-
-    return result;
+    return QString();
 }
 #endif // QT_LSTAT

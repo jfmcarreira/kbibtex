@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,6 +32,7 @@ private:
     IdSuggestions *p;
     KSharedConfigPtr config;
     const KConfigGroup group;
+    static const QStringList smallWords;
 
 public:
 
@@ -66,29 +67,26 @@ public:
     }
 
     QString translateTitleToken(const Entry &entry, const struct IdSuggestionTokenInfo &tti, bool removeSmallWords) const {
-        /// list of small words taken from OCLC:
-        /// http://www.oclc.org/developer/develop/web-services/worldcat-search-api/bibliographic-resource.en.html
-        static const QStringList smallWords = i18nc("Small words that can be removed from titles when generating id suggestions; separated by pipe symbol", "a|als|am|an|are|as|at|auf|aus|be|but|by|das|dass|de|der|des|dich|dir|du|er|es|for|from|had|have|he|her|his|how|ihr|ihre|ihres|im|in|is|ist|it|kein|la|le|les|mein|mich|mir|mit|of|on|sein|sie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|yousie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|you").split(QStringLiteral("|"), QString::SkipEmptyParts);
-
         QString result;
         bool first = true;
         static const QRegExp sequenceOfSpaces(QStringLiteral("\\s+"));
         const QStringList titleWords = PlainTextValue::text(entry.value(Entry::ftTitle)).split(sequenceOfSpaces, QString::SkipEmptyParts);
         int index = 0;
         for (QStringList::ConstIterator it = titleWords.begin(); it != titleWords.end(); ++it, ++index) {
+            const QString lowerText = normalizeText(*it).toLower();
+            if ((removeSmallWords && smallWords.contains(lowerText)) || index < tti.startWord || index > tti.endWord)
+                continue;
+
             if (first)
                 first = false;
             else
                 result.append(tti.inBetween);
 
-            QString lowerText = (*it).toLower();
-            if ((!removeSmallWords || !smallWords.contains(lowerText)) && index >= tti.startWord && index <= tti.endWord) {
-                QString titleComponent = normalizeText(*it).left(tti.len);
-                if (tti.caseChange == IdSuggestions::ccToCamelCase)
-                    titleComponent = titleComponent[0].toUpper() + titleComponent.mid(1);
+            QString titleComponent = lowerText.left(tti.len);
+            if (tti.caseChange == IdSuggestions::ccToCamelCase)
+                titleComponent = titleComponent[0].toUpper() + titleComponent.mid(1);
 
-                result.append(titleComponent);
-            }
+            result.append(titleComponent);
         }
 
         switch (tti.caseChange) {
@@ -162,15 +160,24 @@ public:
         return result;
     }
 
-    QString translateJournalToken(const Entry &entry, const struct IdSuggestionTokenInfo &jti) const {
+    QString translateJournalToken(const Entry &entry, const struct IdSuggestionTokenInfo &jti, bool removeSmallWords) const {
         static const QRegExp sequenceOfSpaces(QStringLiteral("\\s+"));
         QString journalName = PlainTextValue::text(entry.value(Entry::ftJournal));
         journalName = JournalAbbreviations::self()->toShortName(journalName);
         const QStringList journalWords = journalName.split(sequenceOfSpaces, QString::SkipEmptyParts);
-
+        bool first = true;
+        int index = 0;
         QString result;
-        for (const QString &word : journalWords) {
-            QString journalComponent = normalizeText(word);
+        for (QStringList::ConstIterator it = journalWords.begin(); it != journalWords.end(); ++it, ++index) {
+            QString journalComponent = normalizeText(*it);
+            const QString lowerText = journalComponent.toLower();
+            if ((removeSmallWords && smallWords.contains(lowerText)) || index < jti.startWord || index > jti.endWord)
+                continue;
+
+            if (first)
+                first = false;
+            else
+                result.append(jti.inBetween);
 
             /// Try to keep sequences of capital letters at the start of the journal name,
             /// those may already be abbreviations.
@@ -180,6 +187,7 @@ public:
 
             if (jti.caseChange == IdSuggestions::ccToCamelCase)
                 journalComponent = journalComponent[0].toUpper() + journalComponent.mid(1);
+
             result.append(journalComponent);
         }
 
@@ -198,6 +206,30 @@ public:
         }
 
         return result;
+    }
+
+    QString translateTypeToken(const Entry &entry, const struct IdSuggestionTokenInfo &eti) const {
+        QString entryType(entry.type());
+
+        switch (eti.caseChange) {
+        case IdSuggestions::ccToUpper:
+            return entryType.toUpper().left(eti.len);
+        case IdSuggestions::ccToLower:
+            return entryType.toLower().left(eti.len);
+        case IdSuggestions::ccToCamelCase:
+        {
+            if (entryType.isEmpty()) return QString(); ///< empty entry type? Return immediately to avoid problems with entryType[0]
+            /// Apply some heuristic replacements to make the entry type look like CamelCase
+            entryType = entryType.toLower(); ///< start with lower case
+            /// Then, replace known words with their CamelCase variant
+            entryType = entryType.replace(QStringLiteral("report"), QStringLiteral("Report")).replace(QStringLiteral("proceedings"), QStringLiteral("Proceedings")).replace(QStringLiteral("thesis"), QStringLiteral("Thesis")).replace(QStringLiteral("book"), QStringLiteral("Book")).replace(QStringLiteral("phd"), QStringLiteral("PhD"));
+            /// Finally, guarantee that first letter is upper case
+            entryType[0] = entryType[0].toUpper();
+            return entryType.left(eti.len);
+        }
+        default:
+            return entryType.left(eti.len);
+        }
     }
 
     QString translateToken(const Entry &entry, const QString &token) const {
@@ -239,12 +271,18 @@ public:
         case 'T': {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo jti
             const struct IdSuggestionTokenInfo tti = p->evalToken(token.mid(1));
-            return translateTitleToken(entry, tti, token[0].toLatin1() == 'T');
+            return translateTitleToken(entry, tti, token[0].isUpper());
         }
-        case 'j': {
+        case 'j':
+        case 'J': {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo jti
             const struct IdSuggestionTokenInfo jti = p->evalToken(token.mid(1));
-            return translateJournalToken(entry, jti);
+            return translateJournalToken(entry, jti, token[0].isUpper());
+        }
+        case 'e': {
+            /// Evaluate the token string, store information in struct IdSuggestionTokenInfo eti
+            const struct IdSuggestionTokenInfo eti = p->evalToken(token.mid(1));
+            return translateTypeToken(entry, eti);
         }
         case 'v': {
             return normalizeText(PlainTextValue::text(entry.value(Entry::ftVolume)));
@@ -266,6 +304,11 @@ public:
         return group.readEntry(keyFormatStringList, defaultFormatStringList);
     }
 };
+
+/// List of small words taken from OCLC:
+/// https://www.oclc.org/developer/develop/web-services/worldcat-search-api/bibliographic-resource.en.html
+const QStringList IdSuggestions::IdSuggestionsPrivate::smallWords = i18nc("Small words that can be removed from titles when generating id suggestions; separated by pipe symbol", "a|als|am|an|are|as|at|auf|aus|be|but|by|das|dass|de|der|des|dich|dir|du|er|es|for|from|had|have|he|her|his|how|ihr|ihre|ihres|im|in|is|ist|it|kein|la|le|les|mein|mich|mir|mit|of|on|sein|sie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|yousie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|you").split(QStringLiteral("|"), QString::SkipEmptyParts);
+
 
 const QString IdSuggestions::keyDefaultFormatString = QStringLiteral("DefaultFormatString");
 const QString IdSuggestions::defaultDefaultFormatString = QString();
@@ -410,6 +453,24 @@ QStringList IdSuggestions::formatStrToHuman(const QString &formatStr) const
                 text.append(i18n(", in CamelCase"));
                 break;
             case IdSuggestions::ccNoChange:
+                break;
+            }
+        } else if (token[0] == 'e') {
+            struct IdSuggestionTokenInfo info = evalToken(token.mid(1));
+            text.append(i18n("Type"));
+            if (info.len < 0x00ffffff)
+                text.append(i18np(", but only first letter of each word", ", but only first %1 letters of each word", info.len));
+            switch (info.caseChange) {
+            case IdSuggestions::ccToUpper:
+                text.append(i18n(", in upper case"));
+                break;
+            case IdSuggestions::ccToLower:
+                text.append(i18n(", in lower case"));
+                break;
+            case IdSuggestions::ccToCamelCase:
+                text.append(i18n(", in CamelCase"));
+                break;
+            default:
                 break;
             }
         } else if (token[0] == 'v') {

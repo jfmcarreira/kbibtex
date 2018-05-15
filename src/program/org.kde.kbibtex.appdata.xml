@@ -20,6 +20,7 @@
   <name xml:lang="pl">KBibTeX</name>
   <name xml:lang="pt">KBibTeX</name>
   <name xml:lang="pt-BR">KBibTeX</name>
+  <name xml:lang="ru">KBibTeX</name>
   <name xml:lang="sk">KBibTeX</name>
   <name xml:lang="sv">Kbibtex</name>
   <name xml:lang="tr">KBibTeX</name>
@@ -32,8 +33,9 @@
   <summary xml:lang="de">BibTeX-Editor von KDE zum Bearbeiten von Bibliografien mit LaTeX</summary>
   <summary xml:lang="en-GB">BibTeX editor by KDE to edit bibliographies used with LaTeX</summary>
   <summary xml:lang="es">Editor de BibTeX creado por KDE para editar las bibliografías usadas con LaTeX</summary>
+  <summary xml:lang="fi">KDE:n BibTeX-muokkain LaTeXissa käytettävien lähdeluettelojen muokkaamiseen</summary>
   <summary xml:lang="fr">Éditeur BixTeX par KDE pour modifier des bibliographies utilisées avec LaTeX</summary>
-  <summary xml:lang="gl">Editor de BibTeX de KDE, para editar bibliografías que se usen con LaTeX.</summary>
+  <summary xml:lang="gl">Editor de BibTeX de KDE, para editar bibliografías que se usen con LaTeX</summary>
   <summary xml:lang="it">Editor BibTeX di KDE per la modifica delle bibliografie usate con LaTeX</summary>
   <summary xml:lang="nl">BibTeX-bewerker door KDE om bibliografieën te bewerken gebruikt met LaTeX</summary>
   <summary xml:lang="pl">Edytor BibTeX autorstwa KDE do edytowania bibliografii używanych w edytorach LaTeX</summary>
@@ -132,7 +134,7 @@
       <li>Search for the bibliography entries data in online databases (e.g. Google Scholar, ACM, IEEE, arXiv, etc.)</li>
       <li xml:lang="bs">Pretraga za ulazne podatke bibliografije u online bazama podataka (npr. Google Scholar, ACM, IEEE,arXiv, itd.)</li>
       <li xml:lang="ca">Cerca dades d'entrades bibliogràfiques a les bases de dades en línia (p. ex., Google Scholar, ACM, IEEE, arXiv, etc.)</li>
-      <li xml:lang="ca-valencia">Busca dades d'entrades bibliogràfiques a les bases de dades en línia (p. ex., Google Scholar, ACM, IEEE, arXiv, etc.)</li>
+      <li xml:lang="ca-valencia">Cerca dades d'entrades bibliogràfiques a les bases de dades en línia (p. ex., Google Scholar, ACM, IEEE, arXiv, etc.)</li>
       <li xml:lang="de">Suche nach Daten mit Bibliografie-Einträgen in Online-Datenbanken (z. B. Google Scholar, ACM, IEEE, arXiv, usw.)</li>
       <li xml:lang="en-GB">Search for the bibliography entries data in online databases (e.g. Google Scholar, ACM, IEEE, arXiv, etc.)</li>
       <li xml:lang="es">Busca datos de las entradas bibliográficas en bases de datos en línea (por ejemplo Google Scholar, ACM, IEEE, arXiv, etc.)</li>
@@ -238,7 +240,7 @@
   <url type="help">http://docs.kde.org/development/en/extragear-office/kbibtex/index.html</url>
   <screenshots>
     <screenshot type="default">
-      <image>https://userbase.kde.org/images.userbase/7/7f/20150602-kbibtex-kf5.png</image>
+      <image>https://cdn.kde.org/screenshots/kbibtex/kbibtex-kf5.png</image>
     </screenshot>
   </screenshots>
   <project_group>KDE</project_group>

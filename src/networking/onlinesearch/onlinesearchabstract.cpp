@@ -263,7 +263,7 @@ QString OnlineSearchAbstract::decodeURL(QString rawText)
     return rawText;
 }
 
-QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlText, const QString &formTagBegin)
+QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlText, int startPos)
 {
     /// how to recognize HTML tags
     static const QString formTagEnd = QStringLiteral("</form>");
@@ -284,10 +284,9 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
     QMap<QString, QString> result;
 
     /// determined boundaries of (only) "form" tag
-    int startPos = htmlText.indexOf(formTagBegin, Qt::CaseInsensitive);
     int endPos = htmlText.indexOf(formTagEnd, startPos, Qt::CaseInsensitive);
     if (startPos < 0 || endPos < 0) {
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "Could not locate form" << formTagBegin << "in text";
+        qCWarning(LOG_KBIBTEX_NETWORKING) << "Could not locate form in text";
         return result;
     }
 
@@ -412,12 +411,13 @@ void OnlineSearchAbstract::iconDownloadFinished()
 
 void OnlineSearchAbstract::dumpToFile(const QString &filename, const QString &text)
 {
-    const QString usedFilename = QDir::tempPath() + QLatin1Char('/') +  filename;
+    const QString usedFilename = QDir::tempPath() + QLatin1Char('/') + filename;
 
     QFile f(usedFilename);
     if (f.open(QFile::WriteOnly)) {
         qCDebug(LOG_KBIBTEX_NETWORKING) << "Dumping text" << KBibTeX::squeezeText(text, 96) << "to" << usedFilename;
         QTextStream ts(&f);
+        ts.setCodec("UTF-8");
         ts << text;
         f.close();
     }

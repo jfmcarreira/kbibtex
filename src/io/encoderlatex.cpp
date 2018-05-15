@@ -871,7 +871,7 @@ QString EncoderLaTeX::decode(const QString &input) const
                         /// Found a thin space: \,
                         /// Replacing Latex-like thin space with Unicode thin space
                         output.append(QChar(0x2009));
-                        foundCommand = true;
+                        // foundCommand = true; ///< only necessary if more tests will follow in the future
                         ++i;
                     } else {
                         /// Nothing special, copy input char to output
@@ -1099,7 +1099,7 @@ QString EncoderLaTeX::convertToPlainAscii(const QString &ninput) const
     for (int i = 0; i < ninputLen; ++i)
         uChars[i] = ninput.at(i).unicode();
     /// Create an ICU-specific unicode string
-    UnicodeString uString = UnicodeString(uChars, ninputLen);
+    icu::UnicodeString uString = icu::UnicodeString(uChars, ninputLen);
     /// Perform the actual transliteration, modifying Unicode string
     m_trans->transliterate(uString);
     /// Create regular C++ string from Unicode string

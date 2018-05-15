@@ -1,5 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *                 2018 Alexander Dunlap <alexander.dunlap@gmail.com>      *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,9 +33,6 @@
 
 class OnlineSearchMathSciNet::OnlineSearchMathSciNetPrivate
 {
-private:
-    // UNUSED OnlineSearchMathSciNet *p;
-
 public:
     QMap<QString, QString> queryParameters;
     int numResults;
@@ -42,15 +40,15 @@ public:
     static const QString queryFormUrl;
     static const QString queryUrlStem;
 
-    OnlineSearchMathSciNetPrivate(OnlineSearchMathSciNet */* UNUSED parent*/)
-        : /* UNUSED p(parent), */ numResults(0)
+    OnlineSearchMathSciNetPrivate(OnlineSearchMathSciNet *parent)
+            : numResults(0)
     {
-        /// nothing
+        Q_UNUSED(parent)
     }
 };
 
-const QString OnlineSearchMathSciNet::OnlineSearchMathSciNetPrivate::queryFormUrl = QStringLiteral("http://www.ams.org/mathscinet/");
-const QString OnlineSearchMathSciNet::OnlineSearchMathSciNetPrivate::queryUrlStem = QStringLiteral("http://www.ams.org/mathscinet/search/publications.html?client=KBibTeX");
+const QString OnlineSearchMathSciNet::OnlineSearchMathSciNetPrivate::queryFormUrl = QStringLiteral("https://mathscinet.ams.org/mathscinet/");
+const QString OnlineSearchMathSciNet::OnlineSearchMathSciNetPrivate::queryUrlStem = QStringLiteral("https://mathscinet.ams.org/mathscinet/search/publications.html?client=KBibTeX");
 
 OnlineSearchMathSciNet::OnlineSearchMathSciNet(QWidget *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchMathSciNetPrivate(this))
@@ -124,7 +122,7 @@ QString OnlineSearchMathSciNet::favIconUrl() const
 
 QUrl OnlineSearchMathSciNet::homepage() const
 {
-    return QUrl(QStringLiteral("http://www.ams.org/mathscinet/help/about.html"));
+    return QUrl(QStringLiteral("https://mathscinet.ams.org/mathscinet/help/about.html"));
 }
 
 void OnlineSearchMathSciNet::doneFetchingQueryForm()
@@ -170,12 +168,12 @@ void OnlineSearchMathSciNet::doneFetchingResultPage()
         const QString htmlText = QString::fromUtf8(reply->readAll().constData());
 
         /// extract form's parameters ...
-        QMap<QString, QString> formParams = formParameters(htmlText, QStringLiteral("<form name=\"batchDownload\" action="));
+        QMap<QString, QString> formParams = formParameters(htmlText, htmlText.indexOf(QStringLiteral("<form name=\"batchDownload\" action="), Qt::CaseInsensitive));
 
         /// build url by appending parameters
         QUrl url(OnlineSearchMathSciNetPrivate::queryUrlStem);
         QUrlQuery query(url);
-        const QStringList copyParameters = QStringList() << QStringLiteral("foo") << QStringLiteral("reqargs") << QStringLiteral("batch_title");
+        const QStringList copyParameters = QStringList() << QStringLiteral("foo") << QStringLiteral("bdl") << QStringLiteral("reqargs") << QStringLiteral("batch_title");
         for (const QString &param : copyParameters) {
             query.addQueryItem(param, formParams[param]);
         }

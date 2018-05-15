@@ -256,6 +256,22 @@ public:
 
         return progress;
     }
+
+    QUrl ieeeDocumentUrlToDownloadUrl(const QUrl &url) {
+        /// Basic checking if provided URL is from IEEE Xplore
+        if (!url.host().contains(QStringLiteral("ieeexplore.ieee.org")))
+            return url;
+
+        /// Assuming URL looks like this:
+        ///    http://ieeexplore.ieee.org/document/8092651/
+        static const QRegularExpression documentIdRegExp(QStringLiteral("/(\\d{6,})/$"));
+        const QRegularExpressionMatch documentIdRegExpMatch = documentIdRegExp.match(url.path());
+        if (!documentIdRegExpMatch.hasMatch())
+            return url;
+
+        /// Use document id extracted above to build URL to PDF file
+        return QUrl(QStringLiteral("http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=") + documentIdRegExpMatch.captured(1));
+    }
 };
 
 FindPDF::FindPDF(QObject *parent)
@@ -295,6 +311,8 @@ bool FindPDF::search(const Entry &entry)
     for (int i = 0; i < authors.count() && searchWords.length() < 96; ++i)
         searchWords += QLatin1Char(' ') + authors[i];
 
+    searchWords.remove(QLatin1Char('{')).remove(QLatin1Char('}'));
+
     QStringList urlFields = QStringList() << Entry::ftDOI << Entry::ftUrl << QStringLiteral("ee");
     for (int i = 2; i < 256; ++i)
         urlFields << QString(QStringLiteral("%1%2")).arg(Entry::ftDOI).arg(i) << QString(QStringLiteral("%1%2")).arg(Entry::ftUrl).arg(i);
@@ -313,9 +331,11 @@ bool FindPDF::search(const Entry &entry)
 
     if (entry.contains(QStringLiteral("eprint"))) {
         /// check eprint fields as used for arXiv
-        const QString fieldText = PlainTextValue::text(entry.value(QStringLiteral("eprint")));
-        if (!fieldText.isEmpty())
-            d->queueUrl(QUrl(QString(QStringLiteral("http://arxiv.org/find/all/1/all:+%1/0/1/0/all/0/1")).arg(fieldText)), fieldText, QStringLiteral("eprint"), maxDepth);
+        const QString eprintId = PlainTextValue::text(entry.value(QStringLiteral("eprint")));
+        if (!eprintId.isEmpty()) {
+            const QUrl arxivUrl = QUrl::fromUserInput(QStringLiteral("http://arxiv.org/find/all/1/all:+") + eprintId + QStringLiteral("/0/1/0/all/0/1"));
+            d->queueUrl(arxivUrl, eprintId, QStringLiteral("eprint"), maxDepth);
+        }
     }
 
     if (!searchWords.isEmpty()) {
@@ -323,54 +343,29 @@ bool FindPDF::search(const Entry &entry)
         QUrlQuery query;
 
         /// Search in Google
-        QUrl googleUrl(QStringLiteral("https://www.google.com/search?hl=en&sa=G"));
-        query = QUrlQuery(googleUrl);
-        query.addQueryItem(QStringLiteral("q"), searchWords + QStringLiteral(" filetype:pdf"));
-        googleUrl.setQuery(query);
+        const QUrl googleUrl = QUrl::fromUserInput(QStringLiteral("https://www.google.com/search?hl=en&sa=G&q=filetype:pdf ") + searchWords);
         d->queueUrl(googleUrl, searchWords, QStringLiteral("www.google"), maxDepth);
 
         /// Search in Google Scholar
-        QUrl googleScholarUrl(QStringLiteral("https://scholar.google.com/scholar?hl=en&btnG=Search&as_sdt=1"));
-        query = QUrlQuery(googleScholarUrl);
-        query.addQueryItem(QStringLiteral("q"), searchWords + QStringLiteral(" filetype:pdf"));
-        googleScholarUrl.setQuery(query);
+        const QUrl googleScholarUrl = QUrl::fromUserInput(QStringLiteral("https://scholar.google.com/scholar?hl=en&btnG=Search&as_sdt=1&q=filetype:pdf ") + searchWords);
         d->queueUrl(googleScholarUrl, searchWords, QStringLiteral("scholar.google"), maxDepth);
 
         /// Search in Bing
-        QUrl bingUrl(QStringLiteral("https://www.bing.com/search?setlang=en-US"));
-        query = QUrlQuery(bingUrl);
-        query.addQueryItem(QStringLiteral("q"), searchWords + QStringLiteral(" filetype:pdf"));
-        bingUrl.setQuery(query);
+        const QUrl bingUrl = QUrl::fromUserInput(QStringLiteral("https://www.bing.com/search?setlang=en-US&q=filetype:pdf ") + searchWords);
         d->queueUrl(bingUrl, searchWords, QStringLiteral("bing"), maxDepth);
 
-        /// Search in Microsoft Academic Search
-        QUrl masUrl(QStringLiteral("http://academic.research.microsoft.com/Search"));
-        query = QUrlQuery(masUrl);
-        query.addQueryItem(QStringLiteral("query"), searchWords);
-        masUrl.setQuery(query);
-        d->queueUrl(masUrl, searchWords, QStringLiteral("academicsearch"), maxDepth);
-
         /// Search in CiteSeerX
-        QUrl citeseerXurl(QStringLiteral("http://citeseerx.ist.psu.edu/search?submit=Search&sort=rlv&t=doc"));
-        query = QUrlQuery(citeseerXurl);
-        query.addQueryItem(QStringLiteral("q"), searchWords);
-        citeseerXurl.setQuery(query);
+        const QUrl citeseerXurl = QUrl::fromUserInput(QStringLiteral("http://citeseerx.ist.psu.edu/search?submit=Search&sort=rlv&t=doc&q=") + searchWords);
         d->queueUrl(citeseerXurl, searchWords, QStringLiteral("citeseerx"), maxDepth);
 
         /// Search in StartPage
-        QUrl startPageUrl(QStringLiteral("https://www.startpage.com/do/asearch?cat=web&cmd=process_search&language=english&engine0=v1all&abp=-1&t=white&nj=1&prf=23ad6aab054a88d3da5c443280cee596&suggestOn=0"));
-        query = QUrlQuery(startPageUrl);
-        query.addQueryItem(QStringLiteral("query"), searchWords + QStringLiteral(" filetype:pdf"));
+        const QUrl startPageUrl = QUrl::fromUserInput(QStringLiteral("https://www.startpage.com/do/asearch?cat=web&cmd=process_search&language=english&engine0=v1all&abp=-1&t=white&nj=1&prf=23ad6aab054a88d3da5c443280cee596&suggestOn=0&query=filetype:pdf ") + searchWords);
         d->queueUrl(startPageUrl, searchWords, QStringLiteral("startpage"), maxDepth);
 
-        /// Search in arXiv
-        QUrl arXivUrl = QUrl::fromUserInput(QString(QStringLiteral("http://arxiv.org/find/all/1/all:+%1/0/1/0/all/0/1")).arg(searchWords));
-        d->queueUrl(arXivUrl, searchWords, QStringLiteral("arxiv"), maxDepth);
-
+        /// Search in Local folders
         d->localSearch = new FindLocalPDF(this);
         d->localSearch->search(entry);
         d->aliveCounter++;
-
     }
 
 
@@ -438,19 +433,20 @@ void FindPDF::downloadFinished()
         redirUrl = redirUrl.isEmpty() ? QUrl() : reply->url().resolved(redirUrl);
         qCDebug(LOG_KBIBTEX_NETWORKING) << "finished Downloading " << reply->url().toDisplayString() << "   depth=" << depth  << "  d->aliveCounter=" << d->aliveCounter << "  data.size=" << data.size() << "  redirUrl=" << redirUrl.toDisplayString() << "   origin=" << origin;
 
-        if (!redirUrl.isEmpty())
-        {
-            /// regular expression to check if this is a IEEEXplore  page
-            static const QRegExp ieeeXploreRegExp(QStringLiteral("ieeexplore.ieee.org/document"));
-            if (redirUrl.toString().indexOf(ieeeXploreRegExp) > 0)
-            {
-                redirUrl = OnlineSearchIEEEXplore::convertURLtoDownload(redirUrl);
-            }
-        }
+//        if (!redirUrl.isEmpty())
+//        {
+//            /// regular expression to check if this is a IEEEXplore  page
+//            static const QRegExp ieeeXploreRegExp(QStringLiteral("ieeexplore.ieee.org/document"));
+//            if (redirUrl.toString().indexOf(ieeeXploreRegExp) > 0)
+//            {
+//                redirUrl = OnlineSearchIEEEXplore::convertURLtoDownload(redirUrl);
+//            }
+//        }
 
-        if (!redirUrl.isEmpty())
+        if (!redirUrl.isEmpty()) {
+            redirUrl = d->ieeeDocumentUrlToDownloadUrl(redirUrl);
             d->queueUrl(redirUrl, term, origin, depth - 1);
-        else if (data.contains(htmlHead1) || data.contains(htmlHead2) || data.contains(htmlHead3)) {
+        } else if (data.contains(htmlHead1) || data.contains(htmlHead2) || data.contains(htmlHead3)) {
             /// returned data is a HTML file, i.e. contains "<html"
 
             /// check for limited depth before continuing

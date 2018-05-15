@@ -1,5 +1,10 @@
+if(POLICY CMP0048)
+    cmake_policy(SET CMP0048 NEW)
+endif(POLICY CMP0048)
+
 project(
     kbibtex
+    VERSION "0.8.50"
 )
 
 cmake_minimum_required(
@@ -37,6 +42,7 @@ include(KDEInstallDirs)
 include(KDECompilerSettings NO_POLICY_SCOPE)
 include(KDECMakeSettings)
 include(ECMInstallIcons)
+include(ECMSetupVersion)
 include(ECMAddAppIcon)
 include(GenerateExportHeader)
 
@@ -50,6 +56,15 @@ find_package(
     XmlPatterns
 )
 
+if (MSVC)
+    MESSAGE( STATUS "Disabling building tests when using Microsoft Visual Studio C++ compiler" )
+    # Note to any developer: Try to enable building tests and see which issues you may encounter.
+    # Examples may include: (1) char* texts which exceed the size limit supported by MSVC which
+    # is about 2^16 bytes and (2) characters in strings written in \uXXXX notation not supported
+    # in 1252 encoding as assumed by MSVC for C++ source files.
+    SET(BUILD_TESTING OFF)
+endif (MSVC)
+
 if(
     BUILD_TESTING
 )
@@ -62,6 +77,12 @@ if(
     if (WRITE_RAWDATAFILE)
         add_definitions(-DWRITE_RAWDATAFILE)
     endif(WRITE_RAWDATAFILE)
+
+    set(
+        TESTSET_DIRECTORY ""
+        CACHE PATH
+        "Directory where the local checkout of Git repository 'kbibtex-testset' is located"
+    )
 endif(
     BUILD_TESTING
 )
@@ -96,19 +117,26 @@ find_package(
 
 find_package(KF5DocTools)
 
-# Version number for the exported headers / libs
-set(
-    VERSION_BRANCH "0.8"
+ecm_setup_version(
+    PROJECT
+    VARIABLE_PREFIX KBIBTEX
+    SOVERSION ${KBIBTEX_VERSION_MAJOR}
+    VERSION_HEADER "${CMAKE_CURRENT_BINARY_DIR}/kbibtex-version.h"
 )
-set(
-    REVISION_VERSION "0"
-)
-set(
-    LIB_VERSION ${VERSION_BRANCH}.${REVISION_VERSION}
-)
-set(
-    LIB_SOVERSION ${VERSION_BRANCH}
-)
+
+if((${KBIBTEX_VERSION_PATCH} GREATER 50) OR (${KBIBTEX_VERSION_PATCH} EQUAL 50))
+    # If the version number indicates a pre-release version such as
+    # '0.7.90', i.e. a beta version for the major release 0.8,
+    # increment release version from 0.7 to 0.8
+    math(EXPR KBIBTEX_RELEASE_VERSION_MINOR "${KBIBTEX_VERSION_MINOR} + 1")
+    set(
+        KBIBTEX_RELEASE_VERSION ${KBIBTEX_VERSION_MAJOR}.${KBIBTEX_RELEASE_VERSION_MINOR}
+    )
+else((${KBIBTEX_VERSION_PATCH} GREATER 50) OR (${KBIBTEX_VERSION_PATCH} EQUAL 50))
+    set(
+        KBIBTEX_RELEASE_VERSION ${KBIBTEX_VERSION_MAJOR}.${KBIBTEX_VERSION_MINOR}
+    )
+endif((${KBIBTEX_VERSION_PATCH} GREATER 50) OR (${KBIBTEX_VERSION_PATCH} EQUAL 50))
 
 option(
     UNITY_BUILD
