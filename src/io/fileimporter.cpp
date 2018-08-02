@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -61,73 +61,86 @@ File *FileImporter::fromString(const QString &text)
 
 Person *FileImporter::splitName(const QString &name)
 {
-    // FIXME: This is a rather ugly code
-    QStringList segments = name.split(QRegExp("[ ,]+"));
-    bool containsComma = name.contains(',');
     QString firstName;
     QString lastName;
+    QString suffix;
 
-    if (segments.isEmpty())
-        return nullptr;
+    if (!name.contains(QLatin1Char(','))) {
+        const QStringList segments = name.split(QRegExp("[ ]+"));
 
-    if (!containsComma) {
-        /** PubMed uses a special writing style for names, where the last name is followed by single capital letter,
-          * each being the first letter of each first name
+        /** PubMed uses a special writing style for names, where the last name is followed by
+          * single capital letters, each being the first letter of each first name
           * So, check how many single capital letters are at the end of the given segment list */
         int singleCapitalLettersCounter = 0;
         int p = segments.count() - 1;
-        while (segments[p].length() == 1 && segments[p].compare(segments[p].toUpper()) == 0) {
+        while (segments[p].length() == 1 && segments[p][0].isUpper()) {
             --p;
             ++singleCapitalLettersCounter;
         }
 
         if (singleCapitalLettersCounter > 0) {
-            /** this is a special case for names from PubMed, which are formatted like "Fischer T"
+            /** This is a special case for names from PubMed, which are formatted like "Fischer T A"
               * all segment values until the first single letter segment are last name parts */
             for (int i = 0; i < p; ++i)
-                lastName.append(segments[i]).append(" ");
+                lastName.append(segments[i]).append(QStringLiteral(" "));
             lastName.append(segments[p]);
-            /** single letter segments are first name parts */
+            /// Single letter segments are first name parts
             for (int i = p + 1; i < segments.count() - 1; ++i)
-                firstName.append(segments[i]).append(" ");
+                firstName.append(segments[i]).append(QStringLiteral(" "));
             firstName.append(segments[segments.count() - 1]);
         } else {
             int from = segments.count() - 1;
-            lastName = segments[from];
-            /** check for lower case parts of the last name such as "van", "von", "de", ... */
+            if (looksLikeSuffix(segments[from])) {
+                suffix = segments[from];
+                --from;
+            }
+            lastName = segments[from]; ///< Initialize last name with last segment
+            /// Check for lower case parts of the last name such as "van", "von", "de", ...
             while (from > 0) {
                 if (segments[from - 1].compare(segments[from - 1].toLower()) != 0)
                     break;
                 --from;
-                lastName.prepend(" ");
+                lastName.prepend(QStringLiteral(" "));
                 lastName.prepend(segments[from]);
             }
 
             if (from > 0) {
-                /** there are segments left for the first name */
-                firstName = *segments.begin();
-                for (QStringList::Iterator it = ++segments.begin(); from > 1; ++it, --from) {
+                firstName = *segments.begin(); /// First name initialized with first segment
+                for (QStringList::ConstIterator it = ++segments.begin(); from > 1; ++it, --from) {
                     firstName.append(" ");
                     firstName.append(*it);
                 }
             }
         }
     } else {
-        bool inLastName = true;
-        for (int i = 0; i < segments.count(); ++i) {
-            if (segments[i] == QStringLiteral(","))
-                inLastName = false;
-            else if (inLastName) {
-                if (!lastName.isEmpty()) lastName.append(" ");
-                lastName.append(segments[i]);
-            } else {
-                if (!firstName.isEmpty()) firstName.append(" ");
-                firstName.append(segments[i]);
-            }
-        }
+        const QStringList segments = name.split(QStringLiteral(","));
+        /// segments.count() must be >=2
+        if (segments.count() == 2) {
+            /// Most probably "Smith, Adam"
+            lastName = segments[0].trimmed();
+            firstName = segments[1].trimmed();
+        } else if (segments.count() == 3 && looksLikeSuffix(segments[2])) {
+            /// Most probably "Smith, Adam, Jr."
+            lastName = segments[0].trimmed();
+            firstName = segments[1].trimmed();
+            suffix = segments[2].trimmed();
+        } else
+            qWarning() << "Too many commas in name:" << name;
     }
 
-    return new Person(firstName, lastName);
+    return new Person(firstName, lastName, suffix);
+}
+
+bool FileImporter::looksLikeSuffix(const QString &suffix)
+{
+    const QString normalizedSuffix = suffix.trimmed().toLower();
+    return normalizedSuffix == QStringLiteral("jr")
+           || normalizedSuffix == QStringLiteral("jr.")
+           || normalizedSuffix == QStringLiteral("sr")
+           || normalizedSuffix == QStringLiteral("sr.")
+           || normalizedSuffix == QStringLiteral("ii")
+           || normalizedSuffix == QStringLiteral("iii")
+           || normalizedSuffix == QStringLiteral("iv");
 }
 
 // #include "fileimporter.moc"

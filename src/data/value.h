@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -61,6 +61,7 @@ public:
       * @return TRUE if both instances are equal
       */
     virtual bool operator==(const ValueItem &other) const = 0;
+    bool operator!=(const ValueItem &other) const;
 
     /**
      * Unique numeric identifier for every ValueItem instance.
@@ -145,6 +146,8 @@ private:
 };
 
 QDebug operator<<(QDebug dbg, const Person &person);
+
+Q_DECLARE_METATYPE(Person *)
 
 
 class KBIBTEXDATA_EXPORT MacroKey: public ValueItem
@@ -269,6 +272,9 @@ public:
 
     Value &operator=(const Value &rhs);
     Value &operator=(Value &&rhs);
+    Value &operator<<(const QSharedPointer<ValueItem> &value);
+    bool operator==(const Value &rhs) const;
+    bool operator!=(const Value &rhs) const;
 };
 
 QDebug operator<<(QDebug dbg, const Value &value);

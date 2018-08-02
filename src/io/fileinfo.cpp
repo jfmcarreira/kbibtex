@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -30,6 +30,7 @@
 
 #include "kbibtex.h"
 #include "entry.h"
+#include "logging_io.h"
 
 FileInfo::FileInfo()
 {
@@ -44,7 +45,12 @@ const QString FileInfo::mimetypePDF = QStringLiteral("application/pdf");
 
 QMimeType FileInfo::mimeTypeForUrl(const QUrl &url)
 {
-    static QMimeDatabase db;
+    if (!url.isValid() || url.isEmpty()) {
+        qCWarning(LOG_KBIBTEX_IO) << "Cannot determine mime type for empty or invalid QUrl";
+        return QMimeType(); ///< invalid input gives invalid mime type
+    }
+
+    static const QMimeDatabase db;
     static const QMimeType mtHTML(db.mimeTypeForName(mimetypeHTML));
     static const QMimeType mtOctetStream(db.mimeTypeForName(mimetypeOctetStream));
     static const QMimeType mtBibTeX(db.mimeTypeForName(mimetypeBibTeX));
@@ -90,7 +96,7 @@ QMimeType FileInfo::mimeTypeForUrl(const QUrl &url)
     return result;
 }
 
-void FileInfo::urlsInText(const QString &text, TestExistence testExistence, const QString &baseDirectory, QList<QUrl> &result)
+void FileInfo::urlsInText(const QString &text, const TestExistence testExistence, const QString &baseDirectory, QSet<QUrl> &result)
 {
     if (text.isEmpty())
         return;
@@ -101,8 +107,10 @@ void FileInfo::urlsInText(const QString &text, TestExistence testExistence, cons
     QString internalText = text;
     int pos = 0;
     while ((pos = KBibTeX::doiRegExp.indexIn(internalText, pos)) != -1) {
-        QString match = KBibTeX::doiRegExp.cap(0);
-        QUrl url(doiUrlPrefix() + match.remove(QStringLiteral("\\")));
+        QString doiMatch = KBibTeX::doiRegExp.cap(0);
+        const int semicolonHttpPos = doiMatch.indexOf(QStringLiteral(";http"));
+        if (semicolonHttpPos > 0) doiMatch = doiMatch.left(semicolonHttpPos);
+        QUrl url(doiUrlPrefix() + doiMatch.remove(QStringLiteral("\\")));
         if (url.isValid() && !result.contains(url))
             result << url;
         /// remove match from internal text to avoid duplicates
@@ -116,9 +124,9 @@ void FileInfo::urlsInText(const QString &text, TestExistence testExistence, cons
         const int urlStartPos = genericDoiUrlPrefix.lastIndexIn(internalText, pos);
         if (urlStartPos >= 0 && genericDoiUrlPrefix.cap(0).length() > pos - urlStartPos)
             /// genericDoiUrlPrefix.cap(0) may contain (parts of) DOI
-            internalText = internalText.left(urlStartPos) + internalText.mid(pos + match.length());
+            internalText = internalText.left(urlStartPos) + internalText.mid(pos + doiMatch.length());
         else
-            internalText = internalText.left(pos) + internalText.mid(pos + match.length());
+            internalText = internalText.left(pos) + internalText.mid(pos + doiMatch.length());
     }
 
     const QStringList fileList = internalText.split(KBibTeX::fileListSeparatorRegExp, QString::SkipEmptyParts);
@@ -203,9 +211,9 @@ void FileInfo::urlsInText(const QString &text, TestExistence testExistence, cons
     }
 }
 
-QList<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const QUrl &bibTeXUrl, TestExistence testExistence)
+QSet<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const QUrl &bibTeXUrl, TestExistence testExistence)
 {
-    QList<QUrl> result;
+    QSet<QUrl> result;
     if (entry.isNull() || entry->isEmpty())
         return result;
 
@@ -214,7 +222,7 @@ QList<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const 
         if (!doi.isEmpty() && KBibTeX::doiRegExp.indexIn(doi) == 0) {
             QString match = KBibTeX::doiRegExp.cap(0);
             QUrl url(doiUrlPrefix() + match.remove(QStringLiteral("\\")));
-            result.append(url);
+            result.insert(url);
         }
     }
     static const QString etPMID = QStringLiteral("pmid");
@@ -224,7 +232,7 @@ QList<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const 
         ok &= pmid.toInt(&ok) > 0;
         if (ok) {
             QUrl url(QStringLiteral("https://www.ncbi.nlm.nih.gov/pubmed/") + pmid);
-            result.append(url);
+            result.insert(url);
         }
     }
     static const QString etEPrint = QStringLiteral("eprint");
@@ -232,7 +240,7 @@ QList<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const 
         const QString eprint = PlainTextValue::text(entry->value(etEPrint));
         if (!eprint.isEmpty()) {
             QUrl url(QStringLiteral("http://arxiv.org/search?query=") + eprint);
-            result.append(url);
+            result.insert(url);
         }
     }
 
@@ -258,7 +266,7 @@ QList<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const 
 
     if (!baseDirectory.isEmpty()) {
         /// File types supported by "document preview"
-        static const QStringList documentFileExtensions = QStringList() << QStringLiteral(".pdf") << QStringLiteral(".pdf.gz") << QStringLiteral(".pdf.bz2") << QStringLiteral(".ps") << QStringLiteral(".ps.gz") << QStringLiteral(".ps.bz2") << QStringLiteral(".eps") << QStringLiteral(".eps.gz") << QStringLiteral(".eps.bz2") << QStringLiteral(".html") << QStringLiteral(".xhtml") << QStringLiteral(".htm") << QStringLiteral(".dvi") << QStringLiteral(".djvu") << QStringLiteral(".wwf") << QStringLiteral(".jpeg") << QStringLiteral(".jpg") << QStringLiteral(".png") << QStringLiteral(".gif") << QStringLiteral(".tif") << QStringLiteral(".tiff");
+        static const QStringList documentFileExtensions {QStringLiteral(".pdf"), QStringLiteral(".pdf.gz"), QStringLiteral(".pdf.bz2"), QStringLiteral(".ps"), QStringLiteral(".ps.gz"), QStringLiteral(".ps.bz2"), QStringLiteral(".eps"), QStringLiteral(".eps.gz"), QStringLiteral(".eps.bz2"), QStringLiteral(".html"), QStringLiteral(".xhtml"), QStringLiteral(".htm"), QStringLiteral(".dvi"), QStringLiteral(".djvu"), QStringLiteral(".wwf"), QStringLiteral(".jpeg"), QStringLiteral(".jpg"), QStringLiteral(".png"), QStringLiteral(".gif"), QStringLiteral(".tif"), QStringLiteral(".tiff")};
         result.reserve(result.size() + documentFileExtensions.size() * 2);
 
         /// check if in the same directory as the BibTeX file

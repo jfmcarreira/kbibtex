@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -56,6 +56,11 @@ ValueItem::~ValueItem()
 quint64 ValueItem::id() const
 {
     return internalId;
+}
+
+bool ValueItem::operator!=(const ValueItem &other) const
+{
+    return !operator ==(other);
 }
 
 Keyword::Keyword(const Keyword &other)
@@ -164,7 +169,7 @@ bool Person::operator==(const ValueItem &other) const
 {
     const Person *otherPerson = dynamic_cast<const Person *>(&other);
     if (otherPerson != nullptr) {
-        return otherPerson->firstName() == firstName() && otherPerson->lastName() == lastName();
+        return otherPerson->firstName() == firstName() && otherPerson->lastName() == lastName() && otherPerson->suffix() == suffix();
     } else
         return false;
 }
@@ -541,6 +546,64 @@ Value &Value::operator=(const Value &rhs)
 Value &Value::operator=(Value &&rhs)
 {
     return static_cast<Value &>(QVector<QSharedPointer<ValueItem> >::operator =((rhs)));
+}
+
+Value &Value::operator<<(const QSharedPointer<ValueItem> &value)
+{
+    return static_cast<Value &>(QVector<QSharedPointer<ValueItem> >::operator<<((value)));
+}
+
+bool Value::operator==(const Value &rhs) const
+{
+    const Value &lhs = *this; ///< just for readability to have a 'lhs' matching 'rhs'
+
+    /// Obviously, both Values must be of same size
+    if (lhs.count() != rhs.count()) return false;
+
+    /// Synchronously iterate over both Values' ValueItems
+    for (Value::ConstIterator lhsIt = lhs.constBegin(), rhsIt = rhs.constBegin(); lhsIt != lhs.constEnd() && rhsIt != rhs.constEnd(); ++lhsIt, ++rhsIt) {
+        /// Are both ValueItems PlainTexts and are both PlainTexts equal?
+        const QSharedPointer<PlainText> lhsPlainText = lhsIt->dynamicCast<PlainText>();
+        const QSharedPointer<PlainText> rhsPlainText = rhsIt->dynamicCast<PlainText>();
+        if (!lhsPlainText.isNull() && !rhsPlainText.isNull() && *lhsPlainText.data() != *rhsPlainText.data())
+            return false;
+        else {
+            /// Remainder of comparisons is like for PlainText above, just for other descendants of ValueItem
+            const QSharedPointer<MacroKey> lhsMacroKey = lhsIt->dynamicCast<MacroKey>();
+            const QSharedPointer<MacroKey> rhsMacroKey = rhsIt->dynamicCast<MacroKey>();
+            if (!lhsMacroKey.isNull() && !rhsMacroKey.isNull() && *lhsMacroKey.data() != *rhsMacroKey.data())
+                return false;
+            else {
+                const QSharedPointer<Person> lhsPerson = lhsIt->dynamicCast<Person>();
+                const QSharedPointer<Person> rhsPerson = rhsIt->dynamicCast<Person>();
+                if (!lhsPerson.isNull() && !rhsPerson.isNull() && *lhsPerson.data() != *rhsPerson.data())
+                    return false;
+                else {
+                    const QSharedPointer<VerbatimText> lhsVerbatimText = lhsIt->dynamicCast<VerbatimText>();
+                    const QSharedPointer<VerbatimText> rhsVerbatimText = rhsIt->dynamicCast<VerbatimText>();
+                    if (!lhsVerbatimText.isNull() && !rhsVerbatimText.isNull() && *lhsVerbatimText.data() != *rhsVerbatimText.data())
+                        return false;
+                    else {
+                        const QSharedPointer<Keyword> lhsKeyword = lhsIt->dynamicCast<Keyword>();
+                        const QSharedPointer<Keyword> rhsKeyword = rhsIt->dynamicCast<Keyword>();
+                        if (!lhsKeyword.isNull() && !rhsKeyword.isNull() && *lhsKeyword.data() != *rhsKeyword.data())
+                            return false;
+                        else {
+                            /// If there are other descendants of ValueItem, add tests here ...
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// No check failed, so equalness is proven
+    return true;
+}
+
+bool Value::operator!=(const Value &rhs) const
+{
+    return !operator ==(rhs);
 }
 
 QDebug operator<<(QDebug dbg, const Value &value) {

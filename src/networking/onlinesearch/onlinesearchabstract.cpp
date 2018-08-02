@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -82,7 +82,7 @@ QIcon OnlineSearchAbstract::icon(QListWidgetItem *listWidgetItem)
     const QString cacheDirectory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/favicons/");
     QDir().mkpath(cacheDirectory);
     const QString fileNameStem = cacheDirectory + QString(favIconUrl()).remove(invalidChars);
-    const QStringList fileNameExtensions = QStringList() << QStringLiteral(".ico") << QStringLiteral(".png") << QString();
+    const QStringList fileNameExtensions {QStringLiteral(".ico"), QStringLiteral(".png"), QString()};
 
     for (const QString &extension : fileNameExtensions) {
         const QString fileName = fileNameStem + extension;
@@ -196,6 +196,56 @@ bool OnlineSearchAbstract::handleErrors(QNetworkReply *reply, QUrl &newUrl)
     return true;
 }
 
+QString OnlineSearchAbstract::htmlAttribute(const QString &htmlCode, const int startPos, const QString &attribute) const
+{
+    const int endPos = htmlCode.indexOf(QLatin1Char('>'), startPos);
+    if (endPos < 0) return QString(); ///< no closing angle bracket found
+
+    const QString attributePattern = QString(QStringLiteral(" %1=")).arg(attribute);
+    const int attributePatternPos = htmlCode.indexOf(attributePattern, startPos, Qt::CaseInsensitive);
+    if (attributePatternPos < 0 || attributePatternPos > endPos) return QString(); ///< attribute not found within limits
+
+    const int attributePatternLen = attributePattern.length();
+    const int openingQuotationMarkPos = attributePatternPos + attributePatternLen;
+    const QChar quotationMark = htmlCode[openingQuotationMarkPos];
+    if (quotationMark != QLatin1Char('"') && quotationMark != QLatin1Char('\'')) {
+        /// No valid opening quotation mark found
+        int spacePos = openingQuotationMarkPos;
+        while (spacePos < endPos && !htmlCode[spacePos].isSpace()) ++spacePos;
+        if (spacePos > endPos) return QString(); ///< no closing space found
+        return htmlCode.mid(openingQuotationMarkPos, spacePos - openingQuotationMarkPos);
+    } else {
+        /// Attribute has either single or double quotation marks
+        const int closingQuotationMarkPos = htmlCode.indexOf(quotationMark, openingQuotationMarkPos + 1);
+        if (closingQuotationMarkPos < 0 || closingQuotationMarkPos > endPos) return QString(); ///< closing quotation mark not found within limits
+        return htmlCode.mid(openingQuotationMarkPos + 1, closingQuotationMarkPos - openingQuotationMarkPos - 1);
+    }
+}
+
+bool OnlineSearchAbstract::htmlAttributeIsSelected(const QString &htmlCode, const int startPos, const QString &attribute) const
+{
+    const int endPos = htmlCode.indexOf(QLatin1Char('>'), startPos);
+    if (endPos < 0) return false; ///< no closing angle bracket found
+
+    const QString attributePattern = QStringLiteral(" ") + attribute;
+    const int attributePatternPos = htmlCode.indexOf(attributePattern, startPos, Qt::CaseInsensitive);
+    if (attributePatternPos < 0 || attributePatternPos > endPos) return false; ///< attribute not found within limits
+
+    const int attributePatternLen = attributePattern.length();
+    const QChar nextAfterAttributePattern = htmlCode[attributePatternPos + attributePatternLen];
+    if (nextAfterAttributePattern.isSpace() || nextAfterAttributePattern == QLatin1Char('>') || nextAfterAttributePattern == QLatin1Char('/'))
+        /// No value given for attribute (old-style HTML), so assuming it means checked/selected
+        return true;
+    else if (nextAfterAttributePattern == QLatin1Char('=')) {
+        /// Expecting value to attribute, so retrieve it and check for 'selected' or 'checked'
+        const QString attributeValue = htmlAttribute(htmlCode, attributePatternPos, attribute).toLower();
+        return attributeValue == QStringLiteral("selected") || attributeValue == QStringLiteral("checked");
+    }
+
+    /// Reaching this point only if HTML code is invalid
+    return false;
+}
+
 #ifdef HAVE_KF5
 /**
  * Display a passive notification popup using the D-Bus interface.
@@ -217,7 +267,7 @@ void OnlineSearchAbstract::sendVisualNotification(const QString &text, const QSt
         timeout = 10 * 1000;
 
     QDBusMessage m = QDBusMessage::createMethodCall(dbusServiceName, dbusPath, dbusInterfaceName, QStringLiteral("Notify"));
-    QList<QVariant> args = QList<QVariant>() << QStringLiteral("kdialog") << 0U << icon << title << text << QStringList() << QVariantMap() << timeout;
+    QList<QVariant> args {QStringLiteral("kdialog"), 0U, icon, title, text, QStringList(), QVariantMap(), timeout};
     m.setArguments(args);
 
     QDBusMessage replyMsg = QDBusConnection::sessionBus().call(m);
@@ -271,14 +321,6 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
     static const QString selectTagBegin = QStringLiteral("<select ");
     static const QString selectTagEnd = QStringLiteral("</select>");
     static const QString optionTagBegin = QStringLiteral("<option ");
-    /// regular expressions to test or retrieve attributes in HTML tags
-    static const QRegExp inputTypeRegExp("<input[^>]+\\btype=[\"]?([^\" >\n\t]*)", Qt::CaseInsensitive);
-    static const QRegExp inputNameRegExp("<input[^>]+\\bname=[\"]?([^\" >\n\t]*)", Qt::CaseInsensitive);
-    static const QRegExp inputValueRegExp("<input[^>]+\\bvalue=[\"]?([^\" >\n\t]*)", Qt::CaseInsensitive);
-    static const QRegExp inputIsCheckedRegExp("<input[^>]+\\bchecked([> \t\n]|=[\"]?checked)", Qt::CaseInsensitive);
-    static const QRegExp selectNameRegExp("<select[^>]+\\bname=[\"]?([^\" >\n\t]*)", Qt::CaseInsensitive);
-    static const QRegExp optionValueRegExp("<option[^>]+\\bvalue=[\"]?([^\" >\n\t]*)", Qt::CaseInsensitive);
-    static const QRegExp optionSelectedRegExp("<option[^>]* selected([> \t\n]|=[\"]?selected)", Qt::CaseInsensitive);
 
     /// initialize result map
     QMap<QString, QString> result;
@@ -294,9 +336,9 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
     int p = htmlText.indexOf(inputTagBegin, startPos, Qt::CaseInsensitive);
     while (p > startPos && p < endPos) {
         /// get "type", "name", and "value" attributes
-        QString inputType = inputTypeRegExp.indexIn(htmlText, p) == p ? inputTypeRegExp.cap(1).toLower() : QString();
-        QString inputName = inputNameRegExp.indexIn(htmlText, p) == p ? inputNameRegExp.cap(1) : QString();
-        QString inputValue = inputValueRegExp.indexIn(htmlText, p) ? inputValueRegExp.cap(1) : QString();
+        const QString inputType = htmlAttribute(htmlText, p, QStringLiteral("type")).toLower();
+        const QString inputName = htmlAttribute(htmlText, p, QStringLiteral("name"));
+        const QString inputValue = htmlAttribute(htmlText, p, QStringLiteral("value"));
 
         if (!inputName.isEmpty()) {
             /// get value of input types
@@ -304,12 +346,12 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
                 result[inputName] = inputValue;
             else if (inputType == QStringLiteral("radio")) {
                 /// must be selected
-                if (htmlText.indexOf(inputIsCheckedRegExp, p) == p) {
+                if (htmlAttributeIsSelected(htmlText, p, QStringLiteral("checked"))) {
                     result[inputName] = inputValue;
                 }
             } else if (inputType == QStringLiteral("checkbox")) {
                 /// must be checked
-                if (htmlText.indexOf(inputIsCheckedRegExp, p) == p) {
+                if (htmlAttributeIsSelected(htmlText, p, QStringLiteral("checked"))) {
                     /// multiple checkbox values with the same name are possible
                     result.insertMulti(inputName, inputValue);
                 }
@@ -324,17 +366,17 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
     p = htmlText.indexOf(selectTagBegin, startPos, Qt::CaseInsensitive);
     while (p > startPos && p < endPos) {
         /// get "name" attribute from "select" tag
-        const QString selectName = selectNameRegExp.indexIn(htmlText, p) == p ? selectNameRegExp.cap(1) : QString();
+        const QString selectName = htmlAttribute(htmlText, p, QStringLiteral("name"));
 
         /// "select" tag contains one or several "option" tags, search all
         int popt = htmlText.indexOf(optionTagBegin, p, Qt::CaseInsensitive);
         int endSelect = htmlText.indexOf(selectTagEnd, p, Qt::CaseInsensitive);
         while (popt > p && popt < endSelect) {
             /// get "value" attribute from "option" tag
-            const QString optionValue = optionValueRegExp.indexIn(htmlText, popt) == popt ? optionValueRegExp.cap(1) : QString();
+            const QString optionValue =  htmlAttribute(htmlText, popt, QStringLiteral("value"));
             if (!selectName.isEmpty() && !optionValue.isEmpty()) {
                 /// if this "option" tag is "selected", store value
-                if (htmlText.indexOf(optionSelectedRegExp, popt) == popt) {
+                if (htmlAttributeIsSelected(htmlText, popt, QStringLiteral("selected"))) {
                     result[selectName] = optionValue;
                 }
             }
@@ -442,8 +484,11 @@ void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
     /// Sometimes, there is no identifier, so set a random one
     if (entry->id().isEmpty())
         entry->setId(QString(QStringLiteral("entry-%1")).arg(QString::number(qrand(), 36)));
+    /// Missing entry type? Set it to 'misc'
+    if (entry->type().isEmpty())
+        entry->setType(Entry::etMisc);
 
-    const QString ftIssue = QStringLiteral("issue");
+    static const QString ftIssue = QStringLiteral("issue");
     if (entry->contains(ftIssue)) {
         /// ACM's Digital Library uses "issue" instead of "number" -> fix that
         Value v = entry->value(ftIssue);
@@ -453,7 +498,7 @@ void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
 
     /// If entry contains a description field but no abstract,
     /// rename description field to abstract
-    const QString ftDescription = QStringLiteral("description");
+    static const QString ftDescription = QStringLiteral("description");
     if (!entry->contains(Entry::ftAbstract) && entry->contains(ftDescription)) {
         Value v = entry->value(ftDescription);
         entry->remove(ftDescription);
@@ -473,21 +518,72 @@ void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
     }
 
     if (entry->contains(Entry::ftMonth)) {
-        /// Fix strigns for months: "September" -> "sep"
-        const QString monthStr = PlainTextValue::text(entry->value(Entry::ftMonth));
+        /// Fix strings for months: "September" -> "sep"
+        Value monthValue = entry->value(Entry::ftMonth);
+        bool updated = false;
+        for (Value::Iterator it = monthValue.begin(); it != monthValue.end(); ++it) {
+            const QString valueItem = PlainTextValue::text(*it);
 
-        static const QRegExp longMonth = QRegExp(QStringLiteral("(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"), Qt::CaseInsensitive);
-        if (monthStr.indexOf(longMonth) == 0 && monthStr == longMonth.cap(0)) {
-            /// String used for month is actually a full name, therefore replace it
-            entry->remove(Entry::ftMonth);
-
-            /// Regular expression checked for valid three-letter abbreviations
-            /// that month names start with. Use those three letters for a macro key
-            /// Example: "September" -> sep
-            Value v;
-            v.append(QSharedPointer<MacroKey>(new MacroKey(longMonth.cap(1).toLower())));
-            entry->insert(Entry::ftMonth, v);
+            static const QRegExp longMonth = QRegExp(QStringLiteral("(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"), Qt::CaseInsensitive);
+            if (valueItem.indexOf(longMonth) == 0) {
+                it = monthValue.erase(it);
+                it = monthValue.insert(it, QSharedPointer<MacroKey>(new MacroKey(valueItem.left(3).toLower())));
+                updated = true;
+            }
         }
+        if (updated)
+            entry->insert(Entry::ftMonth, monthValue);
+    }
+
+    if (entry->contains(Entry::ftDOI) && entry->contains(Entry::ftUrl)) {
+        /// Remove URL from entry if contains a DOI and the DOI field matches the DOI in the URL
+        const Value &doiValue = entry->value(Entry::ftDOI);
+        for (const auto &doiValueItem : doiValue) {
+            const QString doi = PlainTextValue::text(doiValueItem);
+            Value v = entry->value(Entry::ftUrl);
+            bool gotChanged = false;
+            for (Value::Iterator it = v.begin(); it != v.end();) {
+                const QSharedPointer<ValueItem> &vi = (*it);
+                if (vi->containsPattern(QStringLiteral("/") + doi)) {
+                    it = v.erase(it);
+                    gotChanged = true;
+                } else
+                    ++it;
+            }
+            if (v.isEmpty())
+                entry->remove(Entry::ftUrl);
+            else if (gotChanged)
+                entry->insert(Entry::ftUrl, v);
+        }
+    } else if (!entry->contains(Entry::ftDOI) && entry->contains(Entry::ftUrl)) {
+        /// If URL looks like a DOI, remove URL and add a DOI field
+        QSet<QString> doiSet;
+        Value v = entry->value(Entry::ftUrl);
+        bool gotChanged = false;
+        for (Value::Iterator it = v.begin(); it != v.end();) {
+            const QString viText = PlainTextValue::text(*it);
+            if (KBibTeX::doiRegExp.indexIn(viText) >= 0) {
+                doiSet.insert(KBibTeX::doiRegExp.cap());
+                it = v.erase(it);
+                gotChanged = true;
+            } else
+                ++it;
+        }
+        if (v.isEmpty())
+            entry->remove(Entry::ftUrl);
+        else if (gotChanged)
+            entry->insert(Entry::ftUrl, v);
+        if (!doiSet.isEmpty()) {
+            Value doiValue;
+            for (const QString &doi : doiSet)
+                doiValue.append(QSharedPointer<PlainText>(new PlainText(doi)));
+            entry->insert(Entry::ftDOI, doiValue);
+        }
+    } else if (!entry->contains(Entry::ftDOI) && KBibTeX::doiRegExp.indexIn(entry->id()) >= 0) {
+        /// If entry id looks like a DOI, add a DOI field
+        Value doiValue;
+        doiValue.append(QSharedPointer<PlainText>(new PlainText(KBibTeX::doiRegExp.cap())));
+        entry->insert(Entry::ftDOI, doiValue);
     }
 
     /// Referenced strings or entries do not exist in the search result
@@ -500,7 +596,7 @@ bool OnlineSearchAbstract::publishEntry(QSharedPointer<Entry> entry)
     if (entry.isNull()) return false;
 
     Value v;
-    v.append(QSharedPointer<VerbatimText>(new VerbatimText(label())));
+    v.append(QSharedPointer<PlainText>(new PlainText(label())));
     entry->insert(QStringLiteral("x-fetchedfrom"), v);
 
     sanitizeEntry(entry);
