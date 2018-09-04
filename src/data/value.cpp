@@ -23,6 +23,7 @@
 #include <QString>
 #include <QStringList>
 #include <QDebug>
+#include <QRegularExpression>
 
 #ifdef HAVE_KF5
 #include <KSharedConfig>
@@ -40,17 +41,17 @@ uint qHash(const QSharedPointer<ValueItem> &valueItem)
     return qHash(valueItem->id());
 }
 
-const QRegExp ValueItem::ignoredInSorting = QRegExp("[{}\\\\]+");
+const QRegularExpression ValueItem::ignoredInSorting(QStringLiteral("[{}\\\\]+"));
 
 ValueItem::ValueItem()
         : internalId(++internalIdCounter)
 {
-    // nothing
+    /// nothing
 }
 
 ValueItem::~ValueItem()
 {
-    // nothing
+    /// nothing
 }
 
 quint64 ValueItem::id() const
@@ -66,13 +67,13 @@ bool ValueItem::operator!=(const ValueItem &other) const
 Keyword::Keyword(const Keyword &other)
         : m_text(other.m_text)
 {
-    // nothing
+    /// nothing
 }
 
 Keyword::Keyword(const QString &text)
         : m_text(text)
 {
-    // nothing
+    /// nothing
 }
 
 void Keyword::setText(const QString &text)
@@ -116,13 +117,13 @@ bool Keyword::isKeyword(const ValueItem &other) {
 Person::Person(const QString &firstName, const QString &lastName, const QString &suffix)
         : m_firstName(firstName), m_lastName(lastName), m_suffix(suffix)
 {
-    // nothing
+    /// nothing
 }
 
 Person::Person(const Person &other)
         : m_firstName(other.firstName()), m_lastName(other.lastName()), m_suffix(other.suffix())
 {
-    // nothing
+    /// nothing
 }
 
 QString Person::firstName() const
@@ -215,18 +216,16 @@ QDebug operator<<(QDebug dbg, const Person &person) {
 }
 
 
-const QRegExp MacroKey::validMacroKey = QRegExp("^[a-z][-.:/+_a-z0-9]*$|^[0-9]+$", Qt::CaseInsensitive);
-
 MacroKey::MacroKey(const MacroKey &other)
         : m_text(other.m_text)
 {
-    // nothing
+    /// nothing
 }
 
 MacroKey::MacroKey(const QString &text)
         : m_text(text)
 {
-    // nothing
+    /// nothing
 }
 
 void MacroKey::setText(const QString &text)
@@ -242,8 +241,9 @@ QString MacroKey::text() const
 bool MacroKey::isValid()
 {
     const QString t = text();
-    int idx = validMacroKey.indexIn(t);
-    return idx > -1 && validMacroKey.cap(0) == t;
+    static const QRegularExpression validMacroKey(QStringLiteral("^[a-z][-.:/+_a-z0-9]*$|^[0-9]+$"), QRegularExpression::CaseInsensitiveOption);
+    const QRegularExpressionMatch match = validMacroKey.match(t);
+    return match.hasMatch() && match.captured(0) == t;
 }
 
 void MacroKey::replace(const QString &before, const QString &after, ValueItem::ReplaceMode replaceMode)
@@ -282,13 +282,13 @@ QDebug operator<<(QDebug dbg, const MacroKey &macrokey) {
 PlainText::PlainText(const PlainText &other)
         : m_text(other.text())
 {
-    // nothing
+    /// nothing
 }
 
 PlainText::PlainText(const QString &text)
         : m_text(text)
 {
-    // nothing
+    /// nothing
 }
 
 void PlainText::setText(const QString &text)
@@ -342,13 +342,13 @@ QList<VerbatimText::ColorLabelPair> VerbatimText::colorLabelPairs = QList<Verbat
 VerbatimText::VerbatimText(const VerbatimText &other)
         : m_text(other.text())
 {
-    // nothing
+    /// nothing
 }
 
 VerbatimText::VerbatimText(const QString &text)
         : m_text(text)
 {
-    // nothing
+    /// nothing
 }
 
 void VerbatimText::setText(const QString &text)

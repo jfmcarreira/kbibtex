@@ -23,6 +23,7 @@
 #include <QNetworkAccessManager>
 #include <QMap>
 #include <QUrlQuery>
+#include <QRegularExpression>
 
 #include <KLocalizedString>
 
@@ -108,6 +109,8 @@ void OnlineSearchMathSciNet::startSearch(const QMap<QString, QString> &query, in
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchMathSciNet::doneFetchingQueryForm);
+
+    refreshBusyProperty();
 }
 
 QString OnlineSearchMathSciNet::label() const
@@ -154,8 +157,9 @@ void OnlineSearchMathSciNet::doneFetchingQueryForm()
         QNetworkReply *newReply = InternalNetworkAccessManager::instance().get(request, reply);
         InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
         connect(newReply, &QNetworkReply::finished, this, &OnlineSearchMathSciNet::doneFetchingResultPage);
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchMathSciNet::doneFetchingResultPage()
@@ -179,10 +183,12 @@ void OnlineSearchMathSciNet::doneFetchingResultPage()
         }
         query.addQueryItem(QStringLiteral("fmt"), QStringLiteral("bibtex"));
 
-        int p = -1, count = 0;
-        static const QRegExp checkBoxRegExp(QStringLiteral("<input class=\"hlCheckBox\" type=\"checkbox\" name=\"b\" value=\"(\\d+)\""));
-        while (count < d->numResults && (p = checkBoxRegExp.indexIn(htmlText, p + 1)) >= 0) {
-            query.addQueryItem(QStringLiteral("b"), checkBoxRegExp.cap(1));
+        int count = 0;
+        static const QRegularExpression checkBoxRegExp(QStringLiteral("<input class=\"hlCheckBox\" type=\"checkbox\" name=\"b\" value=\"(\\d+)\""));
+        QRegularExpressionMatchIterator checkBoxRegExpMatchIt = checkBoxRegExp.globalMatch(htmlText);
+        while (count < d->numResults && checkBoxRegExpMatchIt.hasNext()) {
+            const QRegularExpressionMatch checkBoxRegExpMatch = checkBoxRegExpMatchIt.next();
+            query.addQueryItem(QStringLiteral("b"), checkBoxRegExpMatch.captured(1));
             ++count;
         }
 
@@ -195,11 +201,11 @@ void OnlineSearchMathSciNet::doneFetchingResultPage()
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchMathSciNet::doneFetchingBibTeXcode);
         } else {
             /// nothing found
-            emit progress(curStep = numSteps, numSteps);
             stopSearch(resultNoError);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchMathSciNet::doneFetchingBibTeXcode()
@@ -233,8 +239,9 @@ void OnlineSearchMathSciNet::doneFetchingBibTeXcode()
         }
 
         stopSearch(hasEntry ? resultNoError : resultUnspecifiedError);
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchMathSciNet::sanitizeEntry(QSharedPointer<Entry> entry)

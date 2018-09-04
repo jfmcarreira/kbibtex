@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -168,7 +168,6 @@ public:
 class OnlineSearchIngentaConnect::OnlineSearchIngentaConnectPrivate
 {
 private:
-    OnlineSearchIngentaConnect *p;
     const QString ingentaConnectBaseUrl;
 
 public:
@@ -176,13 +175,13 @@ public:
     OnlineSearchQueryFormIngentaConnect *form;
 #endif // HAVE_QTWIDGETS
 
-    OnlineSearchIngentaConnectPrivate(OnlineSearchIngentaConnect *parent)
-            : p(parent), ingentaConnectBaseUrl(QStringLiteral("http://www.ingentaconnect.com/search?format=bib"))
+    OnlineSearchIngentaConnectPrivate(OnlineSearchIngentaConnect *)
+            : ingentaConnectBaseUrl(QStringLiteral("http://www.ingentaconnect.com/search?format=bib"))
 #ifdef HAVE_QTWIDGETS
         , form(nullptr)
 #endif // HAVE_QTWIDGETS
     {
-        // nothing
+        /// nothing
     }
 
 #ifdef HAVE_QTWIDGETS
@@ -196,7 +195,7 @@ public:
         QUrlQuery query(queryUrl);
 
         int index = 1;
-        const QStringList chunksFullText = p->splitRespectingQuotationMarks(form->lineEditFullText->text());
+        const QStringList chunksFullText = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditFullText->text());
         for (const QString &chunk : chunksFullText) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND")); ///< join search terms with an AND operation
@@ -205,7 +204,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksAuthor = p->splitRespectingQuotationMarks(form->lineEditAuthor->text());
+        const QStringList chunksAuthor = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditAuthor->text());
         for (const QString &chunk : chunksAuthor) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -214,7 +213,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksTitle = p->splitRespectingQuotationMarks(form->lineEditTitle->text());
+        const QStringList chunksTitle = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditTitle->text());
         for (const QString &chunk : chunksTitle) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -223,7 +222,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksPublication = p->splitRespectingQuotationMarks(form->lineEditPublication->text());
+        const QStringList chunksPublication = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditPublication->text());
         for (const QString &chunk : chunksPublication) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -232,7 +231,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksIssue = p->splitRespectingQuotationMarks(form->lineEditIssue->text());
+        const QStringList chunksIssue = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditIssue->text());
         for (const QString &chunk : chunksIssue) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -241,7 +240,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksVolume = p->splitRespectingQuotationMarks(form->lineEditVolume->text());
+        const QStringList chunksVolume = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditVolume->text());
         for (const QString &chunk : chunksVolume) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -250,7 +249,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksKeywords = p->splitRespectingQuotationMarks(form->lineEditAbstractKeywords->text());
+        const QStringList chunksKeywords = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditAbstractKeywords->text());
         for (const QString &chunk : chunksKeywords) {
             if (index > 1)
                 query.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -275,7 +274,7 @@ public:
         QUrlQuery q(queryUrl);
 
         int index = 1;
-        const QStringList chunksFreeText = p->splitRespectingQuotationMarks(query[queryKeyFreeText]);
+        const QStringList chunksFreeText = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyFreeText]);
         for (const QString &chunk : chunksFreeText) {
             if (index > 1)
                 q.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -284,7 +283,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksAuthor = p->splitRespectingQuotationMarks(query[queryKeyAuthor]);
+        const QStringList chunksAuthor = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyAuthor]);
         for (const QString &chunk : chunksAuthor) {
             if (index > 1)
                 q.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -293,7 +292,7 @@ public:
             ++index;
         }
 
-        const QStringList chunksTitle = p->splitRespectingQuotationMarks(query[queryKeyTitle]);
+        const QStringList chunksTitle = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyTitle]);
         for (const QString &chunk : chunksTitle) {
             if (index > 1)
                 q.addQueryItem(QString(QStringLiteral("operator%1")).arg(index), QStringLiteral("AND"));
@@ -318,7 +317,7 @@ public:
 OnlineSearchIngentaConnect::OnlineSearchIngentaConnect(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchIngentaConnectPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchIngentaConnect::~OnlineSearchIngentaConnect()
@@ -335,6 +334,8 @@ void OnlineSearchIngentaConnect::startSearch(const QMap<QString, QString> &query
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchIngentaConnect::downloadDone);
+
+    refreshBusyProperty();
 }
 
 #ifdef HAVE_QTWIDGETS
@@ -349,6 +350,8 @@ void OnlineSearchIngentaConnect::startSearchFromForm()
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchIngentaConnect::downloadDone);
 
     d->form->saveState();
+
+    refreshBusyProperty();
 }
 #endif // HAVE_QTWIDGETS
 
@@ -401,15 +404,16 @@ void OnlineSearchIngentaConnect::downloadDone()
 
                 delete bibtexFile;
             } else {
-                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << reply->url().toDisplayString();
+                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
                 stopSearch(resultUnspecifiedError);
             }
         } else {
             /// returned file is empty
             stopSearch(resultNoError);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 #include "onlinesearchingentaconnect.moc"

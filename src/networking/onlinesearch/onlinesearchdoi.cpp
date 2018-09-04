@@ -23,6 +23,7 @@
 #endif // HAVE_QTWIDGETS
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QRegularExpression>
 
 #ifdef HAVE_QTWIDGETS
 #include <KLineEdit>
@@ -115,8 +116,9 @@ public:
     QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
         Q_UNUSED(numResults)
 
-        if (KBibTeX::doiRegExp.indexIn(query[queryKeyFreeText]) >= 0) {
-            return QUrl(QStringLiteral("https://dx.doi.org/") + KBibTeX::doiRegExp.cap(0));
+        const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(query[queryKeyFreeText]);
+        if (doiRegExpMatch.hasMatch()) {
+            return QUrl(QStringLiteral("https://dx.doi.org/") + doiRegExpMatch.captured(0));
         }
 
         return QUrl();
@@ -152,6 +154,8 @@ void OnlineSearchDOI::startSearchFromForm()
         d->form->saveState();
     } else
         delayedStoppedSearch(resultNoError);
+
+    refreshBusyProperty();
 }
 #endif // HAVE_QTWIDGETS
 
@@ -167,6 +171,8 @@ void OnlineSearchDOI::startSearch(const QMap<QString, QString> &query, int numRe
         QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
         InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
         connect(reply, &QNetworkReply::finished, this, &OnlineSearchDOI::downloadDone);
+
+        refreshBusyProperty();
     } else
         delayedStoppedSearch(resultNoError);
 }
@@ -229,7 +235,7 @@ void OnlineSearchDOI::downloadDone()
 
                     delete bibtexFile;
                 } else {
-                    qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << reply->url().toDisplayString();
+                    qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
                     stopSearch(resultUnspecifiedError);
                 }
             } else {
@@ -237,8 +243,9 @@ void OnlineSearchDOI::downloadDone()
                 stopSearch(resultNoError);
             }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 #include "onlinesearchdoi.moc"

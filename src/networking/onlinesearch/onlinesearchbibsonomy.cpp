@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -119,21 +119,17 @@ public:
 
 class OnlineSearchBibsonomy::OnlineSearchBibsonomyPrivate
 {
-private:
-    OnlineSearchBibsonomy *p;
-
 public:
 #ifdef HAVE_QTWIDGETS
     OnlineSearchQueryFormBibsonomy *form;
 #endif // HAVE_QTWIDGETS
 
-    OnlineSearchBibsonomyPrivate(OnlineSearchBibsonomy *parent)
-            : p(parent)
+    OnlineSearchBibsonomyPrivate(OnlineSearchBibsonomy *)
 #ifdef HAVE_QTWIDGETS
-        , form(nullptr)
+            : form(nullptr)
 #endif // HAVE_QTWIDGETS
     {
-        // nothing
+        /// nothing
     }
 
 #ifdef HAVE_QTWIDGETS
@@ -143,18 +139,18 @@ public:
             return QUrl();
         }
 
-        QString queryString = p->encodeURL(form->lineEditSearchTerm->text());
-        return QUrl(QStringLiteral("http://www.bibsonomy.org/bib/") + form->comboBoxSearchWhere->itemData(form->comboBoxSearchWhere->currentIndex()).toString() + "/" + queryString + QString(QStringLiteral("?items=%1")).arg(form->numResultsField->value()));
+        QString queryString = OnlineSearchAbstract::encodeURL(form->lineEditSearchTerm->text());
+        return QUrl(QStringLiteral("https://www.bibsonomy.org/bib/") + form->comboBoxSearchWhere->itemData(form->comboBoxSearchWhere->currentIndex()).toString() + QStringLiteral("/") + queryString + QString(QStringLiteral("?items=%1")).arg(form->numResultsField->value()));
     }
 #endif // HAVE_QTWIDGETS
 
     QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
-        QString url = QStringLiteral("http://www.bibsonomy.org/bib/");
+        QString url = QStringLiteral("https://www.bibsonomy.org/bib/");
 
-        bool hasFreeText = !query[queryKeyFreeText].isEmpty();
-        bool hasTitle = !query[queryKeyTitle].isEmpty();
-        bool hasAuthor = !query[queryKeyAuthor].isEmpty();
-        bool hasYear = !query[queryKeyYear].isEmpty();
+        const bool hasFreeText = !query[queryKeyFreeText].isEmpty();
+        const bool hasTitle = !query[queryKeyTitle].isEmpty();
+        const bool hasAuthor = !query[queryKeyAuthor].isEmpty();
+        const bool hasYear = !query[queryKeyYear].isEmpty();
 
         QString searchType = QStringLiteral("search");
         if (hasAuthor && !hasFreeText && !hasTitle && !hasYear) {
@@ -165,7 +161,7 @@ public:
 
         QStringList queryFragments;
         for (QMap<QString, QString>::ConstIterator it = query.constBegin(); it != query.constEnd(); ++it) {
-            queryFragments << p->encodeURL(it.value());
+            queryFragments << OnlineSearchAbstract::encodeURL(it.value());
         }
 
         QString queryString = queryFragments.join(QStringLiteral("%20"));
@@ -189,7 +185,7 @@ public:
 OnlineSearchBibsonomy::OnlineSearchBibsonomy(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchBibsonomyPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchBibsonomy::~OnlineSearchBibsonomy()
@@ -206,6 +202,8 @@ void OnlineSearchBibsonomy::startSearch(const QMap<QString, QString> &query, int
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchBibsonomy::downloadDone);
+
+    refreshBusyProperty();
 }
 
 #ifdef HAVE_QTWIDGETS
@@ -219,7 +217,7 @@ void OnlineSearchBibsonomy::startSearchFromForm()
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchBibsonomy::downloadDone);
 
-    emit progress(0, numSteps);
+    refreshBusyProperty();
 }
 #endif // HAVE_QTWIDGETS
 
@@ -230,7 +228,7 @@ QString OnlineSearchBibsonomy::label() const
 
 QString OnlineSearchBibsonomy::favIconUrl() const
 {
-    return QStringLiteral("http://www.bibsonomy.org/resources/image/favicon.png");
+    return QStringLiteral("https://www.bibsonomy.org/resources/image/favicon.png");
 }
 
 #ifdef HAVE_QTWIDGETS
@@ -244,7 +242,7 @@ OnlineSearchQueryFormAbstract *OnlineSearchBibsonomy::customWidget(QWidget *pare
 
 QUrl OnlineSearchBibsonomy::homepage() const
 {
-    return QUrl(QStringLiteral("http://www.bibsonomy.org/"));
+    return QUrl(QStringLiteral("https://www.bibsonomy.org/"));
 }
 
 void OnlineSearchBibsonomy::downloadDone()
@@ -269,20 +267,19 @@ void OnlineSearchBibsonomy::downloadDone()
                 }
 
                 stopSearch(resultNoError);
-                emit progress(curStep = numSteps, numSteps);
 
                 delete bibtexFile;
             } else {
-                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << reply->url().toDisplayString();
+                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
                 stopSearch(resultUnspecifiedError);
             }
         } else {
             /// returned file is empty
             stopSearch(resultNoError);
-            emit progress(curStep = numSteps, numSteps);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 #include "onlinesearchbibsonomy.moc"

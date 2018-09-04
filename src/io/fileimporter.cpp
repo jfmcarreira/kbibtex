@@ -20,7 +20,7 @@
 #include <QBuffer>
 #include <QTextStream>
 #include <QStringList>
-#include <QRegExp>
+#include <QRegularExpression>
 
 #include "value.h"
 #include "logging_io.h"
@@ -28,12 +28,12 @@
 FileImporter::FileImporter(QObject *parent)
         : QObject(parent)
 {
-    // nothing
+    /// nothing
 }
 
 FileImporter::~FileImporter()
 {
-    // nothing
+    /// nothing
 }
 
 File *FileImporter::fromString(const QString &text)
@@ -66,7 +66,8 @@ Person *FileImporter::splitName(const QString &name)
     QString suffix;
 
     if (!name.contains(QLatin1Char(','))) {
-        const QStringList segments = name.split(QRegExp("[ ]+"));
+        static const QRegularExpression splittingRegExp(QStringLiteral("[ ]+"));
+        const QStringList segments = name.split(splittingRegExp);
 
         /** PubMed uses a special writing style for names, where the last name is followed by
           * single capital letters, each being the first letter of each first name

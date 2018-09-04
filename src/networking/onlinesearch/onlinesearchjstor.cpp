@@ -20,6 +20,7 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QUrlQuery>
+#include <QRegularExpression>
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
@@ -36,14 +37,14 @@ public:
     static const QString jstorBaseUrl;
     QUrl queryUrl;
 
-    OnlineSearchJStorPrivate(OnlineSearchJStor *parent)
+    OnlineSearchJStorPrivate(OnlineSearchJStor *)
             : numExpectedResults(0)
     {
-        Q_UNUSED(parent)
+        /// nothing
     }
 };
 
-const QString OnlineSearchJStor::OnlineSearchJStorPrivate::jstorBaseUrl = QStringLiteral("http://www.jstor.org/");
+const QString OnlineSearchJStor::OnlineSearchJStorPrivate::jstorBaseUrl = QStringLiteral("https://www.jstor.org/");
 
 OnlineSearchJStor::OnlineSearchJStor(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchJStorPrivate(this))
@@ -104,6 +105,8 @@ void OnlineSearchJStor::startSearch(const QMap<QString, QString> &query, int num
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchJStor::doneFetchingStartPage);
+
+    refreshBusyProperty();
 }
 
 QString OnlineSearchJStor::label() const
@@ -113,12 +116,12 @@ QString OnlineSearchJStor::label() const
 
 QString OnlineSearchJStor::favIconUrl() const
 {
-    return QStringLiteral("http://www.jstor.org/assets/search_20151218T0921/files/search/images/favicon.ico");
+    return QStringLiteral("https://www.jstor.org/assets/search_20151218T0921/files/search/images/favicon.ico");
 }
 
 QUrl OnlineSearchJStor::homepage() const
 {
-    return QUrl(QStringLiteral("http://www.jstor.org/"));
+    return QUrl(QStringLiteral("https://www.jstor.org/"));
 }
 
 void OnlineSearchJStor::doneFetchingStartPage()
@@ -143,8 +146,9 @@ void OnlineSearchJStor::doneFetchingStartPage()
             InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchJStor::doneFetchingResultPage);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchJStor::doneFetchingResultPage()
@@ -159,9 +163,10 @@ void OnlineSearchJStor::doneFetchingResultPage()
 
         /// extract all unique DOI from HTML code
         QStringList uniqueDOIs;
-        int p = -6;
-        while ((p = KBibTeX::doiRegExp.indexIn(htmlText, p + 6)) >= 0) {
-            QString doi = KBibTeX::doiRegExp.cap(0);
+        QRegularExpressionMatchIterator doiRegExpMatchIt = KBibTeX::doiRegExp.globalMatch(htmlText);
+        while (doiRegExpMatchIt.hasNext()) {
+            const QRegularExpressionMatch doiRegExpMatch = doiRegExpMatchIt.next();
+            QString doi = doiRegExpMatch.captured(0);
             // FIXME DOI RegExp accepts DOIs with question marks, causes problems here
             const int p = doi.indexOf(QLatin1Char('?'));
             if (p > 0) doi = doi.left(p);
@@ -171,7 +176,6 @@ void OnlineSearchJStor::doneFetchingResultPage()
 
         if (uniqueDOIs.isEmpty()) {
             /// No results found
-            emit progress(curStep = numSteps, numSteps);
             stopSearch(resultNoError);
         } else {
             /// Build POST request that should return a BibTeX document
@@ -189,8 +193,9 @@ void OnlineSearchJStor::doneFetchingResultPage()
             InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchJStor::doneFetchingBibTeXCode);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchJStor::doneFetchingBibTeXCode()
@@ -215,25 +220,26 @@ void OnlineSearchJStor::doneFetchingBibTeXCode()
             delete bibtexFile;
         }
 
-        emit progress(curStep = numSteps, numSteps);
         stopSearch(numFoundResults > 0 ? resultNoError : resultUnspecifiedError);
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchJStor::sanitizeEntry(QSharedPointer<Entry> entry)
 {
     OnlineSearchAbstract::sanitizeEntry(entry);
 
-    if (KBibTeX::doiRegExp.indexIn(entry->id()) == 0) {
+    const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(entry->id());
+    if (doiRegExpMatch.hasMatch()) {
         /// entry ID is a DOI
         Value v;
-        v.append(QSharedPointer<VerbatimText>(new VerbatimText(KBibTeX::doiRegExp.cap(0))));
+        v.append(QSharedPointer<VerbatimText>(new VerbatimText(doiRegExpMatch.captured(0))));
         entry->insert(Entry::ftDOI, v);
     }
 
     QString url = PlainTextValue::text(entry->value(Entry::ftUrl));
-    if (url.startsWith(QStringLiteral("http://www.jstor.org/stable/"))) {
+    if (url.startsWith(QStringLiteral("https://www.jstor.org/stable/"))) {
         /// use JSTOR's own stable ID for entry ID
         entry->setId("jstor" + url.mid(28).replace(QLatin1Char(','), QString()));
         /// store JSTOR's own stable ID

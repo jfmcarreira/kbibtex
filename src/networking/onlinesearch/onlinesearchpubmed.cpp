@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -22,6 +22,7 @@
 #include <QTimer>
 #include <QStandardPaths>
 #include <QCoreApplication>
+#include <QRegularExpression>
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
@@ -29,6 +30,7 @@
 #endif // HAVE_KF5
 
 #include "xsltransform.h"
+#include "encoderxml.h"
 #include "fileimporterbibtex.h"
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
@@ -40,14 +42,13 @@ uint OnlineSearchPubMed::lastQueryEpoch = 0;
 class OnlineSearchPubMed::OnlineSearchPubMedPrivate
 {
 private:
-    OnlineSearchPubMed *p;
     const QString pubMedUrlPrefix;
 
 public:
     const XSLTransform xslt;
 
-    OnlineSearchPubMedPrivate(OnlineSearchPubMed *parent)
-            : p(parent), pubMedUrlPrefix(QStringLiteral("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/")),
+    OnlineSearchPubMedPrivate(OnlineSearchPubMed *)
+            : pubMedUrlPrefix(QStringLiteral("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/")),
           xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/pubmed2bibtex.xsl")))
     {
         /// nothing
@@ -55,14 +56,14 @@ public:
 
     QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
         /// used to auto-detect PMIDs (unique identifiers for documents) in free text search
-        static const QRegExp pmidRegExp(QStringLiteral("^[0-9]{6,}$"));
+        static const QRegularExpression pmidRegExp(QStringLiteral("^[0-9]{6,}$"));
 
         QString url = pubMedUrlPrefix + QStringLiteral("esearch.fcgi?db=pubmed&tool=kbibtex&term=");
 
-        const QStringList freeTextWords = p->splitRespectingQuotationMarks(query[queryKeyFreeText]);
-        const QStringList yearWords = p->splitRespectingQuotationMarks(query[queryKeyYear]);
-        const QStringList titleWords = p->splitRespectingQuotationMarks(query[queryKeyTitle]);
-        const QStringList authorWords = p->splitRespectingQuotationMarks(query[queryKeyAuthor]);
+        const QStringList freeTextWords = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyFreeText]);
+        const QStringList yearWords = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyYear]);
+        const QStringList titleWords = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyTitle]);
+        const QStringList authorWords = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyAuthor]);
 
         /// append search terms
         QStringList queryFragments;
@@ -70,7 +71,7 @@ public:
 
         /// add words from "free text" field, but auto-detect PMIDs
         for (const QString &text : freeTextWords)
-            queryFragments.append(text + (pmidRegExp.indexIn(text) >= 0 ? QStringLiteral("") : QStringLiteral("[All Fields]")));
+            queryFragments.append(text + (pmidRegExp.match(text).hasMatch() ? QStringLiteral("") : QStringLiteral("[All Fields]")));
 
         /// add words from "year" field
         for (const QString &text : yearWords)
@@ -103,7 +104,7 @@ public:
 OnlineSearchPubMed::OnlineSearchPubMed(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchPubMed::OnlineSearchPubMedPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchPubMed::~OnlineSearchPubMed()
@@ -129,6 +130,8 @@ void OnlineSearchPubMed::startSearch(const QMap<QString, QString> &query, int nu
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchPubMed::eSearchDone);
+
+    refreshBusyProperty();
 }
 
 
@@ -184,10 +187,10 @@ void OnlineSearchPubMed::eSearchDone()
         } else {
             /// search resulted in no hits (and PubMed told so)
             stopSearch(resultNoError);
-            emit progress(curStep = numSteps, numSteps);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchPubMed::eFetchDone()
@@ -202,9 +205,9 @@ void OnlineSearchPubMed::eFetchDone()
         QString input = QString::fromUtf8(reply->readAll().constData());
 
         /// use XSL transformation to get BibTeX document from XML result
-        QString bibTeXcode = d->xslt.transform(input);
+        QString bibTeXcode = EncoderXML::instance().decode(d->xslt.transform(input));
         if (bibTeXcode.isEmpty()) {
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "XSL tranformation failed for data from " << reply->url().toDisplayString();
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "XSL tranformation failed for data from " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
             stopSearch(resultInvalidArguments);
         } else {  /// remove XML header
             if (bibTeXcode[0] == '<')
@@ -220,12 +223,13 @@ void OnlineSearchPubMed::eFetchDone()
                 }
 
                 stopSearch(resultNoError);
-                emit progress(curStep = numSteps, numSteps);
+
                 delete bibtexFile;
             } else {
                 stopSearch(resultUnspecifiedError);
             }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }

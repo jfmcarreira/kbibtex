@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -47,6 +47,24 @@ public:
 
     void setNetworkReplyTimeout(QNetworkReply *reply, int timeOutSec = 30);
 
+    /**
+     * Reverse the obfuscation of an API key. Given a byte
+     * array holding the obfuscated API key, restore and
+     * return the original API key.
+     *
+     * @param obfuscated obfuscated API key
+     * @return restored original API key if succeeded, empty on error
+     */
+    static QString reverseObfuscate(const QByteArray &obfuscated);
+
+    /**
+     * Remove API keys from an URL.
+     *
+     * @param url URL where API keys have to be removed
+     * @return a reference to the URL passed to this function
+     */
+    static QUrl removeApiKey(QUrl url);
+
 protected:
     InternalNetworkAccessManager(QObject *parent = nullptr);
     class HTTPEquivCookieJar;
@@ -62,7 +80,7 @@ private:
 private slots:
     void networkReplyTimeout();
     void networkReplyFinished();
-
+    void logSslErrors(const QList<QSslError> &errors);
 };
 
 #endif // KBIBTEX_NETWORKING_INTERNALNETWORKACCESSMANAGER_H

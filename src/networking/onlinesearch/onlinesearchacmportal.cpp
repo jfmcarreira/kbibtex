@@ -22,6 +22,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QUrlQuery>
+#include <QRegularExpression>
+#include <QRegularExpressionMatchIterator>
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
@@ -42,20 +44,20 @@ public:
     int currentSearchPosition;
     QStringList citationUrls;
 
-    OnlineSearchAcmPortalPrivate(OnlineSearchAcmPortal *parent)
+    OnlineSearchAcmPortalPrivate(OnlineSearchAcmPortal *)
             : numExpectedResults(0), numFoundResults(0),
           acmPortalBaseUrl(QStringLiteral("https://dl.acm.org/")), currentSearchPosition(0) {
-        Q_UNUSED(parent)
+        /// nothing
     }
 
     void sanitizeBibTeXCode(QString &code) {
-        const QRegExp htmlEncodedChar("&#(\\d+);");
-        while (htmlEncodedChar.indexIn(code) >= 0) {
+        static const QRegularExpression htmlEncodedChar(QStringLiteral("&#(\\d+);"));
+        QRegularExpressionMatch match;
+        while ((match = htmlEncodedChar.match(code)).hasMatch()) {
             bool ok = false;
-            QChar c(htmlEncodedChar.cap(1).toInt(&ok));
-            if (ok) {
-                code = code.replace(htmlEncodedChar.cap(0), c);
-            }
+            QChar c(match.captured(1).toInt(&ok));
+            if (ok)
+                code = code.replace(match.captured(0), c);
         }
 
         /// ACM's BibTeX code does not properly use various commands.
@@ -71,7 +73,7 @@ public:
 OnlineSearchAcmPortal::OnlineSearchAcmPortal(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchAcmPortalPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchAcmPortal::~OnlineSearchAcmPortal()
@@ -98,6 +100,8 @@ void OnlineSearchAcmPortal::startSearch(const QMap<QString, QString> &query, int
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchAcmPortal::doneFetchingStartPage);
+
+    refreshBusyProperty();
 }
 
 QString OnlineSearchAcmPortal::label() const
@@ -127,9 +131,9 @@ void OnlineSearchAcmPortal::doneFetchingStartPage()
         if ((p1 = htmlSource.indexOf(QStringLiteral("<form name=\"qiksearch\""))) >= 0
                 && (p2 = htmlSource.indexOf(QStringLiteral("action="), p1)) >= 0
                 && (p3 = htmlSource.indexOf(QStringLiteral("\""), p2 + 8)) >= 0) {
-            const QString body = QString(QStringLiteral("Go=&query=%1")).arg(d->joinedQueryString).simplified();
+            const QString body = QString(QStringLiteral("Go.x=0&Go.y=0&query=%1")).arg(d->joinedQueryString).simplified();
             const QString action = decodeURL(htmlSource.mid(p2 + 8, p3 - p2 - 8));
-            QUrl url(reply->url().resolved(QUrl(action + QStringLiteral("&") + body)));
+            const QUrl url(reply->url().resolved(QUrl(action + QStringLiteral("?") + body)));
 
             QNetworkRequest request(url);
             QNetworkReply *newReply = InternalNetworkAccessManager::instance().get(request, reply);
@@ -139,8 +143,9 @@ void OnlineSearchAcmPortal::doneFetchingStartPage()
             qCWarning(LOG_KBIBTEX_NETWORKING) << "Search using" << label() << "failed.";
             stopSearch(resultUnspecifiedError);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchAcmPortal::doneFetchingSearchPage()
@@ -152,10 +157,11 @@ void OnlineSearchAcmPortal::doneFetchingSearchPage()
     if (handleErrors(reply)) {
         const QString htmlSource = QString::fromUtf8(reply->readAll().constData());
 
-        static const QRegExp citationUrlRegExp(QStringLiteral("citation.cfm\\?id=[0-9][0-9.]+[0-9][^\">]+CFID=[0-9]+[^\">]+CFTOKEN=[0-9]+"), Qt::CaseInsensitive);
-        int p1 = -1;
-        while ((p1 = citationUrlRegExp.indexIn(htmlSource, p1 + 1)) >= 0) {
-            const QString newUrl = d->acmPortalBaseUrl + citationUrlRegExp.cap(0);
+        static const QRegularExpression citationUrlRegExp(QStringLiteral("citation.cfm\\?id=[0-9][0-9.]+[0-9]"), QRegularExpression::CaseInsensitiveOption);
+        QRegularExpressionMatchIterator citationUrlRegExpMatchIt = citationUrlRegExp.globalMatch(htmlSource);
+        while (citationUrlRegExpMatchIt.hasNext()) {
+            const QRegularExpressionMatch citationUrlRegExpMatch = citationUrlRegExpMatchIt.next();
+            const QString newUrl = d->acmPortalBaseUrl + citationUrlRegExpMatch.captured(0);
             d->citationUrls << newUrl;
         }
 
@@ -176,12 +182,11 @@ void OnlineSearchAcmPortal::doneFetchingSearchPage()
             InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchAcmPortal::doneFetchingCitation);
             d->citationUrls.removeFirst();
-        } else {
+        } else
             stopSearch(resultNoError);
-            emit progress(curStep = numSteps, numSteps);
-        }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchAcmPortal::doneFetchingCitation()
@@ -189,44 +194,52 @@ void OnlineSearchAcmPortal::doneFetchingCitation()
     emit progress(++curStep, numSteps);
 
     QNetworkReply *reply = static_cast<QNetworkReply *>(sender());
-    QString bibTeXUrl;
+    QSet<const QUrl> bibTeXUrls;
 
     if (handleErrors(reply)) {
         const QString htmlSource = QString::fromUtf8(reply->readAll().constData());
 
-        static const QRegExp parentIdRegExp(QStringLiteral("parent_id=([0-9]+)"));
-        const int parentId = parentIdRegExp.indexIn(htmlSource) > 0 ? parentIdRegExp.cap(1).toInt() : 0;
-
-        static const QRegExp paramRegExp(QStringLiteral("\\?id=([0-9][0-9.]+[0-9])[^\">]+CFID=([0-9]+)[^\">]+CFTOKEN=([0-9]+)"), Qt::CaseInsensitive);
-        int p1 = -1;
-        if (parentId > 0 && (p1 = paramRegExp.indexIn(htmlSource)) >= 0) {
-            bibTeXUrl = d->acmPortalBaseUrl + QString(QStringLiteral("/downformats.cfm?id=%2&parent_id=%1&expformat=bibtex&CFID=%3&CFTOKEN=%4")).arg(QString::number(parentId), paramRegExp.cap(1),  paramRegExp.cap(2), paramRegExp.cap(3));
-        } else {
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "No citation link found in " << reply->url().toDisplayString() << "  parentId=" << parentId;
-            stopSearch(resultNoError);
-            emit progress(curStep = numSteps, numSteps);
-            return;
+        static const QRegularExpression idRegExp(QStringLiteral("citation_abstract_html_url\" content=\"http://dl.acm.org/citation.cfm\\?id=([0-9]+)[.]([0-9]+)"));
+        QRegularExpressionMatchIterator idRegExpMatchIt = idRegExp.globalMatch(htmlSource);
+        while (idRegExpMatchIt.hasNext()) {
+            const QRegularExpressionMatch idRegExpMatch = idRegExpMatchIt.next();
+            const QString parentId = idRegExpMatch.captured(1);
+            const QString id = idRegExpMatch.captured(2);
+            if (!parentId.isEmpty() && !id.isEmpty()) {
+                const QUrl bibTeXUrl(d->acmPortalBaseUrl + QString(QStringLiteral("/downformats.cfm?id=%1&parent_id=%2&expformat=bibtex")).arg(id, parentId));
+                bibTeXUrls.insert(bibTeXUrl);
+            } else {
+                qCWarning(LOG_KBIBTEX_NETWORKING) << "No citation link found in " << reply->url().toDisplayString() << "  parentId=" << parentId;
+                stopSearch(resultNoError);
+                emit progress(curStep = numSteps, numSteps);
+                return;
+            }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+        if (bibTeXUrls.isEmpty())
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "No citation link found in " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
+    }
 
-    if (bibTeXUrl.isEmpty()) {
+    if (bibTeXUrls.isEmpty()) {
         if (!d->citationUrls.isEmpty()) {
             QNetworkRequest request(d->citationUrls.first());
             QNetworkReply *newReply = InternalNetworkAccessManager::instance().get(request, reply);
             InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchAcmPortal::doneFetchingCitation);
             d->citationUrls.removeFirst();
-        } else {
+        } else
             stopSearch(resultNoError);
-            emit progress(curStep = numSteps, numSteps);
-        }
     } else {
-        QNetworkRequest request(bibTeXUrl);
-        QNetworkReply *newReply = InternalNetworkAccessManager::instance().get(request, reply);
-        InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
-        connect(newReply, &QNetworkReply::finished, this, &OnlineSearchAcmPortal::doneFetchingBibTeX);
+        numSteps += bibTeXUrls.count() - 1;
+        for (QSet<const QUrl>::ConstIterator it = bibTeXUrls.constBegin(); it != bibTeXUrls.constEnd(); ++it) {
+            const QUrl &bibTeXUrl = *it;
+            QNetworkRequest request(bibTeXUrl);
+            QNetworkReply *newReply = InternalNetworkAccessManager::instance().get(request, reply);
+            InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
+            connect(newReply, &QNetworkReply::finished, this, &OnlineSearchAcmPortal::doneFetchingBibTeX);
+        }
     }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchAcmPortal::doneFetchingBibTeX()
@@ -258,10 +271,9 @@ void OnlineSearchAcmPortal::doneFetchingBibTeX()
             InternalNetworkAccessManager::instance().setNetworkReplyTimeout(newReply);
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchAcmPortal::doneFetchingCitation);
             d->citationUrls.removeFirst();
-        } else {
+        } else
             stopSearch(resultNoError);
-            emit progress(curStep = numSteps, numSteps);
-        }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }

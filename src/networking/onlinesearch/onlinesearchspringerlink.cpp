@@ -39,6 +39,7 @@
 
 #include "internalnetworkaccessmanager.h"
 #include "encoderlatex.h"
+#include "encoderxml.h"
 #include "fileimporterbibtex.h"
 #include "xsltransform.h"
 #include "logging_networking.h"
@@ -148,19 +149,15 @@ public:
 
 class OnlineSearchSpringerLink::OnlineSearchSpringerLinkPrivate
 {
-private:
-    OnlineSearchSpringerLink *p;
-
 public:
-    const QString springerMetadataKey;
+    static const QString springerMetadataKey;
     const XSLTransform xslt;
 #ifdef HAVE_QTWIDGETS
     OnlineSearchQueryFormSpringerLink *form;
 #endif // HAVE_QTWIDGETS
 
-    OnlineSearchSpringerLinkPrivate(OnlineSearchSpringerLink *parent)
-            : p(parent), springerMetadataKey(QStringLiteral("7pphfmtb9rtwt3dw3e4hm7av")),
-          xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/pam2bibtex.xsl")))
+    OnlineSearchSpringerLinkPrivate(OnlineSearchSpringerLink *)
+            : xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/pam2bibtex.xsl")))
 #ifdef HAVE_QTWIDGETS
         , form(nullptr)
 #endif // HAVE_QTWIDGETS
@@ -176,17 +173,17 @@ public:
 
         QString queryString = form->lineEditFreeText->text();
 
-        const QStringList titleChunks = p->splitRespectingQuotationMarks(form->lineEditTitle->text());
+        const QStringList titleChunks = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditTitle->text());
         for (const QString &titleChunk : titleChunks) {
             queryString += QString(QStringLiteral(" title:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(titleChunk));
         }
 
-        const QStringList bookTitleChunks = p->splitRespectingQuotationMarks(form->lineEditBookTitle->text());
+        const QStringList bookTitleChunks = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditBookTitle->text());
         for (const QString &titleChunk : bookTitleChunks) {
             queryString += QString(QStringLiteral(" ( journal:%1 OR book:%1 )")).arg(EncoderLaTeX::instance().convertToPlainAscii(titleChunk));
         }
 
-        const QStringList authors = p->splitRespectingQuotationMarks(form->lineEditAuthorEditor->text());
+        const QStringList authors = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditAuthorEditor->text());
         for (const QString &author : authors) {
             queryString += QString(QStringLiteral(" name:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(author));
         }
@@ -209,21 +206,22 @@ public:
 
         QString queryString = query[queryKeyFreeText];
 
-        const QStringList titleChunks = p->splitRespectingQuotationMarks(query[queryKeyTitle]);
+        const QStringList titleChunks = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyTitle]);
         for (const QString &titleChunk : titleChunks) {
             queryString += QString(QStringLiteral(" title:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(titleChunk));
         }
 
-        const QStringList authors = p->splitRespectingQuotationMarks(query[queryKeyAuthor]);
+        const QStringList authors = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyAuthor]);
         for (const QString &author : authors) {
             queryString += QString(QStringLiteral(" name:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(author));
         }
 
         QString year = query[queryKeyYear];
         if (!year.isEmpty()) {
-            static const QRegExp yearRegExp("\\b(18|19|20)[0-9]{2}\\b");
-            if (yearRegExp.indexIn(year) >= 0) {
-                year = yearRegExp.cap(0);
+            static const QRegularExpression yearRegExp("\\b(18|19|20)[0-9]{2}\\b");
+            const QRegularExpressionMatch yearRegExpMatch = yearRegExp.match(year);
+            if (yearRegExpMatch.hasMatch()) {
+                year = yearRegExpMatch.captured(0);
                 queryString += QString(QStringLiteral(" year:%1")).arg(year);
             }
         }
@@ -237,11 +235,13 @@ public:
     }
 };
 
+const QString OnlineSearchSpringerLink::OnlineSearchSpringerLinkPrivate::springerMetadataKey(InternalNetworkAccessManager::reverseObfuscate("\xce\xb8\x4d\x2c\x8d\xba\xa9\xc4\x61\x9\x58\x6c\xbb\xde\x86\xb5\xb1\xc6\x15\x71\x76\x45\xd\x79\x12\x65\x95\xe1\x5d\x2f\x1d\x24\x10\x72\x2a\x5e\x69\x4\xdc\xba\xab\xc3\x28\x58\x8a\xfa\x5e\x69"));
+
 
 OnlineSearchSpringerLink::OnlineSearchSpringerLink(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchSpringerLink::OnlineSearchSpringerLinkPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchSpringerLink::~OnlineSearchSpringerLink()
@@ -263,6 +263,8 @@ void OnlineSearchSpringerLink::startSearchFromForm()
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchSpringerLink::doneFetchingPAM);
 
     if (d->form != nullptr) d->form->saveState();
+
+    refreshBusyProperty();
 }
 #endif // HAVE_QTWIDGETS
 
@@ -280,6 +282,8 @@ void OnlineSearchSpringerLink::startSearch(const QMap<QString, QString> &query, 
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchSpringerLink::doneFetchingPAM);
+
+    refreshBusyProperty();
 }
 
 QString OnlineSearchSpringerLink::label() const
@@ -313,9 +317,9 @@ void OnlineSearchSpringerLink::doneFetchingPAM()
         /// ensure proper treatment of UTF-8 characters
         const QString xmlSource = QString::fromUtf8(reply->readAll().constData());
 
-        const QString bibTeXcode = d->xslt.transform(xmlSource).remove(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+        const QString bibTeXcode = EncoderXML::instance().decode(d->xslt.transform(xmlSource).remove(QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>")));
         if (bibTeXcode.isEmpty()) {
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "XSL tranformation failed for data from " << reply->url().toDisplayString();
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "XSL tranformation failed for data from " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
             stopSearch(resultInvalidArguments);
         } else {
             FileImporterBibTeX importer(this);
@@ -332,14 +336,13 @@ void OnlineSearchSpringerLink::doneFetchingPAM()
 
                 delete bibtexFile;
             } else {
-                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << reply->url().toDisplayString();
+                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
                 stopSearch(resultUnspecifiedError);
             }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
 
-    emit progress(curStep = numSteps, numSteps);
+    refreshBusyProperty();
 }
 
 #include "onlinesearchspringerlink.moc"

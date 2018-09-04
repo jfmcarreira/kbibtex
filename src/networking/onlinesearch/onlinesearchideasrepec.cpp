@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,6 +21,8 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QUrlQuery>
+#include <QRegularExpression>
+#include <QRegularExpressionMatchIterator>
 
 #include <KLocalizedString>
 
@@ -31,8 +33,7 @@
 class OnlineSearchIDEASRePEc::OnlineSearchIDEASRePEcPrivate
 {
 public:
-    int numSteps, curStep;
-    QSet<QString> publicationLinks;
+    QSet<const QUrl> publicationLinks;
 
     QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
         QString urlBase = QStringLiteral("https://ideas.repec.org/cgi-bin/htsearch?cmd=Search%21&form=extended&m=all&fmt=url&wm=wrd&sp=1&sy=1&dt=range");
@@ -40,7 +41,7 @@ public:
         bool hasFreeText = !query[queryKeyFreeText].isEmpty();
         bool hasTitle = !query[queryKeyTitle].isEmpty();
         bool hasAuthor = !query[queryKeyAuthor].isEmpty();
-        bool hasYear = QRegExp(QStringLiteral("^(19|20)[0-9]{2}$")).indexIn(query[queryKeyYear]) == 0;
+        bool hasYear = QRegularExpression(QStringLiteral("^(19|20)[0-9]{2}$")).match(query[queryKeyYear]).hasMatch();
 
         QString fieldWF = QStringLiteral("4BFF"); ///< search whole record by default
         QString fieldQ, fieldDB, fieldDE;
@@ -95,6 +96,8 @@ void OnlineSearchIDEASRePEc::startSearch(const QMap<QString, QString> &query, in
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchIDEASRePEc::downloadListDone);
+
+    refreshBusyProperty();
 }
 
 
@@ -133,33 +136,36 @@ void OnlineSearchIDEASRePEc::downloadListDone()
             /// ensure proper treatment of UTF-8 characters
             const QString htmlCode = QString::fromUtf8(reply->readAll().constData());
 
-            static const QRegExp publicationLinkRegExp(QStringLiteral("http[s]?://ideas.repec.org/[a-z]/\\S{,8}/\\S{2,24}/\\S{,64}.html"));
+            const int ol1 = htmlCode.indexOf(QStringLiteral(" results for "));
+            const int ol2 = htmlCode.indexOf(QStringLiteral("</ol>"), ol1 + 2);
             d->publicationLinks.clear();
-            int p = -1;
-            while ((p = publicationLinkRegExp.indexIn(htmlCode, p + 1)) >= 0) {
-                QString c = publicationLinkRegExp.cap(0);
-                /// Rewrite URL to be https instead of http, avoids HTTP redirection
-                c = c.replace(QStringLiteral("http://"), QStringLiteral("https://"));
-                d->publicationLinks.insert(c);
+            if (ol1 > 0 && ol2 > ol1) {
+                const QString olHtmlCode = htmlCode.mid(ol1, ol2 - ol1 + 5);
+                static const QRegularExpression publicationLinkRegExp(QStringLiteral("\"/[a-z](/[^\"]+){1,6}[.]html"));
+                QRegularExpressionMatchIterator publicationLinkRegExpMatchIt = publicationLinkRegExp.globalMatch(olHtmlCode);
+                while (publicationLinkRegExpMatchIt.hasNext()) {
+                    const QRegularExpressionMatch publicationLinkRegExpMatch = publicationLinkRegExpMatchIt.next();
+                    const QUrl c = reply->url().resolved(QUrl(publicationLinkRegExpMatch.captured().mid(1)));
+                    d->publicationLinks.insert(c);
+                }
+                numSteps += 2 * d->publicationLinks.count(); ///< update number of steps
             }
-            numSteps += 2 * d->publicationLinks.count(); ///< update number of steps
 
-            if (d->publicationLinks.isEmpty()) {
+            if (d->publicationLinks.isEmpty())
                 stopSearch(resultNoError);
-                emit progress(curStep = numSteps, numSteps);
-            } else {
-                QSet<QString>::Iterator it = d->publicationLinks.begin();
-                const QString publicationLink = *it;
+            else {
+                QSet<const QUrl>::Iterator it = d->publicationLinks.begin();
+                const QUrl publicationLink = *it;
                 d->publicationLinks.erase(it);
-                QNetworkRequest request = QNetworkRequest(QUrl(publicationLink));
+                QNetworkRequest request = QNetworkRequest(publicationLink);
                 reply = InternalNetworkAccessManager::instance().get(request, reply);
                 InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
                 connect(reply, &QNetworkReply::finished, this, &OnlineSearchIDEASRePEc::downloadPublicationDone);
             }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
 
+    refreshBusyProperty();
 }
 
 void OnlineSearchIDEASRePEc::downloadPublicationDone()
@@ -197,9 +203,9 @@ void OnlineSearchIDEASRePEc::downloadPublicationDone()
         reply->setProperty("downloadurl", QVariant::fromValue<QString>(downloadUrl));
         InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
         connect(reply, &QNetworkReply::finished, this, &OnlineSearchIDEASRePEc::downloadBibTeXDone);
+    }
 
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    refreshBusyProperty();
 }
 
 void OnlineSearchIDEASRePEc::downloadBibTeXDone()
@@ -240,18 +246,18 @@ void OnlineSearchIDEASRePEc::downloadBibTeXDone()
             }
         }
 
-        if (d->publicationLinks.isEmpty()) {
+        if (d->publicationLinks.isEmpty())
             stopSearch(resultNoError);
-            emit progress(1, 1);
-        } else {
-            QSet<QString>::Iterator it = d->publicationLinks.begin();
-            const QString publicationLink = *it;
+        else {
+            QSet<const QUrl>::Iterator it = d->publicationLinks.begin();
+            const QUrl publicationLink = *it;
             d->publicationLinks.erase(it);
-            QNetworkRequest request = QNetworkRequest(QUrl(publicationLink));
+            QNetworkRequest request = QNetworkRequest(publicationLink);
             reply = InternalNetworkAccessManager::instance().get(request, reply);
             InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
             connect(reply, &QNetworkReply::finished, this, &OnlineSearchIDEASRePEc::downloadPublicationDone);
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString() << "(was" << downloadUrl << ")";
+    }
+
+    refreshBusyProperty();
 }

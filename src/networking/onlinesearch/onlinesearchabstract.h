@@ -80,6 +80,7 @@ Q_DECLARE_METATYPE(OnlineSearchQueryFormAbstract *)
 class KBIBTEXNETWORKING_EXPORT OnlineSearchAbstract : public QObject
 {
     Q_OBJECT
+    Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
 
 public:
     explicit OnlineSearchAbstract(QObject *parent);
@@ -102,8 +103,8 @@ public:
     virtual void startSearch(const QMap<QString, QString> &query, int numResults) = 0;
     virtual QString label() const = 0;
     QString name();
-    virtual QIcon icon(QListWidgetItem *listWidgetItem = nullptr);
 #ifdef HAVE_QTWIDGETS
+    virtual QIcon icon(QListWidgetItem *listWidgetItem = nullptr);
     virtual OnlineSearchQueryFormAbstract *customWidget(QWidget *parent);
 #endif // HAVE_QTWIDGETS
     virtual QUrl homepage() const = 0;
@@ -123,13 +124,13 @@ protected:
     /**
      * Split a string along spaces, but keep text in quotation marks together
      */
-    QStringList splitRespectingQuotationMarks(const QString &text);
+    static QStringList splitRespectingQuotationMarks(const QString &text);
 
     /**
     * Will check for common problems with downloads via QNetworkReply. It will return true
     * if there is no problem and you may process this job result. If there is a problem,
     * this function will notify the user if necessary (KMessageBox), emit a
-    * "stoppedSearch" signal, and return false.
+    * "stoppedSearch" signal (by invoking "stopSearch"), and return false.
     * @see handleErrors(KJob*)
     */
     bool handleErrors(QNetworkReply *reply);
@@ -138,7 +139,7 @@ protected:
     * Will check for common problems with downloads via QNetworkReply. It will return true
     * if there is no problem and you may process this job result. If there is a problem,
     * this function will notify the user if necessary (KMessageBox), emit a
-    * "stoppedSearch" signal, and return false.
+    * "stoppedSearch" signal (by invoking "stopSearch"), and return false.
     * @see handleErrors(KJob*)
     * @param newUrl will be set to the new URL if reply contains a redirection, otherwise reply's original URL
     */
@@ -147,11 +148,11 @@ protected:
     /**
      * Encode a text to be HTTP URL save, e.g. replace '=' by '%3D'.
      */
-    QString encodeURL(QString rawText);
+    static QString encodeURL(QString rawText);
 
-    QString decodeURL(QString rawText);
+    static QString decodeURL(QString rawText);
 
-    QMap<QString, QString> formParameters(const QString &htmlText, int startPos);
+    QMap<QString, QString> formParameters(const QString &htmlText, int startPos) const;
 
     void dumpToFile(const QString &filename, const QString &text);
 
@@ -193,22 +194,26 @@ protected:
      */
     void refreshBusyProperty();
 
+#ifdef HAVE_KF5
+    void sendVisualNotification(const QString &text, const QString &title, const QString &icon, int timeout);
+#endif // HAVE_KF5
+
 private:
     bool m_previousBusyState;
     QString m_name;
     static const char *httpUnsafeChars;
+#ifdef HAVE_QTWIDGETS
     QMap<QNetworkReply *, QListWidgetItem *> m_iconReplyToListWidgetItem;
+#endif // HAVE_QTWIDGETS
     int m_delayedStoppedSearchReturnCode;
 
     QString htmlAttribute(const QString &htmlCode, const int startPos, const QString &attribute) const;
     bool htmlAttributeIsSelected(const QString &htmlCode, const int startPos, const QString &attribute) const;
 
-#ifdef HAVE_KF5
-    void sendVisualNotification(const QString &text, const QString &title, const QString &icon, int timeout);
-#endif // HAVE_KF5
-
 private slots:
+#ifdef HAVE_QTWIDGETS
     void iconDownloadFinished();
+#endif // HAVE_QTWIDGETS
     void delayedStoppedSearchTimer();
 
 signals:

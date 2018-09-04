@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -39,6 +39,7 @@
 
 #include "fileimporterbibtex.h"
 #include "xsltransform.h"
+#include "encoderxml.h"
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
 
@@ -107,9 +108,6 @@ public:
 
 class OnlineSearchArXiv::OnlineSearchArXivPrivate
 {
-private:
-    OnlineSearchArXiv *p;
-
 public:
     const XSLTransform xslt;
 #ifdef HAVE_QTWIDGETS
@@ -117,13 +115,12 @@ public:
 #endif // HAVE_QTWIDGETS
     const QString arXivQueryBaseUrl;
 
-    OnlineSearchArXivPrivate(OnlineSearchArXiv *parent)
-            : p(parent),
-          xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName() + QStringLiteral("/arxiv2bibtex.xsl"))),
+    OnlineSearchArXivPrivate(OnlineSearchArXiv *)
+            : xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/arxiv2bibtex.xsl"))),
 #ifdef HAVE_QTWIDGETS
           form(nullptr),
 #endif // HAVE_QTWIDGETS
-          arXivQueryBaseUrl(QStringLiteral("http://export.arxiv.org/api/query?"))
+          arXivQueryBaseUrl(QStringLiteral("https://export.arxiv.org/api/query?"))
     {
         /// nothing
     }
@@ -131,11 +128,11 @@ public:
 #ifdef HAVE_QTWIDGETS
     QUrl buildQueryUrl() {
         /// format search terms
-        const auto respectingQuotationMarks = p->splitRespectingQuotationMarks(form->lineEditFreeText->text());
+        const auto respectingQuotationMarks = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditFreeText->text());
         QStringList queryFragments;
         queryFragments.reserve(respectingQuotationMarks.size());
         for (const QString &queryFragment : respectingQuotationMarks)
-            queryFragments.append(p->encodeURL(queryFragment));
+            queryFragments.append(OnlineSearchAbstract::encodeURL(queryFragment));
         return QUrl(QString(QStringLiteral("%1search_query=all:\"%3\"&start=0&max_results=%2")).arg(arXivQueryBaseUrl).arg(form->numResultsField->value()).arg(queryFragments.join(QStringLiteral("\"+AND+all:\"")))); ///< join search terms with an AND operation
     }
 #endif // HAVE_QTWIDGETS
@@ -144,9 +141,9 @@ public:
         /// format search terms
         QStringList queryFragments;
         for (QMap<QString, QString>::ConstIterator it = query.constBegin(); it != query.constEnd(); ++it) {
-            const auto respectingQuotationMarks = p->splitRespectingQuotationMarks(it.value());
+            const auto respectingQuotationMarks = OnlineSearchAbstract::splitRespectingQuotationMarks(it.value());
             for (const auto &queryFragment : respectingQuotationMarks)
-                queryFragments.append(p->encodeURL(queryFragment));
+                queryFragments.append(OnlineSearchAbstract::encodeURL(queryFragment));
         }
         return QUrl(QString(QStringLiteral("%1search_query=all:\"%3\"&start=0&max_results=%2")).arg(arXivQueryBaseUrl).arg(numResults).arg(queryFragments.join(QStringLiteral("\"+AND+all:\"")))); ///< join search terms with an AND operation
     }
@@ -165,7 +162,7 @@ public:
          *  - https://arxiv.org/abs/1003.3022
          *    American Journal of Physics -- April 2010 -- Volume 78, Issue 4, pp. 377-383
          */
-        static const QRegExp
+        static const QRegularExpression
         /**
          * Structure:
          *  - journal title: letters, space, dot
@@ -191,7 +188,7 @@ public:
          *   4: page start
          *   6: page end
          */
-        journalRef1("^([a-z. ]+[a-z.])\\s*(\\d+)\\s+\\((\\d{4})\\)\\s+([0-9A-Z]+)(-([0-9A-Z]+))?$", Qt::CaseInsensitive),
+        journalRef1(QStringLiteral("^([a-z. ]+[a-z.])\\s*(\\d+)\\s+\\((\\d{4})\\)\\s+([0-9A-Z]+)(-([0-9A-Z]+))?$"), QRegularExpression::CaseInsensitiveOption),
         /**
          * Examples:
          *  Journal of Inefficient Algorithms, Vol. 93, No. 2 (2009), pp. 42-51
@@ -208,7 +205,7 @@ public:
          *   5: page start
          *   7: page end
          */
-        journalRef2("^([a-zA-Z. ]+[a-zA-Z.]),\\s+Vol\\.?\\s+(\\d+)[,]?\\s+No\\.?\\s+(\\d+)\\s+\\((\\d{4})\\)[,]?\\s+(pp\\.\\s+)?(\\d+)(-(\\d+))?$", Qt::CaseInsensitive),
+        journalRef2(QStringLiteral("^([a-zA-Z. ]+[a-zA-Z.]),\\s+Vol\\.?\\s+(\\d+)[,]?\\s+No\\.?\\s+(\\d+)\\s+\\((\\d{4})\\)[,]?\\s+(pp\\.\\s+)?(\\d+)(-(\\d+))?$"), QRegularExpression::CaseInsensitiveOption),
         /**
          * Examples:
          *   Journal of Inefficient Algorithms, volume 4, number 1, pp. 12-21, 2008
@@ -222,7 +219,7 @@ public:
          *   6: page end
          *   7: year
          */
-        journalRef3("^([a-zA-Z. ]+),\\s+volume\\s+(\\d+),\\s+number\\s+(\\d+),\\s+pp\\.\\s+(\\d+)(-(\\d+))?,\\s+(\\d{4})$", Qt::CaseInsensitive),
+        journalRef3(QStringLiteral("^([a-zA-Z. ]+),\\s+volume\\s+(\\d+),\\s+number\\s+(\\d+),\\s+pp\\.\\s+(\\d+)(-(\\d+))?,\\s+(\\d{4})$"), QRegularExpression::CaseInsensitiveOption),
         /**
          * Examples:
          *  Journal of Inefficient Algorithms 4(1): 101-122, 2010
@@ -250,7 +247,7 @@ public:
          *   7: page end
          *   9 or 10: year
          */
-        journalRef4("^([a-z. ()]+)[,]?\\s*(\\d+)(\\((\\d+)\\))?:\\s*(\\d+)(\\s*-\\s*(\\d+))?(,\\s*(\\d{4})|\\s+\\((\\d{4})\\))?$", Qt::CaseInsensitive),
+        journalRef4(QStringLiteral("^([a-z. ()]+)[,]?\\s*(\\d+)(\\((\\d+)\\))?:\\s*(\\d+)(\\s*-\\s*(\\d+))?(,\\s*(\\d{4})|\\s+\\((\\d{4})\\))?$"), QRegularExpression::CaseInsensitiveOption),
         /**
          * Examples:
          *  Journal of Inefficient Algorithms vol. 31, 4 2000
@@ -277,7 +274,7 @@ public:
          *   4: page start
          *   6: year
          */
-        journalRef5("^([a-zA-Z. ]+)\\s+(vol\\.\\s+)?(\\d+),\\s+(\\d+)(\\([A-Z]+\\))?\\s+\\((\\d{4})\\)[.]?$"),
+        journalRef5(QStringLiteral("^([a-zA-Z. ]+)\\s+(vol\\.\\s+)?(\\d+),\\s+(\\d+)(\\([A-Z]+\\))?\\s+\\((\\d{4})\\)[.]?$")),
         /**
          * Examples:
          *  Journal of Inefficient Algorithms, 11(2) (1999) 42-55
@@ -290,7 +287,7 @@ public:
          *   5: page start
          *   7: page end
          */
-        journalRef6("^([a-zA-Z. ]+),\\s+(\\d+)\\((\\d+)\\)\\s+(\\(([A-Za-z]+\\s+)?(\\d{4})\\))?\\s+(\\d+)(-(\\d+))?$"),
+        journalRef6(QStringLiteral("^([a-zA-Z. ]+),\\s+(\\d+)\\((\\d+)\\)\\s+(\\(([A-Za-z]+\\s+)?(\\d{4})\\))?\\s+(\\d+)(-(\\d+))?$")),
         /**
          * Examples:
          *  Pacific J. Math. 231 (2007), no. 2, 279–291
@@ -302,15 +299,18 @@ public:
          *   5: page start
          *   6: page end
          */
-        journalRef7("^([a-zA-Z. ]+[a-zA-Z.])\\s+(\\d+)\\s+\\((\\d+)\\), no\\.\\s+(\\d+),\\s+(\\d)[^ ]+(\\d+)$"),
-        generalJour("^[a-z0-9]{,3}[a-z. ]+", Qt::CaseInsensitive), generalYear("\\b(18|19|20)\\d{2}\\b"), generalPages("\\b([1-9]\\d{0,2})\\s*[-]+\\s*([1-9]\\d{0,2})\\b");
+        journalRef7(QStringLiteral("^([a-zA-Z. ]+[a-zA-Z.])\\s+(\\d+)\\s+\\((\\d+)\\), no\\.\\s+(\\d+),\\s+(\\d)[^ ]+(\\d+)$")),
+        generalJour(QStringLiteral("^[a-z0-9]{,3}[a-z. ]+"), QRegularExpression::CaseInsensitiveOption),
+        generalYear(QStringLiteral("\\b(18|19|20)\\d{2}\\b")),
+        generalPages(QStringLiteral("\\b([1-9]\\d{0,2})\\s*[-]+\\s*([1-9]\\d{0,2})\\b"));
         const QString journalText = PlainTextValue::text(entry.value(Entry::ftJournal));
 
         /// nothing to do on empty journal text
         if (journalText.isEmpty()) return;
         else entry.remove(Entry::ftJournal);
 
-        if (journalRef1.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        QRegularExpressionMatch match;
+        if ((match = journalRef1.match(journalText)).hasMatch()) {
             /**
              * Captures:
              *   1: journal title
@@ -321,23 +321,23 @@ public:
              */
 
             QString text;
-            if (!(text = journalRef1.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef1.cap(2)).isEmpty()) {
+            if (!(text = match.captured(2)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef1.cap(3)).isEmpty()) {
+            if (!(text = match.captured(3)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
             }
-            if (!(text = journalRef1.cap(4)).isEmpty()) {
-                const QString endPage = journalRef1.cap(6);
+            if (!(text = match.captured(4)).isEmpty()) {
+                const QString endPage = match.captured(6);
                 if (endPage.isEmpty()) {
                     Value v;
                     v.append(QSharedPointer<PlainText>(new PlainText(text)));
@@ -348,7 +348,7 @@ public:
                     entry.insert(Entry::ftPages, v);
                 }
             }
-        } else if (journalRef2.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        } else if ((match = journalRef2.match(journalText)).hasMatch()) {
             /**
              * Captures:
              *   1: journal title
@@ -360,28 +360,28 @@ public:
              */
 
             QString text;
-            if (!(text = journalRef2.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef2.cap(2)).isEmpty()) {
+            if (!(text = match.captured(2)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef2.cap(3)).isEmpty()) {
+            if (!(text = match.captured(3)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftNumber, v);
             }
-            if (!(text = journalRef2.cap(4)).isEmpty()) {
+            if (!(text = match.captured(4)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
             }
-            if (!(text = journalRef2.cap(5)).isEmpty()) {
-                const QString endPage = journalRef2.cap(7);
+            if (!(text = match.captured(5)).isEmpty()) {
+                const QString endPage = match.captured(7);
                 if (endPage.isEmpty()) {
                     Value v;
                     v.append(QSharedPointer<PlainText>(new PlainText(text)));
@@ -392,7 +392,7 @@ public:
                     entry.insert(Entry::ftPages, v);
                 }
             }
-        } else if (journalRef3.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        } else if ((match = journalRef3.match(journalText)).hasMatch()) {
             /**
              * Captures:
              *   1: journal title
@@ -404,32 +404,32 @@ public:
              */
 
             QString text;
-            if (!(text = journalRef3.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef3.cap(2)).isEmpty()) {
+            if (!(text = match.captured(2)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef3.cap(4)).isEmpty()) {
+            if (!(text = match.captured(4)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftNumber, v);
             }
-            if (!(text = journalRef3.cap(9)).isEmpty()) {
+            if (!(text = match.captured(9)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
-                if (!(text = journalRef3.cap(10)).isEmpty()) {
+                if (!(text = match.captured(10)).isEmpty()) {
                     Value v;
                     v.append(QSharedPointer<PlainText>(new PlainText(text)));
                     entry.insert(Entry::ftYear, v);
                 }
-                if (!(text = journalRef2.cap(5)).isEmpty()) {
-                    const QString endPage = journalRef2.cap(7);
+                if (!(text = match.captured(5)).isEmpty()) {
+                    const QString endPage = match.captured(7);
                     if (endPage.isEmpty()) {
                         Value v;
                         v.append(QSharedPointer<PlainText>(new PlainText(text)));
@@ -442,7 +442,7 @@ public:
                 }
             }
 
-        } else if (journalRef4.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        } else if ((match = journalRef4.match(journalText)).hasMatch()) {
             /**
              * Captures:
              *   1: journal title
@@ -454,18 +454,18 @@ public:
              */
 
             QString text;
-            if (!(text = journalRef4.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef4.cap(2)).isEmpty()) {
+            if (!(text = match.captured(2)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef4.cap(5)).isEmpty()) {
-                const QString endPage = journalRef4.cap(7);
+            if (!(text = match.captured(5)).isEmpty()) {
+                const QString endPage = match.captured(7);
                 if (endPage.isEmpty()) {
                     Value v;
                     v.append(QSharedPointer<PlainText>(new PlainText(text)));
@@ -476,13 +476,13 @@ public:
                     entry.insert(Entry::ftPages, v);
                 }
             }
-            if (!(text = journalRef4.cap(9)).isEmpty()) {
+            if (!(text = match.captured(9)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
             }
 
-        } else if (journalRef5.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        } else if ((match = journalRef5.match(journalText)).hasMatch()) {
             /** Captures:
               *   1: journal title
               *   3: volume
@@ -491,28 +491,28 @@ public:
               */
 
             QString text;
-            if (!(text = journalRef5.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef5.cap(3)).isEmpty()) {
+            if (!(text = match.captured(3)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef5.cap(4)).isEmpty()) {
+            if (!(text = match.captured(4)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftPages, v);
             }
-            if (!(text = journalRef5.cap(6)).isEmpty()) {
+            if (!(text = match.captured(6)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
             }
 
-        } else if (journalRef6.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        } else if ((match = journalRef6.match(journalText)).hasMatch()) {
             /** Captures:
               *   1: journal title
               *   2: volume
@@ -523,28 +523,28 @@ public:
               */
 
             QString text;
-            if (!(text = journalRef6.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef6.cap(2)).isEmpty()) {
+            if (!(text = match.captured(2)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef6.cap(3)).isEmpty()) {
+            if (!(text = match.captured(3)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftNumber, v);
             }
-            if (!(text = journalRef6.cap(4)).isEmpty()) {
+            if (!(text = match.captured(4)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
             }
-            if (!(text = journalRef6.cap(5)).isEmpty()) {
-                const QString endPage = journalRef6.cap(7);
+            if (!(text = match.captured(5)).isEmpty()) {
+                const QString endPage = match.captured(7);
                 if (endPage.isEmpty()) {
                     Value v;
                     v.append(QSharedPointer<PlainText>(new PlainText(text)));
@@ -556,7 +556,7 @@ public:
                 }
             }
 
-        } else if (journalRef7.indexIn(journalText, Qt::CaseInsensitive) >= 0) {
+        } else if ((match = journalRef7.match(journalText)).hasMatch()) {
             /** Captures:
              *   1: journal title
              *   2: volume
@@ -567,28 +567,28 @@ public:
              */
 
             QString text;
-            if (!(text = journalRef7.cap(1)).isEmpty()) {
+            if (!(text = match.captured(1)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftJournal, v);
             }
-            if (!(text = journalRef7.cap(2)).isEmpty()) {
+            if (!(text = match.captured(2)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftVolume, v);
             }
-            if (!(text = journalRef7.cap(3)).isEmpty()) {
+            if (!(text = match.captured(3)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftYear, v);
             }
-            if (!(text = journalRef7.cap(4)).isEmpty()) {
+            if (!(text = match.captured(4)).isEmpty()) {
                 Value v;
                 v.append(QSharedPointer<PlainText>(new PlainText(text)));
                 entry.insert(Entry::ftNumber, v);
             }
-            if (!(text = journalRef7.cap(5)).isEmpty()) {
-                const QString endPage = journalRef7.cap(6);
+            if (!(text = match.captured(5)).isEmpty()) {
+                const QString endPage = match.captured(6);
                 if (endPage.isEmpty()) {
                     Value v;
                     v.append(QSharedPointer<PlainText>(new PlainText(text)));
@@ -601,19 +601,19 @@ public:
             }
 
         } else {
-            if (generalJour.indexIn(journalText) >= 0) {
+            if ((match = generalJour.match(journalText)).hasMatch()) {
                 Value v;
-                v.append(QSharedPointer<PlainText>(new PlainText(generalJour.cap(0))));
+                v.append(QSharedPointer<PlainText>(new PlainText(match.captured(0))));
                 entry.insert(Entry::ftPages, v);
             }
-            if (generalYear.indexIn(journalText) >= 0) {
+            if ((match = generalYear.match(journalText)).hasMatch()) {
                 Value v;
-                v.append(QSharedPointer<PlainText>(new PlainText(generalYear.cap(0))));
+                v.append(QSharedPointer<PlainText>(new PlainText(match.captured(0))));
                 entry.insert(Entry::ftYear, v);
             }
-            if (generalPages.indexIn(journalText) >= 0) {
+            if ((match = generalPages.match(journalText)).hasMatch()) {
                 Value v;
-                v.append(QSharedPointer<PlainText>(new PlainText(generalPages.cap(0))));
+                v.append(QSharedPointer<PlainText>(new PlainText(match.captured(0))));
                 entry.insert(Entry::ftPages, v);
             }
         }
@@ -623,7 +623,7 @@ public:
 OnlineSearchArXiv::OnlineSearchArXiv(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchArXiv::OnlineSearchArXivPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchArXiv::~OnlineSearchArXiv()
@@ -643,6 +643,8 @@ void OnlineSearchArXiv::startSearchFromForm()
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchArXiv::downloadDone);
 
     d->form->saveState();
+
+    refreshBusyProperty();
 }
 #endif // HAVE_QTWIDGETS
 
@@ -655,6 +657,8 @@ void OnlineSearchArXiv::startSearch(const QMap<QString, QString> &query, int num
     QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
     InternalNetworkAccessManager::instance().setNetworkReplyTimeout(reply);
     connect(reply, &QNetworkReply::finished, this, &OnlineSearchArXiv::downloadDone);
+
+    refreshBusyProperty();
 }
 
 QString OnlineSearchArXiv::label() const
@@ -693,9 +697,9 @@ void OnlineSearchArXiv::downloadDone()
         result = result.remove(QStringLiteral("xmlns=\"http://www.w3.org/2005/Atom\"")); // FIXME fix arxiv2bibtex.xsl to handle namespace
 
         /// use XSL transformation to get BibTeX document from XML result
-        const QString bibTeXcode = d->xslt.transform(result);
+        const QString bibTeXcode = EncoderXML::instance().decode(d->xslt.transform(result));
         if (bibTeXcode.isEmpty()) {
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "XSL tranformation failed for data from " << reply->url().toDisplayString();
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "XSL tranformation failed for data from " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
             stopSearch(resultInvalidArguments);
         } else {
             FileImporterBibTeX importer(this);
@@ -709,16 +713,16 @@ void OnlineSearchArXiv::downloadDone()
                 }
 
                 stopSearch(resultNoError);
-                emit progress(curStep = numSteps, numSteps);
 
                 delete bibtexFile;
             } else {
-                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << reply->url().toDisplayString();
+                qCWarning(LOG_KBIBTEX_NETWORKING) << "No valid BibTeX file results returned on request on" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
                 stopSearch(resultUnspecifiedError);
             }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
+
+    refreshBusyProperty();
 }
 
 void OnlineSearchArXiv::sanitizeEntry(QSharedPointer<Entry> entry)

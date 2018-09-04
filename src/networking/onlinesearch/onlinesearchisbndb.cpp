@@ -76,7 +76,7 @@ const QString OnlineSearchIsbnDB::OnlineSearchIsbnDBPrivate::authorsUrl = QStrin
 OnlineSearchIsbnDB::OnlineSearchIsbnDB(QWidget *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchIsbnDBPrivate(this))
 {
-    // nothing
+    /// nothing
 }
 
 OnlineSearchIsbnDB::~OnlineSearchIsbnDB()
@@ -158,6 +158,5 @@ void OnlineSearchIsbnDB::downloadDone()
                 stopSearch(resultUnspecifiedError);
             }
         }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "url was" << reply->url().toDisplayString();
+    }
 }
