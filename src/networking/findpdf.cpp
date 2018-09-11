@@ -20,7 +20,6 @@
 #include <QDirIterator>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QRegExp>
 #include <QRegularExpression>
 #include <QApplication>
 #include <QTemporaryFile>

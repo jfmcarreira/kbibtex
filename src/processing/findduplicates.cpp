@@ -67,12 +67,12 @@ QList<QString> EntryClique::fieldList() const
     return valueMap.keys();
 }
 
-QList<Value> EntryClique::values(const QString &field) const
+QVector<Value> EntryClique::values(const QString &field) const
 {
     return valueMap[field];
 }
 
-QList<Value> &EntryClique::values(const QString &field)
+QVector<Value> &EntryClique::values(const QString &field)
 {
     return valueMap[field];
 }
@@ -83,12 +83,12 @@ Value EntryClique::chosenValue(const QString &field) const
     return chosenValueMap[field].first();
 }
 
-QList<Value> EntryClique::chosenValues(const QString &field) const
+QVector<Value> EntryClique::chosenValues(const QString &field) const
 {
     return chosenValueMap[field];
 }
 
-void EntryClique::setChosenValue(const QString &field, Value &value, ValueOperation valueOperation)
+void EntryClique::setChosenValue(const QString &field, const Value &value, ValueOperation valueOperation)
 {
     switch (valueOperation) {
     case SetValue: {
@@ -98,7 +98,7 @@ void EntryClique::setChosenValue(const QString &field, Value &value, ValueOperat
     }
     case AddValue: {
         QString text = PlainTextValue::text(value);
-        for (const Value &value : const_cast<const QList<Value> &>(chosenValueMap[field]))
+        for (const Value &value : const_cast<const QVector<Value> &>(chosenValueMap[field]))
             if (PlainTextValue::text(value) == text)
                 return;
         chosenValueMap[field] << value;
@@ -106,7 +106,7 @@ void EntryClique::setChosenValue(const QString &field, Value &value, ValueOperat
     }
     case RemoveValue: {
         QString text = PlainTextValue::text(value);
-        for (QList<Value>::Iterator it = chosenValueMap[field].begin(); it != chosenValueMap[field].end(); ++it)
+        for (QVector<Value>::Iterator it = chosenValueMap[field].begin(); it != chosenValueMap[field].end(); ++it)
             if (PlainTextValue::text(*it) == text) {
                 chosenValueMap[field].erase(it);
                 return;
@@ -134,7 +134,7 @@ void EntryClique::recalculateValueMap()
             /// cover entry type
             Value v;
             v.append(QSharedPointer<VerbatimText>(new VerbatimText(entry->type())));
-            insertKeyValueToValueMap(QStringLiteral("^type"), v, entry->type());
+            insertKeyValueToValueMap(QStringLiteral("^type"), v, entry->type(), Qt::CaseInsensitive /** entry types shall be compared case insensitive */);
 
             /// cover entry id
             v.clear();
@@ -161,7 +161,7 @@ void EntryClique::recalculateValueMap()
             }
         }
 
-    const QList<QString> fl = fieldList();
+    const auto fl = fieldList();
     for (const QString &fieldName : fl)
         if (valueMap[fieldName].count() < 2) {
             valueMap.remove(fieldName);
@@ -169,7 +169,7 @@ void EntryClique::recalculateValueMap()
         }
 }
 
-void EntryClique::insertKeyValueToValueMap(const QString &fieldName, const Value &fieldValue, const QString &fieldValueText)
+void EntryClique::insertKeyValueToValueMap(const QString &fieldName, const Value &fieldValue, const QString &fieldValueText, const Qt::CaseSensitivity)
 {
     if (fieldValueText.isEmpty()) return;
 
@@ -178,8 +178,8 @@ void EntryClique::insertKeyValueToValueMap(const QString &fieldName, const Value
         /// to the current (as of fieldIt) value (to avoid duplicates)
 
         bool alreadyContained = false;
-        QList<Value> alternatives = valueMap[fieldName];
-        for (const Value &v : const_cast<const QList<Value> &>(alternatives))
+        QVector<Value> alternatives = valueMap[fieldName];
+        for (const Value &v : const_cast<const QVector<Value> &>(alternatives))
             if (PlainTextValue::text(v) == fieldValueText) {
                 alreadyContained = true;
                 break;
@@ -190,10 +190,10 @@ void EntryClique::insertKeyValueToValueMap(const QString &fieldName, const Value
             valueMap[fieldName] = alternatives;
         }
     } else {
-        QList<Value> alternatives = valueMap[fieldName];
+        QVector<Value> alternatives = valueMap[fieldName];
         alternatives << fieldValue;
         valueMap.insert(fieldName, alternatives);
-        QList<Value> chosen;
+        QVector<Value> chosen;
         chosen << fieldValue;
         chosenValueMap.insert(fieldName, chosen);
     }
@@ -230,7 +230,7 @@ public:
       * @return distance between both words
       */
     double levenshteinDistanceWord(const QString &s, const QString &t) {
-        int m = qMin(s.length(), dsize - 1), n = qMin(t.length(), dsize - 1);
+        const int m = qMin(s.length(), dsize - 1), n = qMin(t.length(), dsize - 1);
         if (m < 1 && n < 1) return 0.0;
         if (m < 1 || n < 1) return 1.0;
 
@@ -250,7 +250,7 @@ public:
 
         double result = d[m][n];
 
-        result = result / (double)qMax(m, n);
+        result = result / qMax(m, n);
         result *= result;
         return result;
     }
@@ -263,7 +263,7 @@ public:
      * @return distance between both sentences
      */
     double levenshteinDistance(const QStringList &s, const QStringList &t) {
-        int m = s.size(), n = t.size();
+        const int m = s.size(), n = t.size();
         if (m < 1 && n < 1) return 0.0;
         if (m < 1 || n < 1) return 1.0;
 
@@ -286,7 +286,7 @@ public:
         for (int i = 0; i <= m; ++i) delete[] d[i];
         delete [] d;
 
-        result = result / (double)qMax(m, n);
+        result = result / qMax(m, n);
 
         return result;
     }
@@ -351,7 +351,7 @@ public:
          * Scale distance by maximum distance and round to int; result
          * will be in range 0 .. maxDistance.
          */
-        int distance = (unsigned int)(maxDistance * (titleDistance * 0.6 + authorDistance * 0.3 + yearDistance * 0.1) + 0.5);
+        int distance = static_cast<int>(maxDistance * (titleDistance * 0.6 + authorDistance * 0.3 + yearDistance * 0.1) + 0.5);
 
         return distance;
     }
@@ -372,7 +372,7 @@ FindDuplicates::~FindDuplicates()
     delete d;
 }
 
-bool FindDuplicates::findDuplicateEntries(File *file, QList<EntryClique *> &entryCliqueList)
+bool FindDuplicates::findDuplicateEntries(File *file, QVector<EntryClique *> &entryCliqueList)
 {
     QApplication::setOverrideCursor(Qt::WaitCursor);
     QScopedPointer<QProgressDialog> progressDlg(new QProgressDialog(i18n("Searching ..."), i18n("Cancel"), 0, 100000 /* to be set later to actual value */, d->widget));
@@ -383,7 +383,7 @@ bool FindDuplicates::findDuplicateEntries(File *file, QList<EntryClique *> &entr
     entryCliqueList.clear();
 
     /// assemble list of entries only (ignoring comments, macros, ...)
-    QList<QSharedPointer<Entry> > listOfEntries;
+    QVector<QSharedPointer<Entry> > listOfEntries;
     listOfEntries.reserve(file->size());
     for (const auto &element : const_cast<const File &>(*file)) {
         QSharedPointer<Entry> e = element.dynamicCast<Entry>();
@@ -407,7 +407,7 @@ bool FindDuplicates::findDuplicateEntries(File *file, QList<EntryClique *> &entr
     emit maximumProgress(maxProgress);
 
     /// go through all entries ...
-    for (const auto &entry : const_cast<const QList<QSharedPointer<Entry> > &>(listOfEntries)) {
+    for (const auto &entry : const_cast<const QVector<QSharedPointer<Entry> > &>(listOfEntries)) {
         QApplication::instance()->processEvents();
         if (progressDlg->wasCanceled()) {
             entryCliqueList.clear();
@@ -422,9 +422,9 @@ bool FindDuplicates::findDuplicateEntries(File *file, QList<EntryClique *> &entr
         bool foundClique = false;
 
         /// go through all existing cliques
-        for (QList<EntryClique *>::Iterator cit = entryCliqueList.begin(); cit != entryCliqueList.end(); ++cit) {
+        for (QVector<EntryClique *>::Iterator cit = entryCliqueList.begin(); cit != entryCliqueList.end(); ++cit) {
             /// check distance between current entry and clique's first entry
-            if (d->entryDistance(entry.data(), (*cit)->entryList().first().data()) < d->sensitivity) {
+            if (d->entryDistance(entry.data(), (*cit)->entryList().constFirst().data()) < d->sensitivity) {
                 /// if distance is below sensitivity, add current entry to clique
                 foundClique = true;
                 (*cit)->addEntry(entry);
@@ -456,7 +456,7 @@ bool FindDuplicates::findDuplicateEntries(File *file, QList<EntryClique *> &entr
     progressDlg->setValue(progressDlg->maximum());
 
     /// remove cliques with only one element (nothing to merge here) from the list of cliques
-    for (QList<EntryClique *>::Iterator cit = entryCliqueList.begin(); cit != entryCliqueList.end();)
+    for (QVector<EntryClique *>::Iterator cit = entryCliqueList.begin(); cit != entryCliqueList.end();)
         if ((*cit)->entryCount() < 2) {
             EntryClique *ec = *cit;
             cit = entryCliqueList.erase(cit);
@@ -479,7 +479,7 @@ MergeDuplicates::MergeDuplicates()
     /// nothing
 }
 
-bool MergeDuplicates::mergeDuplicateEntries(const QList<EntryClique *> &entryCliques, FileModel *fileModel)
+bool MergeDuplicates::mergeDuplicateEntries(const QVector<EntryClique *> &entryCliques, FileModel *fileModel)
 {
     bool didMerge = false;
 
