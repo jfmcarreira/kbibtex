@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -137,27 +137,6 @@ Entry &Entry::operator= (const Entry &other)
     return *this;
 }
 
-Value &Entry::operator[](const QString &key)
-{
-    const QString lcKey = key.toLower();
-    for (Entry::ConstIterator it = constBegin(); it != constEnd(); ++it)
-        if (it.key().toLower() == lcKey)
-            return QMap<QString, Value>::operator[](it.key());
-
-    return QMap<QString, Value>::operator[](key);
-}
-
-const Value Entry::operator[](const QString &key) const
-{
-    const QString lcKey = key.toLower();
-    for (Entry::ConstIterator it = constBegin(); it != constEnd(); ++it)
-        if (it.key().toLower() == lcKey)
-            return QMap<QString, Value>::operator[](it.key());
-
-    return QMap<QString, Value>::operator[](key);
-}
-
-
 void Entry::setType(const QString &type)
 {
     d->type = type;
@@ -185,17 +164,19 @@ const Value Entry::value(const QString &key) const
         if (it.key().toLower() == lcKey)
             return QMap<QString, Value>::value(it.key());
 
-    return QMap<QString, Value>::value(key);
+    return Value();
 }
 
 int Entry::remove(const QString &key)
 {
     const QString lcKey = key.toLower();
-    for (Entry::ConstIterator it = constBegin(); it != constEnd(); ++it)
-        if (it.key().toLower() == lcKey)
-            return QMap<QString, Value>::remove(it.key());
+    for (Entry::Iterator it = begin(); it != end(); ++it)
+        if (it.key().toLower() == lcKey) {
+            QMap<QString, Value>::erase(it);
+            return 1;
+        }
 
-    return QMap<QString, Value>::remove(key);
+    return 0;
 }
 
 bool Entry::contains(const QString &key) const
