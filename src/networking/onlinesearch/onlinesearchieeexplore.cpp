@@ -207,27 +207,3 @@ QUrl OnlineSearchIEEEXplore::convertURLtoDownload(QUrl url)
     }
     return outUrl;
 }
-
-void OnlineSearchIEEEXplore::sanitizeEntry(QSharedPointer<Entry> entry)
-{
-    OnlineSearchAbstract::sanitizeEntry(entry);
-
-    /// XSL file cannot yet replace semicolon-separate author list
-    /// by "and"-separated author list, so do it manually
-    const QString ftXAuthor = QStringLiteral("x-author");
-    if (!entry->contains(Entry::ftAuthor) && entry->contains(ftXAuthor)) {
-        const Value xAuthorValue = entry->value(ftXAuthor);
-        Value authorValue;
-        for (const auto &xAuthorValueItem : xAuthorValue) {
-            const QSharedPointer<const PlainText> pt = xAuthorValueItem.dynamicCast<const PlainText>();
-            if (!pt.isNull()) {
-                const QList<QSharedPointer<Person> > personList = FileImporterBibTeX::splitNames(pt->text());
-                for (const auto &person : personList)
-                    authorValue << person;
-            }
-        }
-
-        entry->insert(Entry::ftAuthor, authorValue);
-        entry->remove(ftXAuthor);
-    }
-}
