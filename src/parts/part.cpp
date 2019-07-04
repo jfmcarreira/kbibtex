@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -36,6 +36,7 @@
 #include <QPushButton>
 #include <QTemporaryFile>
 #include <QTimer>
+#include <QStandardPaths>
 
 #include <KMessageBox> // FIXME deprecated
 #include <KLocalizedString>
@@ -44,8 +45,6 @@
 #include <KActionMenu>
 #include <KSelectAction>
 #include <KToggleAction>
-#include <KSharedConfig>
-#include <KConfigGroup>
 #include <KRun>
 #include <KPluginFactory>
 #include <KIO/StatJob>
@@ -54,39 +53,38 @@
 #include <KJobWidgets>
 #include <kio_version.h>
 
-#include "file.h"
-#include "macro.h"
-#include "preamble.h"
-#include "comment.h"
-#include "fileinfo.h"
-#include "fileexporterbibtexoutput.h"
-#include "fileimporterbibtex.h"
-#include "fileexporterbibtex.h"
-#include "fileimporterris.h"
-#include "fileimporterbibutils.h"
-#include "fileexporterris.h"
-#include "fileexporterbibutils.h"
-#include "fileimporterpdf.h"
-#include "fileexporterps.h"
-#include "fileexporterpdf.h"
-#include "fileexporterrtf.h"
-#include "fileexporterbibtex2html.h"
-#include "fileexporterxml.h"
-#include "fileexporterxslt.h"
-#include "models/filemodel.h"
-#include "filesettingswidget.h"
-#include "filterbar.h"
-#include "findduplicatesui.h"
-#include "lyx.h"
-#include "preferences.h"
-#include "settingscolorlabelwidget.h"
-#include "settingsfileexporterpdfpswidget.h"
-#include "findpdfui.h"
-#include "valuelistmodel.h"
-#include "clipboard.h"
-#include "idsuggestions.h"
-#include "fileview.h"
-#include "browserextension.h"
+#include <Preferences>
+#include <File>
+#include <Macro>
+#include <Preamble>
+#include <Comment>
+#include <FileInfo>
+#include <FileExporterBibTeXOutput>
+#include <FileImporterBibTeX>
+#include <FileExporterBibTeX>
+#include <FileImporterRIS>
+#include <FileImporterBibUtils>
+#include <FileExporterRIS>
+#include <FileExporterBibUtils>
+#include <FileImporterPDF>
+#include <FileExporterPS>
+#include <FileExporterPDF>
+#include <FileExporterRTF>
+#include <FileExporterBibTeX2HTML>
+#include <FileExporterXML>
+#include <FileExporterXSLT>
+#include <models/FileModel>
+#include <IdSuggestions>
+#include <LyX>
+#include <widgets/FileSettingsWidget>
+#include <widgets/FilterBar>
+#include <element/FindPDFUI>
+#include <file/FileView>
+#include <file/FindDuplicatesUI>
+#include <file/Clipboard>
+#include <preferences/SettingsColorLabelWidget>
+#include <preferences/SettingsFileExporterPDFPSWidget>
+#include <ValueListModel>
 #include "logging_parts.h"
 
 static const char RCFileName[] = "kbibtexpartui.rc";
@@ -99,7 +97,6 @@ class KBibTeXPart::KBibTeXPartPrivate
 {
 private:
     KBibTeXPart *p;
-    KSharedConfigPtr config;
 
     /**
      * Modifies a given URL to become a "backup" filename/URL.
@@ -139,7 +136,7 @@ public:
     QFileSystemWatcher fileSystemWatcher;
 
     KBibTeXPartPrivate(QWidget *parentWidget, KBibTeXPart *parent)
-            : p(parent), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), bibTeXFile(nullptr), model(nullptr), sortFilterProxyModel(nullptr), signalMapperNewElement(new QSignalMapper(parent)), viewDocumentMenu(new QMenu(i18n("View Document"), parent->widget())), signalMapperViewDocument(new QSignalMapper(parent)), isSaveAsOperation(false), fileSystemWatcher(p) {
+            : p(parent), bibTeXFile(nullptr), model(nullptr), sortFilterProxyModel(nullptr), signalMapperNewElement(new QSignalMapper(parent)), viewDocumentMenu(new QMenu(i18n("View Document"), parent->widget())), signalMapperViewDocument(new QSignalMapper(parent)), isSaveAsOperation(false), fileSystemWatcher(p) {
         connect(signalMapperViewDocument, static_cast<void(QSignalMapper::*)(QObject *)>(&QSignalMapper::mapped), p, &KBibTeXPart::elementViewDocumentMenu);
         connect(&fileSystemWatcher, &QFileSystemWatcher::fileChanged, p, &KBibTeXPart::fileExternallyChange);
 
@@ -327,7 +324,6 @@ public:
                 return result;
             ++i;
         }
-        return QString();
     }
 
     void initializeNew() {
@@ -402,16 +398,14 @@ public:
 
     void makeBackup(const QUrl &url) const {
         /// Fetch settings from configuration
-        KConfigGroup configGroup(config, Preferences::groupGeneral);
-        const Preferences::BackupScope backupScope = static_cast<Preferences::BackupScope>(configGroup.readEntry(Preferences::keyBackupScope, static_cast<int>(Preferences::defaultBackupScope)));
-        const int numberOfBackups = configGroup.readEntry(Preferences::keyNumberOfBackups, Preferences::defaultNumberOfBackups);
+        const int numberOfBackups = Preferences::instance().numberOfBackups();
 
         /// Stop right here if no backup is requested
-        if (backupScope == Preferences::NoBackup)
+        if (Preferences::instance().backupScope() == Preferences::NoBackup)
             return;
 
         /// For non-local files, proceed only if backups to remote storage is allowed
-        if (backupScope != Preferences::BothLocalAndRemote && !url.isLocalFile())
+        if (Preferences::instance().backupScope() != Preferences::BothLocalAndRemote && !url.isLocalFile())
             return;
 
         /// Do not make backup copies if destination file does not exist yet
@@ -547,7 +541,6 @@ public:
 
                 if (dlg->exec() == QDialog::Accepted)
                     settingsWidget->saveState();
-                fet->reloadConfig();
                 delete dlg;
             }
         }
@@ -646,6 +639,9 @@ public:
         viewDocumentMenu->clear();
         int result = 0; ///< Initially, no references are known
 
+        File *bibliographyFile = partWidget != nullptr && partWidget->fileView() != nullptr && partWidget->fileView()->fileModel() != nullptr ? partWidget->fileView()->fileModel()->bibliographyFile() : nullptr;
+        if (bibliographyFile == nullptr) return result;
+
         /// Clean signal mapper of old mappings
         /// as stored in QSet signalMapperViewDocumentSenders
         /// and identified by their QAction*'s
@@ -661,7 +657,7 @@ public:
         /// Test and continue if there was an Entry to retrieve
         if (!entry.isNull()) {
             /// Get list of URLs associated with this entry
-            const auto urlList = FileInfo::entryUrls(entry, partWidget->fileView()->fileModel()->bibliographyFile()->property(File::Url).toUrl(), FileInfo::TestExistenceYes);
+            const auto urlList = FileInfo::entryUrls(entry, bibliographyFile->property(File::Url).toUrl(), FileInfo::TestExistenceYes);
             if (!urlList.isEmpty()) {
                 /// Memorize first action, necessary to set menu title
                 QAction *firstAction = nullptr;
@@ -726,13 +722,9 @@ public:
     }
 
     void readConfiguration() {
-        /// Fetch settings from configuration
-        KConfigGroup configGroup(config, Preferences::groupUserInterface);
-        const Preferences::ElementDoubleClickAction doubleClickAction = static_cast<Preferences::ElementDoubleClickAction>(configGroup.readEntry(Preferences::keyElementDoubleClickAction, static_cast<int>(Preferences::defaultElementDoubleClickAction)));
-
         disconnect(partWidget->fileView(), &FileView::elementExecuted, partWidget->fileView(), &FileView::editElement);
         disconnect(partWidget->fileView(), &FileView::elementExecuted, p, &KBibTeXPart::elementViewDocument);
-        switch (doubleClickAction) {
+        switch (Preferences::instance().fileViewDoubleClickAction()) {
         case Preferences::ActionOpenEditor:
             connect(partWidget->fileView(), &FileView::elementExecuted, partWidget->fileView(), &FileView::editElement);
             break;
@@ -754,8 +746,6 @@ KBibTeXPart::KBibTeXPart(QWidget *parentWidget, QObject *parent, const KAboutDat
     d->initializeNew();
 
     setXMLFile(RCFileName);
-
-    new BrowserExtension(this);
 
     NotificationHub::registerNotificationListener(this, NotificationHub::EventConfigurationChanged);
     d->readConfiguration();
@@ -806,7 +796,7 @@ bool KBibTeXPart::saveFile()
         /// DropBox client seemingly touched the file right after saving
         /// from within KBibTeX, triggering KBibTeX to show a 'reload'
         /// message box.
-        QTimer::singleShot(500, [this, watchableFilename]() {
+        QTimer::singleShot(500, this, [this, watchableFilename]() {
             d->fileSystemWatcher.addPath(watchableFilename);
         });
     } else
@@ -932,10 +922,13 @@ void KBibTeXPart::elementFindPDF()
 
 void KBibTeXPart::applyDefaultFormatString()
 {
+    FileModel *model = d->partWidget != nullptr && d->partWidget->fileView() != nullptr ? d->partWidget->fileView()->fileModel() : nullptr;
+    if (model == nullptr) return;
+
     bool documentModified = false;
     const QModelIndexList mil = d->partWidget->fileView()->selectionModel()->selectedRows();
     for (const QModelIndex &index : mil) {
-        QSharedPointer<Entry> entry = d->partWidget->fileView()->fileModel()->element(d->partWidget->fileView()->sortFilterProxyModel()->mapToSource(index).row()).dynamicCast<Entry>();
+        QSharedPointer<Entry> entry = model->element(d->partWidget->fileView()->sortFilterProxyModel()->mapToSource(index).row()).dynamicCast<Entry>();
         if (!entry.isNull()) {
             static IdSuggestions idSuggestions;
             bool success = idSuggestions.applyDefaultFormatId(*entry.data());
@@ -1033,6 +1026,9 @@ void KBibTeXPart::newCommentTriggered()
 
 void KBibTeXPart::updateActions()
 {
+    FileModel *model = d->partWidget != nullptr && d->partWidget->fileView() != nullptr ? d->partWidget->fileView()->fileModel() : nullptr;
+    if (model == nullptr) return;
+
     bool emptySelection = d->partWidget->fileView()->selectedElements().isEmpty();
     d->elementEditAction->setEnabled(!emptySelection);
     d->editCopyAction->setEnabled(!emptySelection);
@@ -1050,7 +1046,7 @@ void KBibTeXPart::updateActions()
     d->elementViewDocumentAction->setEnabled(!emptySelection && numDocumentsToView > 0);
     /// activate sub-menu only if there are at least two documents to view
     d->elementViewDocumentAction->setMenu(numDocumentsToView > 1 ? d->viewDocumentMenu : nullptr);
-    d->elementViewDocumentAction->setToolTip(numDocumentsToView == 1 ? (*d->viewDocumentMenu->actions().constBegin())->text() : QStringLiteral(""));
+    d->elementViewDocumentAction->setToolTip(numDocumentsToView == 1 ? (*d->viewDocumentMenu->actions().constBegin())->text() : QString());
 
     /// update list of references which can be sent to LyX
     QStringList references;
@@ -1058,7 +1054,7 @@ void KBibTeXPart::updateActions()
         const QModelIndexList mil = d->partWidget->fileView()->selectionModel()->selectedRows();
         references.reserve(mil.size());
         for (const QModelIndex &index : mil) {
-            QSharedPointer<Entry> entry = d->partWidget->fileView()->fileModel()->element(d->partWidget->fileView()->sortFilterProxyModel()->mapToSource(index).row()).dynamicCast<Entry>();
+            const QSharedPointer<Entry> entry = model->element(d->partWidget->fileView()->sortFilterProxyModel()->mapToSource(index).row()).dynamicCast<Entry>();
             if (!entry.isNull())
                 references << entry->id();
         }

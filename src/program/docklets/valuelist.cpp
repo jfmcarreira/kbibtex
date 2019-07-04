@@ -24,22 +24,22 @@
 #include <QGridLayout>
 #include <QStringListModel>
 #include <QScrollBar>
+#include <QLineEdit>
+#include <QComboBox>
 #include <QTimer>
 #include <QSortFilterProxyModel>
 #include <QAction>
 
-#include <KLineEdit>
-#include <KComboBox>
 #include <KConfigGroup>
 #include <KLocalizedString>
 #include <KToggleAction>
 #include <KSharedConfig>
 
-#include "bibtexfields.h"
-#include "entry.h"
-#include "fileview.h"
-#include "valuelistmodel.h"
-#include "models/filemodel.h"
+#include <BibTeXFields>
+#include <Entry>
+#include <file/FileView>
+#include <ValueListModel>
+#include <models/FileModel>
 
 class ValueList::ValueListPrivate
 {
@@ -56,8 +56,8 @@ public:
     QTreeView *treeviewFieldValues;
     ValueListModel *model;
     QSortFilterProxyModel *sortingModel;
-    KComboBox *comboboxFieldNames;
-    KLineEdit *lineeditFilter;
+    QComboBox *comboboxFieldNames;
+    QLineEdit *lineeditFilter;
     const int countWidth;
     QAction *assignSelectionAction;
     QAction *removeSelectionAction;
@@ -73,19 +73,15 @@ public:
         initialize();
     }
 
-    ~ValueListPrivate() {
-        delete comboboxFieldNames;
-        // TODO more deletes
-    }
-
     void setupGUI() {
         QBoxLayout *layout = new QVBoxLayout(p);
         layout->setMargin(0);
 
-        comboboxFieldNames = new KComboBox(true, p);
+        comboboxFieldNames = new QComboBox(p);
+        comboboxFieldNames->setEditable(true);
         layout->addWidget(comboboxFieldNames);
 
-        lineeditFilter = new KLineEdit(p);
+        lineeditFilter = new QLineEdit(p);
         layout->addWidget(lineeditFilter);
         lineeditFilter->setClearButtonEnabled(true);
         lineeditFilter->setPlaceholderText(i18n("Filter value list"));
@@ -127,7 +123,7 @@ public:
         p->setEnabled(false);
 
         connect(comboboxFieldNames, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), p, &ValueList::fieldNamesChanged);
-        connect(comboboxFieldNames, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), lineeditFilter, &KLineEdit::clear);
+        connect(comboboxFieldNames, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), lineeditFilter, &QLineEdit::clear);
         connect(treeviewFieldValues, &QTreeView::activated, p, &ValueList::listItemActivated);
         connect(delegate, &ValueListDelegate::closeEditor, treeviewFieldValues, &QTreeView::reset);
 
@@ -150,11 +146,9 @@ public:
     }
 
     void initialize() {
-        const BibTeXFields *bibtexFields = BibTeXFields::self();
-
         lineeditFilter->clear();
         comboboxFieldNames->clear();
-        for (const auto &fd : const_cast<const BibTeXFields &>(*bibtexFields)) {
+        for (const auto &fd : const_cast<const BibTeXFields &>(BibTeXFields::instance())) {
             if (!fd.upperCamelCaseAlt.isEmpty()) continue; /// keep only "single" fields and not combined ones like "Author or Editor"
             if (fd.upperCamelCase.startsWith('^')) continue; /// skip "type" and "id"
             comboboxFieldNames->addItem(fd.label, fd.upperCamelCase);
@@ -205,7 +199,7 @@ public:
             sortingModel->setFilterKeyColumn(0);
             sortingModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
             sortingModel->setFilterRole(ValueListModel::SearchTextRole);
-            connect(lineeditFilter, &KLineEdit::textEdited, sortingModel, &QSortFilterProxyModel::setFilterFixedString);
+            connect(lineeditFilter, &QLineEdit::textEdited, sortingModel, &QSortFilterProxyModel::setFilterFixedString);
             sortingModel->setSortLocaleAware(true);
             usedModel = sortingModel;
         }
@@ -220,6 +214,7 @@ public:
         return (field.compare(Entry::ftAuthor, Qt::CaseInsensitive) == 0
                 || field.compare(Entry::ftEditor, Qt::CaseInsensitive) == 0
                 || field.compare(Entry::ftUrl, Qt::CaseInsensitive) == 0
+                || field.compare(Entry::ftFile, Qt::CaseInsensitive) == 0
                 || field.compare(Entry::ftLocalFile, Qt::CaseInsensitive) == 0
                 || field.compare(Entry::ftDOI, Qt::CaseInsensitive) == 0
                 || field.compare(Entry::ftKeywords, Qt::CaseInsensitive) == 0);

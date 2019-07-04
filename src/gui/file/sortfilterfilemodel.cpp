@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -17,24 +17,20 @@
 
 #include "sortfilterfilemodel.h"
 
-#include <KSharedConfig>
-#include <KConfigGroup>
 #include <QRegularExpression>
 
-#include "bibtexfields.h"
-#include "bibtexentries.h"
-#include "macro.h"
-#include "preamble.h"
-#include "comment.h"
-#include "fileinfo.h"
-
-const QString SortFilterFileModel::configGroupName = QStringLiteral("User Interface");
+#include <BibTeXFields>
+#include <BibTeXEntries>
+#include <Entry>
+#include <Macro>
+#include <Preamble>
+#include <Comment>
+#include <FileInfo>
 
 SortFilterFileModel::SortFilterFileModel(QObject *parent)
-        : QSortFilterProxyModel(parent), m_internalModel(nullptr), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc")))
+        : QSortFilterProxyModel(parent), m_internalModel(nullptr)
 {
     m_filterQuery.combination = AnyTerm;
-    loadState();
     setSortRole(FileModel::SortRole);
 }
 
@@ -72,8 +68,7 @@ bool SortFilterFileModel::lessThan(const QModelIndex &left, const QModelIndex &r
     int column = left.column();
     Q_ASSERT_X(left.column() == right.column(), "bool SortFilterFileModel::lessThan(const QModelIndex &left, const QModelIndex &right) const", "Not comparing items in same column"); ///< assume that we only sort by column
 
-    const BibTeXFields *bibtexFields = BibTeXFields::self();
-    const FieldDescription &fd = bibtexFields->at(column);
+    const FieldDescription &fd = BibTeXFields::instance().at(column);
 
     if (column == right.column() && (fd.upperCamelCase == QStringLiteral("Author") || fd.upperCamelCase == QStringLiteral("Editor"))) {
         /// special sorting for authors or editors: check all names,
@@ -152,13 +147,6 @@ bool SortFilterFileModel::filterAcceptsRow(int source_row, const QModelIndex &so
     const QSharedPointer<Element> rowElement = m_internalModel->element(source_row);
     Q_ASSERT_X(!rowElement.isNull(), "bool SortFilterFileModel::filterAcceptsRow(int source_row, const QModelIndex &source_parent) const", "rowElement is NULL");
 
-    /// check if showing comments is disabled
-    if (!m_showComments && Comment::isComment(*rowElement))
-        return false;
-    /// check if showing macros is disabled
-    if (!m_showMacros && Macro::isMacro(*rowElement))
-        return false;
-
     if (m_filterQuery.terms.isEmpty()) return true; /// empty filter query
 
     QScopedArrayPointer<bool> eachTerm(new bool[m_filterQuery.terms.count()]);
@@ -181,7 +169,7 @@ bool SortFilterFileModel::filterAcceptsRow(int source_row, const QModelIndex &so
             /// Check entry's type
             const QString type = entry->type();
             /// Check type's description ("Journal Article")
-            const QString label = BibTeXEntries::self()->label(type);
+            const QString label = BibTeXEntries::instance().label(type);
             // TODO test for internationalized variants like "Artikel" or "bok" as well?
             int i = 0;
             for (QStringList::ConstIterator itsl = m_filterQuery.terms.constBegin(); itsl != m_filterQuery.terms.constEnd(); ++itsl, ++i)
@@ -272,11 +260,4 @@ bool SortFilterFileModel::filterAcceptsRow(int source_row, const QModelIndex &so
         return any;
     else
         return every;
-}
-
-void SortFilterFileModel::loadState()
-{
-    KConfigGroup configGroup(config, configGroupName);
-    m_showComments = configGroup.readEntry(FileModel::keyShowComments, FileModel::defaultShowComments);
-    m_showMacros = configGroup.readEntry(FileModel::keyShowMacros, FileModel::defaultShowMacros);
 }

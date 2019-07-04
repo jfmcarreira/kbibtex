@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2016 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,17 +15,19 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROC_IDSUGGESTIONS_H
-#define KBIBTEX_PROC_IDSUGGESTIONS_H
+#ifndef KBIBTEX_PROCESSING_IDSUGGESTIONS_H
+#define KBIBTEX_PROCESSING_IDSUGGESTIONS_H
 
-#include "kbibtexproc_export.h"
+#include <Entry>
 
-#include "entry.h"
+#ifdef HAVE_KF5
+#include "kbibtexprocessing_export.h"
+#endif // HAVE_KF5
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT IdSuggestions
+class KBIBTEXPROCESSING_EXPORT IdSuggestions
 {
 public:
     enum CaseChange {ccNoChange = 0, ccToUpper = 1, ccToLower = 2, ccToCamelCase = 3};
@@ -37,12 +39,6 @@ public:
         CaseChange caseChange;
         QString inBetween;
     };
-
-    static const QString keyFormatStringList;
-    static const QString keyDefaultFormatString;
-    static const QStringList defaultFormatStringList;
-    static const QString defaultDefaultFormatString;
-    static const QString configGroupName;
 
     IdSuggestions();
     IdSuggestions(const IdSuggestions &) = delete;
@@ -79,4 +75,4 @@ private:
     IdSuggestionsPrivate *d;
 };
 
-#endif // KBIBTEX_PROC_IDSUGGESTIONS_H
+#endif // KBIBTEX_PROCESSING_IDSUGGESTIONS_H

@@ -24,10 +24,12 @@
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
 #endif // HAVE_KF5
 
+#include <FileImporterBibTeX>
 #include "internalnetworkaccessmanager.h"
-#include "fileimporterbibtex.h"
 #include "logging_networking.h"
 
 class OnlineSearchJStor::OnlineSearchJStorPrivate
@@ -70,8 +72,8 @@ void OnlineSearchJStor::startSearch(const QMap<QString, QString> &query, int num
     d->queryUrl.setPath(QStringLiteral("/action/doAdvancedSearch"));
     q.addQueryItem(QStringLiteral("Search"), QStringLiteral("Search"));
     q.addQueryItem(QStringLiteral("wc"), QStringLiteral("on")); /// include external references, too
-    q.addQueryItem(QStringLiteral("la"), QStringLiteral("")); /// no specific language
-    q.addQueryItem(QStringLiteral("jo"), QStringLiteral("")); /// no specific journal
+    q.addQueryItem(QStringLiteral("la"), QString()); /// no specific language
+    q.addQueryItem(QStringLiteral("jo"), QString()); /// no specific journal
     q.addQueryItem(QStringLiteral("hp"), QString::number(numResults)); /// hits per page
     int queryNumber = 0;
     const QStringList elementsTitle = splitRespectingQuotationMarks(query[queryKeyTitle]);
@@ -111,7 +113,12 @@ void OnlineSearchJStor::startSearch(const QMap<QString, QString> &query, int num
 
 QString OnlineSearchJStor::label() const
 {
+#ifdef HAVE_KF5
     return i18n("JSTOR");
+#else // HAVE_KF5
+    //= onlinesearch-jstor-label
+    return QObject::tr("JSTOR");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchJStor::favIconUrl() const

@@ -20,28 +20,27 @@
 #ifdef HAVE_QTWIDGETS
 #include <QFormLayout>
 #include <QSpinBox>
+#include <QLineEdit>
 #include <QLabel>
 #endif // HAVE_QTWIDGETS
+#include <QRegularExpression>
 #include <QNetworkRequest>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
-#include <QStandardPaths>
 #include <QUrlQuery>
-#include <QCoreApplication>
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
-#endif // HAVE_KF5
-#ifdef HAVE_QTWIDGETS
-#include <KLineEdit>
 #include <KConfigGroup>
-#endif // HAVE_QTWIDGETS
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
+#endif // HAVE_KF5
 
+#include <Encoder>
+#include <EncoderXML>
+#include <FileImporterBibTeX>
+#include <XSLTransform>
 #include "internalnetworkaccessmanager.h"
-#include "encoderlatex.h"
-#include "encoderxml.h"
-#include "fileimporterbibtex.h"
-#include "xsltransform.h"
 #include "logging_networking.h"
 
 #ifdef HAVE_QTWIDGETS
@@ -66,7 +65,7 @@ private:
     }
 
 public:
-    KLineEdit *lineEditFreeText, *lineEditTitle, *lineEditBookTitle, *lineEditAuthorEditor, *lineEditYear;
+    QLineEdit *lineEditFreeText, *lineEditTitle, *lineEditBookTitle, *lineEditAuthorEditor, *lineEditYear;
     QSpinBox *numResultsField;
 
     OnlineSearchQueryFormSpringerLink(QWidget *parent)
@@ -74,40 +73,40 @@ public:
         QFormLayout *layout = new QFormLayout(this);
         layout->setMargin(0);
 
-        lineEditFreeText = new KLineEdit(this);
+        lineEditFreeText = new QLineEdit(this);
         lineEditFreeText->setClearButtonEnabled(true);
         QLabel *label = new QLabel(i18n("Free Text:"), this);
         label->setBuddy(lineEditFreeText);
         layout->addRow(label, lineEditFreeText);
-        connect(lineEditFreeText, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
+        connect(lineEditFreeText, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
 
-        lineEditTitle = new KLineEdit(this);
+        lineEditTitle = new QLineEdit(this);
         lineEditTitle->setClearButtonEnabled(true);
         label = new QLabel(i18n("Title:"), this);
         label->setBuddy(lineEditTitle);
         layout->addRow(label, lineEditTitle);
-        connect(lineEditTitle, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
+        connect(lineEditTitle, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
 
-        lineEditBookTitle = new KLineEdit(this);
+        lineEditBookTitle = new QLineEdit(this);
         lineEditBookTitle->setClearButtonEnabled(true);
         label = new QLabel(i18n("Book/Journal title:"), this);
         label->setBuddy(lineEditBookTitle);
         layout->addRow(label, lineEditBookTitle);
-        connect(lineEditBookTitle, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
+        connect(lineEditBookTitle, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
 
-        lineEditAuthorEditor = new KLineEdit(this);
+        lineEditAuthorEditor = new QLineEdit(this);
         lineEditAuthorEditor->setClearButtonEnabled(true);
         label = new QLabel(i18n("Author or Editor:"), this);
         label->setBuddy(lineEditAuthorEditor);
         layout->addRow(label, lineEditAuthorEditor);
-        connect(lineEditAuthorEditor, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
+        connect(lineEditAuthorEditor, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
 
-        lineEditYear = new KLineEdit(this);
+        lineEditYear = new QLineEdit(this);
         lineEditYear->setClearButtonEnabled(true);
         label = new QLabel(i18n("Year:"), this);
         label->setBuddy(lineEditYear);
         layout->addRow(label, lineEditYear);
-        connect(lineEditYear, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
+        connect(lineEditYear, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormSpringerLink::returnPressed);
 
         numResultsField = new QSpinBox(this);
         label = new QLabel(i18n("Number of Results:"), this);
@@ -149,6 +148,9 @@ public:
 
 class OnlineSearchSpringerLink::OnlineSearchSpringerLinkPrivate
 {
+private:
+    static const QString xsltFilenameBase;
+
 public:
     static const QString springerMetadataKey;
     const XSLTransform xslt;
@@ -157,12 +159,13 @@ public:
 #endif // HAVE_QTWIDGETS
 
     OnlineSearchSpringerLinkPrivate(OnlineSearchSpringerLink *)
-            : xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/pam2bibtex.xsl")))
+            : xslt(XSLTransform::locateXSLTfile(xsltFilenameBase))
 #ifdef HAVE_QTWIDGETS
         , form(nullptr)
 #endif // HAVE_QTWIDGETS
     {
-        /// nothing
+        if (!xslt.isValid())
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "Failed to initialize XSL transformation based on file '" << xsltFilenameBase << "'";
     }
 
 #ifdef HAVE_QTWIDGETS
@@ -175,17 +178,17 @@ public:
 
         const QStringList titleChunks = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditTitle->text());
         for (const QString &titleChunk : titleChunks) {
-            queryString += QString(QStringLiteral(" title:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(titleChunk));
+            queryString += QString(QStringLiteral(" title:%1")).arg(Encoder::instance().convertToPlainAscii(titleChunk));
         }
 
         const QStringList bookTitleChunks = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditBookTitle->text());
         for (const QString &titleChunk : bookTitleChunks) {
-            queryString += QString(QStringLiteral(" ( journal:%1 OR book:%1 )")).arg(EncoderLaTeX::instance().convertToPlainAscii(titleChunk));
+            queryString += QString(QStringLiteral(" ( journal:%1 OR book:%1 )")).arg(Encoder::instance().convertToPlainAscii(titleChunk));
         }
 
         const QStringList authors = OnlineSearchAbstract::splitRespectingQuotationMarks(form->lineEditAuthorEditor->text());
         for (const QString &author : authors) {
-            queryString += QString(QStringLiteral(" name:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(author));
+            queryString += QString(QStringLiteral(" name:%1")).arg(Encoder::instance().convertToPlainAscii(author));
         }
 
         const QString year = form->lineEditYear->text();
@@ -208,12 +211,12 @@ public:
 
         const QStringList titleChunks = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyTitle]);
         for (const QString &titleChunk : titleChunks) {
-            queryString += QString(QStringLiteral(" title:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(titleChunk));
+            queryString += QString(QStringLiteral(" title:%1")).arg(Encoder::instance().convertToPlainAscii(titleChunk));
         }
 
         const QStringList authors = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyAuthor]);
         for (const QString &author : authors) {
-            queryString += QString(QStringLiteral(" name:%1")).arg(EncoderLaTeX::instance().convertToPlainAscii(author));
+            queryString += QString(QStringLiteral(" name:%1")).arg(Encoder::instance().convertToPlainAscii(author));
         }
 
         QString year = query[queryKeyYear];
@@ -235,6 +238,7 @@ public:
     }
 };
 
+const QString OnlineSearchSpringerLink::OnlineSearchSpringerLinkPrivate::xsltFilenameBase = QStringLiteral("pam2bibtex.xsl");
 const QString OnlineSearchSpringerLink::OnlineSearchSpringerLinkPrivate::springerMetadataKey(InternalNetworkAccessManager::reverseObfuscate("\xce\xb8\x4d\x2c\x8d\xba\xa9\xc4\x61\x9\x58\x6c\xbb\xde\x86\xb5\xb1\xc6\x15\x71\x76\x45\xd\x79\x12\x65\x95\xe1\x5d\x2f\x1d\x24\x10\x72\x2a\x5e\x69\x4\xdc\xba\xab\xc3\x28\x58\x8a\xfa\x5e\x69"));
 
 
@@ -288,7 +292,12 @@ void OnlineSearchSpringerLink::startSearch(const QMap<QString, QString> &query, 
 
 QString OnlineSearchSpringerLink::label() const
 {
+#ifdef HAVE_KF5
     return i18n("SpringerLink");
+#else // HAVE_KF5
+    //= onlinesearch-springerlink-label
+    return QObject::tr("SpringerLink");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchSpringerLink::favIconUrl() const

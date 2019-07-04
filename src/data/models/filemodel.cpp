@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -24,31 +24,24 @@
 #include <QString>
 
 #include <KLocalizedString>
-#include <KConfigGroup>
-#include <KSharedConfig>
 
-#include "element.h"
+#include <BibTeXEntries>
+#include <BibTeXFields>
+#include <Preferences>
+#include "file.h"
 #include "entry.h"
 #include "macro.h"
 #include "comment.h"
 #include "preamble.h"
-#include "bibtexentries.h"
-#include "bibtexfields.h"
-#include "preferences.h"
 
 const int FileModel::NumberRole = Qt::UserRole + 9581;
 const int FileModel::SortRole = Qt::UserRole + 236; /// see also MDIWidget's SortRole
-
-const QString FileModel::keyShowComments = QStringLiteral("showComments");
-const bool FileModel::defaultShowComments = true;
-const QString FileModel::keyShowMacros = QStringLiteral("showMacros");
-const bool FileModel::defaultShowMacros = true;
 
 
 FileModel::FileModel(QObject *parent)
         : QAbstractTableModel(parent), m_file(nullptr)
 {
-    NotificationHub::registerNotificationListener(this, NotificationHub::EventConfigurationChanged);
+    NotificationHub::registerNotificationListener(this);
     readConfiguration();
 }
 
@@ -57,8 +50,7 @@ void FileModel::notificationEvent(int eventId)
     if (eventId == NotificationHub::EventConfigurationChanged) {
         readConfiguration();
         int column = 0;
-        const BibTeXFields *bf = BibTeXFields::self();
-        for (const auto &fd : const_cast<const BibTeXFields &>(*bf)) {
+        for (const auto &fd : const_cast<const BibTeXFields &>(BibTeXFields::instance())) {
             /// Colors may have changed
             bool columnChanged = fd.upperCamelCase.toLower() == Entry::ftColor;
             /// Person name formatting may has changed
@@ -69,67 +61,69 @@ void FileModel::notificationEvent(int eventId)
                 emit dataChanged(index(0, column), index(rowCount() - 1, column));
             ++column;
         }
-    }
+    } else if (eventId == NotificationHub::EventBibliographySystemChanged)
+        emit headerDataChanged(Qt::Horizontal, 0, 0xffff);
 }
 
 void FileModel::readConfiguration()
 {
-    /// load mapping from color value to label
-    KSharedConfigPtr config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc")));
-    KConfigGroup configGroup(config, Preferences::groupColor);
-    QStringList colorCodes = configGroup.readEntry(Preferences::keyColorCodes, Preferences::defaultColorCodes);
-    QStringList colorLabels = configGroup.readEntry(Preferences::keyColorLabels, Preferences::defaultColorLabels);
     colorToLabel.clear();
-    for (QStringList::ConstIterator itc = colorCodes.constBegin(), itl = colorLabels.constBegin(); itc != colorCodes.constEnd() && itl != colorLabels.constEnd(); ++itc, ++itl) {
-        colorToLabel.insert(*itc, i18n((*itl).toUtf8().constData()));
-    }
+    for (QVector<QPair<QColor, QString>>::ConstIterator it = Preferences::instance().colorCodes().constBegin(); it != Preferences::instance().colorCodes().constEnd(); ++it)
+        colorToLabel.insert(it->first.name(), it->second);
 }
 
-QVariant FileModel::entryData(const Entry *entry, const QString &raw, const QString &rawAlt, int role, bool followCrossRef) const
+QString FileModel::entryText(const Entry *entry, const QString &raw, const QString &rawAlt, const QStringList &rawAliases, int role, bool followCrossRef) const
 {
-    if (raw == QStringLiteral("^id")) // FIXME: Use constant here?
-        return QVariant(entry->id());
-    else if (raw == QStringLiteral("^type")) { // FIXME: Use constant here?
-        /// try to beautify type, e.g. translate "proceedings" into
+    if (role != Qt::DisplayRole && role != Qt::ToolTipRole && role != SortRole)
+        return QString();
+
+    if (raw == QStringLiteral("^id")) {
+        return entry->id();
+    } else if (raw == QStringLiteral("^type")) { // FIXME: Use constant here?
+        /// Try to beautify type, e.g. translate "proceedings" into
         /// "Conference or Workshop Proceedings"
-        QString label = BibTeXEntries::self()->label(entry->type());
+        const QString label = BibTeXEntries::instance().label(entry->type());
         if (label.isEmpty()) {
-            /// fall-back to entry type as it is
-            return QVariant(entry->type());
+            /// Fall-back to entry type as it is
+            return entry->type();
         } else
-            return QVariant(label);
+            return label;
     } else if (raw.toLower() == Entry::ftStarRating) {
-        return QVariant();
+        return QString(); /// Stars have no string representation
     } else if (raw.toLower() == Entry::ftColor) {
-        QString text = PlainTextValue::text(entry->value(raw));
-        if (text.isEmpty()) return QVariant();
-        QString colorText = colorToLabel[text];
-        if (colorText.isEmpty()) return QVariant(text);
-        return QVariant(colorText);
+        const QString text = PlainTextValue::text(entry->value(raw));
+        if (text.isEmpty()) return QString();
+        const QString colorText = colorToLabel[text];
+        if (colorText.isEmpty()) return text;
+        return colorText;
     } else {
         QString text;
         if (entry->contains(raw))
             text = PlainTextValue::text(entry->value(raw)).simplified();
         else if (!rawAlt.isEmpty() && entry->contains(rawAlt))
             text = PlainTextValue::text(entry->value(rawAlt)).simplified();
+        if (text.isEmpty())
+            for (const QString &alias : rawAliases) {
+                if (entry->contains(alias)) {
+                    text = PlainTextValue::text(entry->value(alias)).simplified();
+                    if (!text.isEmpty()) break;
+                }
+            }
 
         if (followCrossRef && text.isEmpty() && entry->contains(Entry::ftCrossRef)) {
-            // TODO do not only follow "crossref", but other files from Biber/Biblatex as well
-            Entry *completedEntry = entry->resolveCrossref(m_file);
-            QVariant result = entryData(completedEntry, raw, rawAlt, role, false);
-            delete completedEntry;
-            return result;
+            QScopedPointer<const Entry> completedEntry(entry->resolveCrossref(m_file));
+            return entryText(completedEntry.data(), raw, rawAlt, rawAliases, role, false);
         }
 
         if (text.isEmpty())
-            return QVariant();
+            return QString();
         else if (role == FileModel::SortRole)
-            return QVariant(text.toLower());
+            return text.toLower();
         else if (role == Qt::ToolTipRole) {
             // TODO: find a better solution, such as line-wrapping tooltips
-            return QVariant(KBibTeX::leftSqueezeText(text, 128));
+            return KBibTeX::leftSqueezeText(text, 128);
         } else
-            return QVariant(text);
+            return text;
     }
 
 }
@@ -169,7 +163,7 @@ int FileModel::rowCount(const QModelIndex &parent) const
 int FileModel::columnCount(const QModelIndex &parent) const
 {
     Q_UNUSED(parent)
-    return BibTeXFields::self()->count();
+    return BibTeXFields::instance().count();
 }
 
 QVariant FileModel::data(const QModelIndex &index, int role) const
@@ -186,11 +180,11 @@ QVariant FileModel::data(const QModelIndex &index, int role) const
     if (role != NumberRole && role != SortRole && role != Qt::DisplayRole && role != Qt::ToolTipRole && role != Qt::BackgroundRole && role != Qt::ForegroundRole)
         return QVariant();
 
-    const BibTeXFields *bibtexFields = BibTeXFields::self();
-    if (index.row() < m_file->count() && index.column() < bibtexFields->count()) {
-        const FieldDescription &fd = bibtexFields->at(index.column());
-        QString raw = fd.upperCamelCase;
-        QString rawAlt = fd.upperCamelCaseAlt;
+    if (index.row() < m_file->count() && index.column() < BibTeXFields::instance().count()) {
+        const FieldDescription &fd = BibTeXFields::instance().at(index.column());
+        const QString &raw = fd.upperCamelCase;
+        const QString &rawAlt = fd.upperCamelCaseAlt;
+        const QStringList &rawAliases = fd.upperCamelCaseAliases;
         QSharedPointer<Element> element = (*m_file)[index.row()];
         QSharedPointer<Entry> entry = element.dynamicCast<Entry>();
 
@@ -236,8 +230,10 @@ QVariant FileModel::data(const QModelIndex &index, int role) const
                 return QVariant();
         }
 
+        /// The only roles left at this point shall be SortRole, Qt::DisplayRole, and Qt::ToolTipRole
+
         if (!entry.isNull()) {
-            return entryData(entry.data(), raw, rawAlt, role, true);
+            return QVariant(entryText(entry.data(), raw, rawAlt, rawAliases, role, true));
         } else {
             QSharedPointer<Macro> macro = element.dynamicCast<Macro>();
             if (!macro.isNull()) {
@@ -281,10 +277,9 @@ QVariant FileModel::data(const QModelIndex &index, int role) const
 
 QVariant FileModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-    const BibTeXFields *bibtexFields = BibTeXFields::self();
-    if (role != Qt::DisplayRole || orientation != Qt::Horizontal || section < 0 || section >= bibtexFields->count())
+    if (role != Qt::DisplayRole || orientation != Qt::Horizontal || section < 0 || section >= BibTeXFields::instance().count())
         return QVariant();
-    return bibtexFields->at(section).label;
+    return BibTeXFields::instance().at(section).label;
 }
 
 Qt::ItemFlags FileModel::flags(const QModelIndex &index) const

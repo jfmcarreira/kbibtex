@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -25,13 +25,11 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QVector>
 
 #include <KLocalizedString>
 
-const QString FileExporterToolchain::keyBabelLanguage = QStringLiteral("babelLanguage");
-const QString FileExporterToolchain::defaultBabelLanguage = QStringLiteral("english");
-const QString FileExporterToolchain::keyBibliographyStyle = QStringLiteral("bibliographyStyle");
-const QString FileExporterToolchain::defaultBibliographyStyle = QStringLiteral("plain");
+#include <Preferences>
 
 FileExporterToolchain::FileExporterToolchain(QObject *parent)
         : FileExporter(parent)
@@ -79,15 +77,13 @@ bool FileExporterToolchain::runProcess(const QString &cmd, const QStringList &ar
     if (errorLog != nullptr) {
         /// Redirect any standard output from process into errorLog
         connect(&process, &QProcess::readyReadStandardOutput, [errorLog, &process] {
-            QByteArray stdout = process.readAllStandardOutput();
-            QTextStream ts(&stdout);
+            QTextStream ts(process.readAllStandardOutput());
             while (!ts.atEnd())
                 errorLog->append(ts.readLine());
         });
         /// Redirect any standard error from process into errorLog
         connect(&process, &QProcess::readyReadStandardError, [errorLog, &process] {
-            QByteArray stderr = process.readAllStandardError();
-            QTextStream ts(&stderr);
+            QTextStream ts(process.readAllStandardError());
             while (!ts.atEnd())
                 errorLog->append(ts.readLine());
         });
@@ -135,6 +131,14 @@ bool FileExporterToolchain::writeFileToIODevice(const QString &filename, QIODevi
     if (errorLog != nullptr)
         errorLog->append(i18n("Writing to file '%1' failed", filename));
     return false;
+}
+
+QString FileExporterToolchain::pageSizeToLaTeXName(const QPageSize::PageSizeId pageSizeId) const
+{
+    for (const auto &dbItem : Preferences::availablePageSizes)
+        if (dbItem.first == pageSizeId)
+            return dbItem.second;
+    return QPageSize::name(pageSizeId).toLower(); ///< just a wild guess
 }
 
 bool FileExporterToolchain::kpsewhich(const QString &filename)

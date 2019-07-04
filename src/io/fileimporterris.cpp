@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -23,18 +23,22 @@
 #include <QCoreApplication>
 #include <QStringList>
 
-#include "kbibtex.h"
-#include "entry.h"
-#include "value.h"
+#include <Preferences>
+#include <KBibTeX>
+#include <Entry>
+#include <Value>
 #include "logging_io.h"
 
 #define appendValue(entry, fieldname, newvalue) { Value value = (entry)->value((fieldname)); value.append((newvalue)); (entry)->insert((fieldname), value); }
+#define removeDuplicates(entry, fieldname) { Value value = (entry)->value((fieldname)); if (!(value).isEmpty()) removeDuplicateValueItems((value)); if (!(value).isEmpty()) (entry)->insert((fieldname), value); }
 
 class FileImporterRIS::FileImporterRISPrivate
 {
 public:
+    FileImporterRIS *parent;
     int referenceCounter;
     bool cancelFlag;
+    bool protectCasing;
 
     typedef struct {
         QString key;
@@ -43,9 +47,9 @@ public:
     RISitem;
     typedef QVector<RISitem> RISitemList;
 
-    FileImporterRISPrivate(FileImporterRIS *parent)
-            : referenceCounter(0), cancelFlag(false) {
-        Q_UNUSED(parent)
+    FileImporterRISPrivate(FileImporterRIS *_parent)
+            : parent(_parent), referenceCounter(0), cancelFlag(false), protectCasing(false) {
+        /// nothing
     }
 
     RISitemList readElement(QTextStream &textStream) {
@@ -78,6 +82,11 @@ public:
 
             line = textStream.readLine();
         }
+        if (!line.startsWith(QStringLiteral("ER  -")) && textStream.atEnd()) {
+            qCWarning(LOG_KBIBTEX_IO) << "Expected that entry that starts with 'TY' ends with 'ER' but instead met end of file";
+            /// Instead of an 'emit' ...
+            QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, SeverityWarning), Q_ARG(QString, QStringLiteral("Expected that entry that starts with 'TY' ends with 'ER' but instead met end of file")));
+        }
         if (!value.isEmpty()) {
             RISitem item;
             item.key = key;
@@ -86,6 +95,13 @@ public:
         }
 
         return result;
+    }
+
+    inline QString optionallyProtectCasing(const QString &text) const {
+        if (protectCasing)
+            return QLatin1Char('{') + text + QLatin1Char('}');
+        else
+            return text;
     }
 
     Element *nextElement(QTextStream &textStream) {
@@ -117,11 +133,11 @@ public:
                 entry->setType(entryType);
             } else if ((*it).key == QStringLiteral("AU") || (*it).key == QStringLiteral("A1")) {
                 Person *person = splitName((*it).value);
-                if (person != NULL)
+                if (person != nullptr)
                     appendValue(entry, Entry::ftAuthor, QSharedPointer<Person>(person));
             } else if ((*it).key == QStringLiteral("ED") || (*it).key == QStringLiteral("A2")) {
                 Person *person = splitName((*it).value);
-                if (person != NULL)
+                if (person != nullptr)
                     appendValue(entry, Entry::ftEditor, QSharedPointer<Person>(person));
             } else if ((*it).key == QStringLiteral("ID")) {
                 entry->setId((*it).value);
@@ -138,11 +154,10 @@ public:
                 QString text = (*it).value;
                 const QRegularExpression splitRegExp(text.contains(QStringLiteral(";")) ? QStringLiteral("\\s*[;\\n]\\s*") : (text.contains(QStringLiteral(",")) ? QStringLiteral("\\s*[,\\n]\\s*") : QStringLiteral("\\n")));
                 QStringList newKeywords = text.split(splitRegExp, QString::SkipEmptyParts);
-                for (QStringList::Iterator it = newKeywords.begin(); it != newKeywords.end();
-                        ++it)
+                for (QStringList::Iterator it = newKeywords.begin(); it != newKeywords.end(); ++it)
                     appendValue(entry, Entry::ftKeywords, QSharedPointer<Keyword>(new Keyword(*it)));
             } else if ((*it).key == QStringLiteral("TI") || (*it).key == QStringLiteral("T1")) {
-                appendValue(entry, Entry::ftTitle, QSharedPointer<PlainText>(new PlainText((*it).value)));
+                appendValue(entry, Entry::ftTitle, QSharedPointer<PlainText>(new PlainText(optionallyProtectCasing((*it).value))));
             } else if ((*it).key == QStringLiteral("T3")) {
                 appendValue(entry, Entry::ftSeries, QSharedPointer<PlainText>(new PlainText((*it).value)));
             } else if ((*it).key == QStringLiteral("JO") || (*it).key == QStringLiteral("J1") || (*it).key == QStringLiteral("J2")) {
@@ -156,8 +171,10 @@ public:
                 appendValue(entry, Entry::ftChapter, QSharedPointer<PlainText>(new PlainText((*it).value)));
             } else if ((*it).key == QStringLiteral("IS")) {
                 appendValue(entry, Entry::ftNumber, QSharedPointer<PlainText>(new PlainText((*it).value)));
-            } else if ((*it).key == QStringLiteral("DO")) {
-                appendValue(entry, Entry::ftDOI, QSharedPointer<PlainText>(new PlainText((*it).value)));
+            } else if ((*it).key == QStringLiteral("DO") || (*it).key == QStringLiteral("M3")) {
+                const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match((*it).value);
+                if (doiRegExpMatch.hasMatch())
+                    appendValue(entry, Entry::ftDOI, QSharedPointer<VerbatimText>(new VerbatimText(doiRegExpMatch.captured())));
             } else if ((*it).key == QStringLiteral("PB")) {
                 appendValue(entry, Entry::ftPublisher, QSharedPointer<PlainText>(new PlainText((*it).value)));
             } else if ((*it).key == QStringLiteral("IN")) {
@@ -170,8 +187,14 @@ public:
             }  else if ((*it).key == QStringLiteral("AD")) {
                 appendValue(entry, Entry::ftAddress, QSharedPointer<PlainText>(new PlainText((*it).value)));
             } else if ((*it).key == QStringLiteral("L1") || (*it).key == QStringLiteral("L2") || (*it).key == QStringLiteral("L3") || (*it).key == QStringLiteral("UR")) {
-                const QString fieldName = KBibTeX::doiRegExp.match((*it).value).hasMatch() ? Entry::ftDOI : (KBibTeX::urlRegExp.match((*it).value).hasMatch() ? Entry::ftUrl : Entry::ftLocalFile);
-                appendValue(entry, fieldName, QSharedPointer<PlainText>(new PlainText((*it).value)));
+                QString fieldValue = (*it).value;
+                fieldValue.replace(QStringLiteral("<Go to ISI>://"), QStringLiteral("isi://"));
+                const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(fieldValue);
+                const QRegularExpressionMatch urlRegExpMatch = KBibTeX::urlRegExp.match(fieldValue);
+                const QString fieldName = doiRegExpMatch.hasMatch() ? Entry::ftDOI : (KBibTeX::urlRegExp.match((*it).value).hasMatch() ? Entry::ftUrl : (Preferences::instance().bibliographySystem() == Preferences::BibTeX ? Entry::ftLocalFile : Entry::ftFile));
+                fieldValue = doiRegExpMatch.hasMatch() ? doiRegExpMatch.captured() : (urlRegExpMatch.hasMatch() ? urlRegExpMatch.captured() : fieldValue);
+                if (fieldValue.startsWith(QStringLiteral("file:///"))) fieldValue = fieldValue.mid(7);
+                appendValue(entry, fieldName, QSharedPointer<VerbatimText>(new VerbatimText(fieldValue)));
             } else if ((*it).key == QStringLiteral("SP")) {
                 startPage = (*it).value;
             } else if ((*it).key == QStringLiteral("EP")) {
@@ -185,7 +208,7 @@ public:
         if (!journalName.isEmpty()) {
             const QString fieldName = entryType == Entry::etInBook || entryType == Entry::etInProceedings ? Entry::ftBookTitle : Entry::ftJournal;
             Value value = entry->value(fieldName);
-            value.append(QSharedPointer<PlainText>(new PlainText(journalName)));
+            value.append(QSharedPointer<PlainText>(new PlainText(optionallyProtectCasing(journalName))));
             entry->insert(fieldName, value);
         }
 
@@ -211,23 +234,46 @@ public:
                 Value value = entry->value(Entry::ftYear);
                 value.append(QSharedPointer<PlainText>(new PlainText(QString::number(year))));
                 entry->insert(Entry::ftYear, value);
-            } else
-                qCDebug(LOG_KBIBTEX_IO) << "invalid year: " << year;
+            } else {
+                qCWarning(LOG_KBIBTEX_IO) << "Invalid year: " << dateFragments[0];
+                /// Instead of an 'emit' ...
+                QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, SeverityWarning), Q_ARG(QString, QString(QStringLiteral("Invalid year: '%1'")).arg(dateFragments[0])));
+            }
         }
         if (dateFragments.count() > 1) {
             bool ok;
             int month = dateFragments[1].toInt(&ok);
-            if (ok && month > 0 && month < 13) {
+            if (ok && month >= 1 && month <= 12) {
                 Value value = entry->value(Entry::ftMonth);
                 value.append(QSharedPointer<MacroKey>(new MacroKey(KBibTeX::MonthsTriple[month - 1])));
                 entry->insert(Entry::ftMonth, value);
-            } else
-                qCDebug(LOG_KBIBTEX_IO) << "invalid month: " << month;
+            } else {
+                qCWarning(LOG_KBIBTEX_IO) << "Invalid month: " << dateFragments[1];
+                /// Instead of an 'emit' ...
+                QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, SeverityWarning), Q_ARG(QString, QString(QStringLiteral("Invalid month: '%1'")).arg(dateFragments[1])));
+            }
         }
+
+        removeDuplicates(entry, Entry::ftDOI);
+        removeDuplicates(entry, Entry::ftUrl);
 
         return entry;
     }
 
+    void removeDuplicateValueItems(Value &value) {
+        if (value.count() < 2) return; /// Values with one or no ValueItem cannot have duplicates
+
+        QSet<QString> uniqueStrings;
+        for (Value::Iterator it = value.begin(); it != value.end();) {
+            const QString itemString = PlainTextValue::text(*it);
+            if (uniqueStrings.contains(itemString))
+                it = value.erase(it);
+            else {
+                uniqueStrings.insert(itemString);
+                ++it;
+            }
+        }
+    }
 };
 
 FileImporterRIS::FileImporterRIS(QObject *parent)
@@ -245,7 +291,8 @@ FileImporterRIS::~FileImporterRIS()
 File *FileImporterRIS::load(QIODevice *iodevice)
 {
     if (!iodevice->isReadable() && !iodevice->open(QIODevice::ReadOnly)) {
-        qCDebug(LOG_KBIBTEX_IO) << "Input device not readable";
+        qCWarning(LOG_KBIBTEX_IO) << "Input device not readable";
+        emit message(SeverityError, QStringLiteral("Input device not readable"));
         return nullptr;
     }
 
@@ -270,12 +317,21 @@ File *FileImporterRIS::load(QIODevice *iodevice)
     }
 
     iodevice->close();
+
+    if (result != nullptr)
+        result->setProperty(File::ProtectCasing, static_cast<int>(d->protectCasing ? Qt::Checked : Qt::Unchecked));
+
     return result;
 }
 
 bool FileImporterRIS::guessCanDecode(const QString &text)
 {
     return text.indexOf(QStringLiteral("TY  - ")) >= 0;
+}
+
+void FileImporterRIS::setProtectCasing(bool protectCasing)
+{
+    d->protectCasing = protectCasing;
 }
 
 void FileImporterRIS::cancel()

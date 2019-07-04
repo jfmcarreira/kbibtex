@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -24,11 +24,11 @@
 
 #include <KLocalizedString>
 
-#include "file.h"
-#include "fileview.h"
-#include "entry.h"
-#include "macro.h"
-#include "comment.h"
+#include <File>
+#include <file/FileView>
+#include <Entry>
+#include <Macro>
+#include <Comment>
 #include "openfileinfo.h"
 
 class Statistics::StatisticsPrivate
@@ -151,7 +151,7 @@ Statistics::Statistics(QWidget *parent)
         : QWidget(parent), d(new StatisticsPrivate(this))
 {
     d->update();
-    connect(OpenFileInfoManager::instance(), &OpenFileInfoManager::currentChanged, this, &Statistics::update);
+    connect(&OpenFileInfoManager::instance(), &OpenFileInfoManager::currentChanged, this, &Statistics::update);
 }
 
 Statistics::~Statistics()

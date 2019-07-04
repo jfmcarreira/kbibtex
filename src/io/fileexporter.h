@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,9 +20,9 @@
 
 #include <QObject>
 
+#ifdef HAVE_KF5
 #include "kbibtexio_export.h"
-
-#include "file.h"
+#endif // HAVE_KF5
 
 class QIODevice;
 
@@ -37,12 +37,6 @@ class KBIBTEXIO_EXPORT FileExporter : public QObject
     Q_OBJECT
 
 public:
-    static const QString keyPaperSize;
-    static const QString defaultPaperSize;
-
-    static const QString keyFont;
-    static const QString defaultFont;
-
     explicit FileExporter(QObject *parent);
     ~FileExporter() override;
 

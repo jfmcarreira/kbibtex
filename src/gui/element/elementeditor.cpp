@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -35,16 +35,17 @@
 #include <KSharedConfig>
 #include <KConfigGroup>
 
-#include "menulineedit.h"
-#include "entry.h"
-#include "comment.h"
-#include "macro.h"
-#include "preamble.h"
-#include "element.h"
-#include "file.h"
+#include <NotificationHub>
+#include <Entry>
+#include <Comment>
+#include <Macro>
+#include <Preamble>
+#include <Element>
+#include <File>
+#include <CheckBibTeX>
 #include "elementwidgets.h"
-#include "checkbibtex.h"
-#include "hidingtabwidget.h"
+#include "widgets/hidingtabwidget.h"
+#include "widgets/menulineedit.h"
 
 class ElementEditor::ElementEditorPrivate : public ElementEditor::ApplyElementInterface
 {
@@ -59,7 +60,7 @@ private:
     ElementEditor *p;
     ElementWidget *previousWidget;
     ReferenceWidget *referenceWidget;
-    ElementWidget *sourceWidget;
+    SourceWidget *sourceWidget;
     QPushButton *buttonCheckWithBibTeX;
 
     /// Settings management through a push button with menu
@@ -102,8 +103,7 @@ public:
     }
 
     void addTabWidgets() {
-        const EntryLayout *el = EntryLayout::self();
-        for (const auto &etl : const_cast<const EntryLayout &>(*el)) {
+        for (const auto &etl : EntryLayout::instance()) {
             ElementWidget *widget = new EntryConfiguredWidget(etl, tab);
             connect(widget, &ElementWidget::modified, p, &ElementEditor::childModified);
             widgets << widget;
@@ -134,14 +134,14 @@ public:
         QStringList blacklistedFields;
 
         /// blacklist fields covered by EntryConfiguredWidget
-        for (const auto &etl : const_cast<const EntryLayout &>(*el))
+        for (const auto &etl : EntryLayout::instance())
             for (const auto &sfl : const_cast<const QList<SingleFieldLayout> &>(etl->singleFieldLayouts))
                 blacklistedFields << sfl.bibtexLabel;
 
         /// blacklist fields covered by FilesWidget
-        blacklistedFields << QString(Entry::ftUrl) << QString(Entry::ftLocalFile) << QString(Entry::ftDOI) << QStringLiteral("ee") << QStringLiteral("biburl") << QStringLiteral("postscript");
+        blacklistedFields << QString(Entry::ftUrl) << QString(Entry::ftLocalFile) << QString(Entry::ftFile) << QString(Entry::ftDOI) << QStringLiteral("ee") << QStringLiteral("biburl") << QStringLiteral("postscript");
         for (int i = 2; i < 256; ++i) // FIXME replace number by constant
-            blacklistedFields << QString(Entry::ftUrl) + QString::number(i) << QString(Entry::ftLocalFile) + QString::number(i) <<  QString(Entry::ftDOI) + QString::number(i) << QStringLiteral("ee") + QString::number(i) << QStringLiteral("postscript") + QString::number(i);
+            blacklistedFields << QString(Entry::ftUrl) + QString::number(i) << QString(Entry::ftLocalFile) + QString::number(i) << QString(Entry::ftFile) + QString::number(i) <<  QString(Entry::ftDOI) + QString::number(i) << QStringLiteral("ee") + QString::number(i) << QStringLiteral("postscript") + QString::number(i);
 
         widget = new OtherFieldsWidget(blacklistedFields, tab);
         connect(widget, &ElementWidget::modified, p, &ElementEditor::childModified);
@@ -259,6 +259,11 @@ public:
         return QString();
     }
 
+    void setCurrentId(const QString &newId) {
+        if (referenceWidget != nullptr)
+            return referenceWidget->setCurrentId(newId);
+    }
+
     /**
      * Return the current File object set for this element editor.
      * May be NULL if nothing has been set or if it has been cleared.
@@ -276,26 +281,35 @@ public:
     }
 
     void apply(QSharedPointer<Element> element) override {
+        QSharedPointer<Entry> e = element.dynamicCast<Entry>();
+        QSharedPointer<Macro> m = e.isNull() ? element.dynamicCast<Macro>() : QSharedPointer<Macro>();
+        QSharedPointer<Comment> c = e.isNull() && m.isNull() ? element.dynamicCast<Comment>() : QSharedPointer<Comment>();
+        QSharedPointer<Preamble> p = e.isNull() && m.isNull() && c.isNull() ? element.dynamicCast<Preamble>() : QSharedPointer<Preamble>();
+
         if (tab->currentWidget() == sourceWidget) {
             /// Very simple if source view is active: BibTeX code contains
             /// all necessary data
+            if (!e.isNull())
+                sourceWidget->setElementClass(SourceWidget::elementEntry);
+            else if (!m.isNull())
+                sourceWidget->setElementClass(SourceWidget::elementMacro);
+            else if (!p.isNull())
+                sourceWidget->setElementClass(SourceWidget::elementPreamble);
+            else
+                sourceWidget->setElementClass(SourceWidget::elementInvalid);
             sourceWidget->apply(element);
         } else {
             /// Start by assigning the current internal element's
             /// data to the output element
-            QSharedPointer<Entry> e = element.dynamicCast<Entry>();
             if (!e.isNull())
                 *e = *internalEntry;
             else {
-                QSharedPointer<Macro> m = element.dynamicCast<Macro>();
                 if (!m.isNull())
                     *m = *internalMacro;
                 else {
-                    QSharedPointer<Comment> c = element.dynamicCast<Comment>();
                     if (!c.isNull())
                         *c = *internalComment;
                     else {
-                        QSharedPointer<Preamble> p = element.dynamicCast<Preamble>();
                         if (!p.isNull())
                             *p = *internalPreamble;
                         else
@@ -313,6 +327,22 @@ public:
             ElementWidget *currentElementWidget = qobject_cast<ElementWidget *>(tab->currentWidget());
             if (currentElementWidget != nullptr)
                 currentElementWidget->apply(element);
+        }
+    }
+
+    bool validate(QWidget **widgetWithIssue, QString &message) const override {
+        if (tab->currentWidget() == sourceWidget) {
+            /// Source widget must check its textual content for being valid BibTeX code
+            return sourceWidget->validate(widgetWithIssue, message);
+        } else {
+            /// All widgets except for the source widget must validate their values
+            for (WidgetList::ConstIterator it = widgets.begin(); it != widgets.end(); ++it) {
+                if ((*it) == sourceWidget) continue;
+                const bool v = (*it)->validate(widgetWithIssue, message);
+                /// A single widget failing to validate lets the whole validation fail
+                if (!v) return false;
+            }
+            return true;
         }
     }
 
@@ -336,21 +366,25 @@ public:
         }
 
         QSharedPointer<const Entry> e = element.dynamicCast<const Entry>();
-        if (!e.isNull())
+        if (!e.isNull()) {
             internalEntry = QSharedPointer<Entry>(new Entry(*e.data()));
-        else {
+            sourceWidget->setElementClass(SourceWidget::elementEntry);
+        } else {
             QSharedPointer<const Macro> m = element.dynamicCast<const Macro>();
-            if (!m.isNull())
+            if (!m.isNull()) {
                 internalMacro = QSharedPointer<Macro>(new Macro(*m.data()));
-            else {
+                sourceWidget->setElementClass(SourceWidget::elementMacro);
+            } else {
                 QSharedPointer<const Comment> c = element.dynamicCast<const Comment>();
-                if (!c.isNull())
+                if (!c.isNull()) {
                     internalComment = QSharedPointer<Comment>(new Comment(*c.data()));
-                else {
+                    sourceWidget->setElementClass(SourceWidget::elementComment);
+                } else {
                     QSharedPointer<const Preamble> p = element.dynamicCast<const Preamble>();
-                    if (!p.isNull())
+                    if (!p.isNull()) {
                         internalPreamble = QSharedPointer<Preamble>(new Preamble(*p.data()));
-                    else
+                        sourceWidget->setElementClass(SourceWidget::elementPreamble);
+                    } else
                         Q_ASSERT_X(element.isNull(), "ElementEditor::ElementEditorPrivate::reset(QSharedPointer<const Element> element)", "element is not NULL but could not be cast on a valid Element sub-class");
                 }
             }
@@ -502,18 +536,15 @@ void ElementEditor::apply()
         }
     }
 
-    /// Apply will always set the 'new' id/key to the entry or macro, respectively
-    d->apply();
-
     if (idToUse == UseOriginalId) {
         /// As 'apply()' above set the 'new' id/key but the 'original' id/key is to be used,
-        /// now the entry id or macro key, respectively, has to be set again, manually
-        if (!entry.isNull())
-            entry->setId(originalId);
-        else if (!macro.isNull())
-            macro->setKey(originalId);
-        d->reset(); ///< notify UI about change of id/key
+        /// now UI must be updated accordingly. Changes will propagate to the entry id or
+        /// macro key, respectively, when invoking apply() further down
+        d->setCurrentId(originalId);
     }
+
+    /// Apply will always set the 'new' id/key to the entry or macro, respectively
+    d->apply();
 
     d->setModified(false);
     emit modified(false);
@@ -523,6 +554,31 @@ void ElementEditor::reset()
 {
     d->reset();
     emit modified(false);
+}
+
+bool ElementEditor::validate() {
+    QWidget *widgetWithIssue = nullptr;
+    QString message;
+    if (!validate(&widgetWithIssue, message)) {
+        const QString msgBoxMessage = message.isEmpty() ? i18n("Validation for the current element failed.") : i18n("Validation for the current element failed:\n%1", message);
+        KMessageBox::error(this, msgBoxMessage, i18n("Element validation failed"));
+        if (widgetWithIssue != nullptr) {
+            /// Probe if widget with issue is inside a QTabWiget; if yes, make parenting tab the current tab
+            QWidget *cur = widgetWithIssue;
+            do {
+                QTabWidget *tabWidget = cur->parent() != nullptr && cur->parent()->parent() != nullptr ? qobject_cast<QTabWidget *>(cur->parent()->parent()) : nullptr;
+                if (tabWidget != nullptr) {
+                    tabWidget->setCurrentWidget(cur);
+                    break;
+                }
+                cur = qobject_cast<QWidget *>(cur->parent());
+            } while (cur != nullptr);
+            /// Set focus to widget with issue
+            widgetWithIssue->setFocus();
+        }
+        return false;
+    }
+    return true;
 }
 
 void ElementEditor::setElement(QSharedPointer<Element> element, const File *file)
@@ -573,6 +629,11 @@ bool ElementEditor::elementChanged()
 bool ElementEditor::elementUnapplied()
 {
     return d->elementUnapplied;
+}
+
+bool ElementEditor::validate(QWidget **widgetWithIssue, QString &message)
+{
+    return d->validate(widgetWithIssue, message);
 }
 
 QWidget *ElementEditor::currentPage() const

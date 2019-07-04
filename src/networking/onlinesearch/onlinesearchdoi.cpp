@@ -19,21 +19,21 @@
 
 #ifdef HAVE_QTWIDGETS
 #include <QLabel>
+#include <QLineEdit>
 #include <QGridLayout>
 #endif // HAVE_QTWIDGETS
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QRegularExpression>
 
-#ifdef HAVE_QTWIDGETS
-#include <KLineEdit>
+#ifdef HAVE_KF5
 #include <KConfigGroup>
-#endif // HAVE_QTWIDGETS
 #include <KLocalizedString>
+#endif // HAVE_KF5
 
-#include "kbibtex.h"
+#include <KBibTeX>
+#include <FileImporterBibTeX>
 #include "internalnetworkaccessmanager.h"
-#include "fileimporterbibtex.h"
 #include "logging_networking.h"
 
 #ifdef HAVE_QTWIDGETS
@@ -50,7 +50,7 @@ private:
     }
 
 public:
-    KLineEdit *lineEditDoiNumber;
+    QLineEdit *lineEditDoiNumber;
 
     OnlineSearchQueryFormDOI(QWidget *widget)
             : OnlineSearchQueryFormAbstract(widget), configGroupName(QStringLiteral("Search Engine DOI")) {
@@ -59,10 +59,10 @@ public:
 
         QLabel *label = new QLabel(i18n("DOI:"), this);
         layout->addWidget(label, 0, 0, 1, 1);
-        lineEditDoiNumber = new KLineEdit(this);
+        lineEditDoiNumber = new QLineEdit(this);
         layout->addWidget(lineEditDoiNumber, 0, 1, 1, 1);
         lineEditDoiNumber->setClearButtonEnabled(true);
-        connect(lineEditDoiNumber, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormDOI::returnPressed);
+        connect(lineEditDoiNumber, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormDOI::returnPressed);
 
         layout->setRowStretch(1, 100);
         lineEditDoiNumber->setFocus(Qt::TabFocusReason);

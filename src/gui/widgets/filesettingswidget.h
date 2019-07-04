@@ -1,5 +1,5 @@
 /*****************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
  *                                                                           *
  *                                                                           *
  *   This program is free software; you can redistribute it and/or modify    *
@@ -16,18 +16,17 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
  *****************************************************************************/
 
-#ifndef GUI_FILESETTINGSWIDGET_H
-#define GUI_FILESETTINGSWIDGET_H
-
-#include "kbibtexgui_export.h"
+#ifndef KBIBTEX_GUI_FILESETTINGSWIDGET_H
+#define KBIBTEX_GUI_FILESETTINGSWIDGET_H
 
 #include <QWidget>
 
-#include "value.h"
+#include <Value>
+
+#include "kbibtexgui_export.h"
 
 class QCheckBox;
-
-class KComboBox;
+class QComboBox;
 
 class File;
 
@@ -53,13 +52,13 @@ signals:
     void widgetsChanged();
 
 private:
-    KComboBox *m_comboBoxEncodings;
-    KComboBox *m_comboBoxStringDelimiters;
-    KComboBox *m_comboBoxQuoteComment;
-    KComboBox *m_comboBoxKeywordCasing;
+    QComboBox *m_comboBoxEncodings;
+    QComboBox *m_comboBoxStringDelimiters;
+    QComboBox *m_comboBoxQuoteComment;
+    QComboBox *m_comboBoxKeywordCasing;
     QCheckBox *m_checkBoxProtectCasing;
-    KComboBox *m_comboBoxPersonNameFormatting;
-    KComboBox *m_comboBoxListSeparator;
+    QComboBox *m_comboBoxPersonNameFormatting;
+    QComboBox *m_comboBoxListSeparator;
 
     const Person dummyPerson;
     File *m_file;
@@ -67,4 +66,4 @@ private:
     void setupGUI();
 };
 
-#endif // GUI_FILESETTINGSWIDGET_H
+#endif // KBIBTEX_GUI_FILESETTINGSWIDGET_H

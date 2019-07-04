@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -25,12 +25,12 @@
 #include <KLocalizedString>
 #include <KIconLoader>
 
-#include "file.h"
-#include "clipboard.h"
-#include "fileview.h"
-#include "filedelegate.h"
-#include "models/filemodel.h"
-#include "idsuggestions.h"
+#include <File>
+#include <file/Clipboard>
+#include <file/FileView>
+#include <file/FileDelegate>
+#include <models/FileModel>
+#include <IdSuggestions>
 #include "logging_program.h"
 
 class SearchResults::SearchResultsPrivate
@@ -119,7 +119,9 @@ public:
     }
 
     void clear() {
-        resultList->fileModel()->clear();
+        FileModel *model = resultList->fileModel();
+        if (model != nullptr)
+            model->clear();
     }
 
     bool insertElement(QSharedPointer<Element> element) {
@@ -132,7 +134,7 @@ public:
         if (!entry.isNull())
             idSuggestions.applyDefaultFormatId(*entry.data());
 
-        bool result = model->insertRow(element, model->rowCount());
+        bool result = model != nullptr ? model->insertRow(element, model->rowCount()) : false;
         if (result)
             resultList->sortFilterProxyModel()->invalidate();
 
@@ -197,6 +199,9 @@ void SearchResults::importSelected()
 
     FileModel *targetModel = d->mainEditor->fileModel();
     FileModel *sourceModel = d->resultList->fileModel();
+    if (targetModel == nullptr || sourceModel == nullptr) return; ///< either source or target model is invalid
+
+    bool atLeastOneSuccessfullInsertion = false;
     const QModelIndexList selList = d->resultList->selectionModel()->selectedRows();
     for (const QModelIndex &modelIndex : selList) {
         /// Map from visible row to 'real' row
@@ -209,11 +214,11 @@ void SearchResults::importSelected()
             /// Important: make clone of entry before inserting
             /// in main list, otherwise data would be shared
             QSharedPointer<Entry> clone(new Entry(*entry));
-            targetModel->insertRow(clone, targetModel->rowCount());
+            atLeastOneSuccessfullInsertion |= targetModel->insertRow(clone, targetModel->rowCount());
         } else
             qCWarning(LOG_KBIBTEX_PROGRAM) << "Trying to import something that isn't an Entry";
     }
 
-    if (!selList.isEmpty())
+    if (atLeastOneSuccessfullInsertion)
         d->mainEditor->externalModification();
 }

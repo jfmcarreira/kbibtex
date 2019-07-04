@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,9 +18,11 @@
 #ifndef KBIBTEX_NETWORKING_ZOTERO_OAUTHWIZARD_H
 #define KBIBTEX_NETWORKING_ZOTERO_OAUTHWIZARD_H
 
-#include <QWizard>
+#include <QDialog>
 
+#ifdef HAVE_KF5
 #include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
 
 namespace Zotero
 {
@@ -28,7 +30,7 @@ namespace Zotero
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXNETWORKING_EXPORT OAuthWizard : public QWizard
+class KBIBTEXNETWORKING_EXPORT OAuthWizard : public QDialog
 {
     Q_OBJECT
 
@@ -40,15 +42,6 @@ public:
 
     int userId() const;
     QString apiKey() const;
-    QString username() const;
-
-protected:
-    void initializePage(int id) override;
-    void accept() override;
-
-private slots:
-    void copyAuthorizationUrl();
-    void openAuthorizationUrl();
 
 private:
     class Private;

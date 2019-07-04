@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,18 +15,16 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_ONLINESEARCH_INGENTACONNECT_H
-#define KBIBTEX_ONLINESEARCH_INGENTACONNECT_H
+#ifndef KBIBTEX_NETWORKING_ONLINESEARCHINGENTACONNECT_H
+#define KBIBTEX_NETWORKING_ONLINESEARCHINGENTACONNECT_H
 
 #include <QByteArray>
 
-#include "onlinesearchabstract.h"
+#include <onlinesearch/OnlineSearchAbstract>
 
-#ifdef HAVE_QTWIDGETS
-class QSpinBox;
-class KComboBox;
-class KLineEdit;
-#endif // HAVE_QTWIDGETS
+#ifdef HAVE_KF5
+#include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
@@ -63,4 +61,4 @@ private slots:
     void downloadDone();
 };
 
-#endif // KBIBTEX_ONLINESEARCH_INGENTACONNECT_H
+#endif // KBIBTEX_NETWORKING_ONLINESEARCHINGENTACONNECT_H

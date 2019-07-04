@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,12 +14,17 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
-#ifndef BIBTEXFILEEXPORTERBIBTEXOUTPUT_H
-#define BIBTEXFILEEXPORTERBIBTEXOUTPUT_H
+
+#ifndef KBIBTEX_IO_FILEEXPORTERBIBTEXOUTPUT_H
+#define KBIBTEX_IO_FILEEXPORTERBIBTEXOUTPUT_H
 
 #include <QStringList>
 
-#include "fileexportertoolchain.h"
+#include <FileExporterToolchain>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
 @author Thomas Fischer
@@ -33,23 +38,16 @@ public:
     explicit FileExporterBibTeXOutput(OutputType outputType, QObject *parent);
     ~FileExporterBibTeXOutput() override;
 
-    void reloadConfig() override;
-
     bool save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog = nullptr) override;
     bool save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog = nullptr) override;
-
-    void setLaTeXLanguage(const QString &language);
-    void setLaTeXBibliographyStyle(const QString &bibStyle);
 
 private:
     OutputType m_outputType;
     QString m_fileBasename;
     QString m_fileStem;
-    QString m_latexLanguage;
-    QString m_latexBibStyle;
 
     bool generateOutput(QStringList *errorLog);
     bool writeLatexFile(const QString &filename);
 };
 
-#endif
+#endif // KBIBTEX_IO_FILEEXPORTERBIBTEXOUTPUT_H

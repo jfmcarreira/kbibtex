@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,6 +20,8 @@
 #include <QLayout>
 #include <QBuffer>
 #include <QLabel>
+#include <QLineEdit>
+#include <QComboBox>
 #include <QTreeWidget>
 #include <QFileInfo>
 #include <QDropEvent>
@@ -31,27 +33,31 @@
 #include <QStyle>
 #include <QPushButton>
 #include <QFontDatabase>
+#include <QRegularExpression>
 
 #include <KLocalizedString>
-#include <KLineEdit>
-#include <KComboBox>
 #include <KRun>
-#include <KTextEdit>
+#include <KTextEditor/Document>
+#include <KTextEditor/Editor>
+#include <KTextEditor/View>
 #include <kio_version.h>
 
-#include "idsuggestions.h"
-#include "fileinfo.h"
-#include "kbibtex.h"
-#include "bibtexentries.h"
-#include "bibtexfields.h"
-#include "fileimporterbibtex.h"
-#include "fileexporterbibtex.h"
-#include "file.h"
-#include "fieldinput.h"
-#include "entry.h"
-#include "macro.h"
-#include "preamble.h"
-#include "fieldlineedit.h"
+#include <KBibTeX>
+#include <Preferences>
+#include <BibTeXEntries>
+#include <BibTeXFields>
+#include <Entry>
+#include <Macro>
+#include <Preamble>
+#include <File>
+#include <FileInfo>
+#include <FileImporterBibTeX>
+#include <FileExporterBibTeX>
+#include <FileExporterBibTeX2HTML>
+#include <IdSuggestions>
+#include "field/fieldinput.h"
+#include "field/fieldlineedit.h"
+#include "delayedexecutiontimer.h"
 #include "logging_gui.h"
 
 static const unsigned int interColumnSpace = 16;
@@ -138,6 +144,15 @@ bool EntryConfiguredWidget::reset(QSharedPointer<const Element> element)
     return true;
 }
 
+bool EntryConfiguredWidget::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    for (int i = fieldInputCount - 1; i >= 0; --i) {
+        const bool v = listOfLabeledFieldInput[i]->fieldInput->validate(widgetWithIssue, message);
+        if (!v) return false;
+    }
+    return true;
+}
+
 void EntryConfiguredWidget::showReqOptWidgets(bool forceVisible, const QString &entryType)
 {
     layoutGUI(forceVisible, entryType);
@@ -188,14 +203,12 @@ bool EntryConfiguredWidget::canEdit(const Element *element)
 
 void EntryConfiguredWidget::createGUI()
 {
-    const BibTeXFields *bf = BibTeXFields::self();
-
     int i = 0;
     for (const SingleFieldLayout &sfl : const_cast<const QList<SingleFieldLayout> &>(etl->singleFieldLayouts)) {
         LabeledFieldInput *labeledFieldInput = new LabeledFieldInput;
 
         /// create an editing widget for this field
-        const FieldDescription &fd = bf->find(sfl.bibtexLabel);
+        const FieldDescription &fd = BibTeXFields::instance().find(sfl.bibtexLabel);
         labeledFieldInput->fieldInput = new FieldInput(sfl.fieldInputLayout, fd.preferredTypeFlag, fd.typeFlags, this);
         labeledFieldInput->fieldInput->setFieldKey(sfl.bibtexLabel);
         bibtexKeyToWidget.insert(sfl.bibtexLabel, labeledFieldInput->fieldInput);
@@ -221,13 +234,10 @@ void EntryConfiguredWidget::createGUI()
 
 void EntryConfiguredWidget::layoutGUI(bool forceVisible, const QString &entryType)
 {
-    const BibTeXFields *bf = BibTeXFields::self();
-
     QStringList visibleItems;
     if (!forceVisible && !entryType.isEmpty()) {
         const QString entryTypeLc = entryType.toLower();
-        const BibTeXEntries *be = BibTeXEntries::self();
-        for (const auto &ed : const_cast<const BibTeXEntries &>(*be)) {
+        for (const auto &ed : BibTeXEntries::instance()) {
             if (entryTypeLc == ed.upperCamelCase.toLower() || entryTypeLc == ed.upperCamelCaseAlt.toLower()) {
                 /// this ugly conversion is necessary because we have a "^" (xor) and "|" (and/or)
                 /// syntax to differentiate required items (not used yet, but will be used
@@ -257,7 +267,7 @@ void EntryConfiguredWidget::layoutGUI(bool forceVisible, const QString &entryTyp
         gridLayout->removeWidget(listOfLabeledFieldInput[i]->fieldInput);
 
         const QString key = bibtexKeyToWidget.key(listOfLabeledFieldInput[i]->fieldInput).toLower();
-        const FieldDescription &fd = bf->find(key);
+        const FieldDescription &fd = BibTeXFields::instance().find(key);
         Value value;
         listOfLabeledFieldInput[i]->fieldInput->apply(value);
         /// Hide non-required and non-optional type-dependent fields,
@@ -345,20 +355,19 @@ bool ReferenceWidget::reset(QSharedPointer<const Element> element)
 {
     /// if signals are not deactivated, the "modified" signal would be emitted when
     /// resetting the widgets' values
-    disconnect(entryType->lineEdit(), &KLineEdit::textChanged, this, &ReferenceWidget::gotModified);
-    disconnect(entryId, &KLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
+    disconnect(entryType->lineEdit(), &QLineEdit::textChanged, this, &ReferenceWidget::gotModified);
+    disconnect(entryId, &QLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
 
     bool result = false;
     QSharedPointer<const Entry> entry = element.dynamicCast<const Entry>();
     if (!entry.isNull()) {
         entryType->setEnabled(!isReadOnly);
         buttonSuggestId->setEnabled(!isReadOnly);
-        const BibTeXEntries *be = BibTeXEntries::self();
-        QString type = be->format(entry->type(), KBibTeX::cUpperCamelCase);
+        QString type = BibTeXEntries::instance().format(entry->type(), KBibTeX::cUpperCamelCase);
         int index = entryType->findData(type);
         if (index == -1) {
             const QString typeLower(type.toLower());
-            for (const auto &ed : const_cast<const BibTeXEntries &>(*be))
+            for (const auto &ed : BibTeXEntries::instance())
                 if (typeLower == ed.upperCamelCaseAlt.toLower()) {
                     index = entryType->findData(ed.upperCamelCase);
                     break;
@@ -389,10 +398,35 @@ bool ReferenceWidget::reset(QSharedPointer<const Element> element)
         }
     }
 
-    connect(entryId, &KLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
-    connect(entryType->lineEdit(), &KLineEdit::textChanged, this, &ReferenceWidget::gotModified);
+    connect(entryId, &QLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
+    connect(entryType->lineEdit(), &QLineEdit::textChanged, this, &ReferenceWidget::gotModified);
 
     return result;
+}
+
+bool ReferenceWidget::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    message.clear();
+
+    static const QRegularExpression validTypeRegExp(QStringLiteral("^[a-z]+$"), QRegularExpression::CaseInsensitiveOption);
+    const QString type = computeType();
+    const QRegularExpressionMatch validTypeMatch = validTypeRegExp.match(type);
+    if (!validTypeMatch.hasMatch() || validTypeMatch.capturedLength() != type.length()) {
+        if (widgetWithIssue != nullptr) *widgetWithIssue = entryType;
+        message = i18n("Element type '%1' is invalid.", type);
+        return false;
+    }
+
+    static const QRegularExpression validIdRegExp(QStringLiteral("^[a-z0-9][a-z0-9_:.+/$\\\"&-]*$"), QRegularExpression::CaseInsensitiveOption);
+    const QString id = entryId->text();
+    const QRegularExpressionMatch validIdMatch = validIdRegExp.match(id);
+    if (!validIdMatch.hasMatch() || validIdMatch.capturedLength() != id.length()) {
+        if (widgetWithIssue != nullptr) *widgetWithIssue = entryId;
+        message = i18n("Id '%1' is invalid", id);
+        return false;
+    }
+
+    return true;
 }
 
 void ReferenceWidget::setReadOnly(bool isReadOnly)
@@ -428,11 +462,16 @@ QString ReferenceWidget::currentId() const
     return entryId->text();
 }
 
+void ReferenceWidget::setCurrentId(const QString &newId)
+{
+    entryId->setText(newId);
+}
+
 void ReferenceWidget::createGUI()
 {
     QHBoxLayout *layout = new QHBoxLayout(this);
 
-    entryType = new KComboBox(this);
+    entryType = new QComboBox(this);
     entryType->setEditable(true);
     entryType->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
     QLabel *label = new QLabel(i18n("Type:"), this);
@@ -442,15 +481,14 @@ void ReferenceWidget::createGUI()
 
     layout->addSpacing(interColumnSpace);
 
-    entryId = new KLineEdit(this);
+    entryId = new QLineEdit(this);
     entryId->setClearButtonEnabled(true);
     label = new QLabel(i18n("Id:"), this);
     label->setBuddy(entryId);
     layout->addWidget(label);
     layout->addWidget(entryId);
 
-    const BibTeXEntries *be = BibTeXEntries::self();
-    for (const auto &ed : const_cast<const BibTeXEntries &>(*be))
+    for (const auto &ed : BibTeXEntries::instance())
         entryType->addItem(ed.label, ed.upperCamelCase);
     /// Sort the combo box locale-aware. Thus we need a SortFilterProxyModel
     QSortFilterProxyModel *proxy = new QSortFilterProxyModel(entryType);
@@ -461,15 +499,15 @@ void ReferenceWidget::createGUI()
     entryType->model()->sort(0);
 
     /// Button with a menu listing a set of preconfigured id suggestions
-    buttonSuggestId = new QPushButton(QIcon::fromTheme(QStringLiteral("view-filter")), QStringLiteral(""), this);
+    buttonSuggestId = new QPushButton(QIcon::fromTheme(QStringLiteral("view-filter")), QString(), this);
     buttonSuggestId->setToolTip(i18n("Select a suggested id for this entry"));
     layout->addWidget(buttonSuggestId);
     QMenu *suggestionsMenu = new QMenu(buttonSuggestId);
     buttonSuggestId->setMenu(suggestionsMenu);
 
-    connect(entryType->lineEdit(), &KLineEdit::textChanged, this, &ReferenceWidget::gotModified);
-    connect(entryId, &KLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
-    connect(entryType->lineEdit(), &KLineEdit::textChanged, this, &ReferenceWidget::entryTypeChanged);
+    connect(entryType->lineEdit(), &QLineEdit::textChanged, this, &ReferenceWidget::gotModified);
+    connect(entryId, &QLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
+    connect(entryType->lineEdit(), &QLineEdit::textChanged, this, &ReferenceWidget::entryTypeChanged);
     connect(suggestionsMenu, &QMenu::aboutToShow, this, &ReferenceWidget::prepareSuggestionsMenu);
 }
 
@@ -478,7 +516,7 @@ void ReferenceWidget::prepareSuggestionsMenu()
     /// Collect information on the current entry as it is edited
     QSharedPointer<Entry> guiDataEntry(new Entry());
     m_applyElement->apply(guiDataEntry);
-    QSharedPointer<Entry> crossrefResolvedEntry(Entry::resolveCrossref(*guiDataEntry.data(), m_file));
+    QSharedPointer<Entry> crossrefResolvedEntry(guiDataEntry->resolveCrossref(m_file));
 
     static const IdSuggestions *idSuggestions = new IdSuggestions();
     QMenu *suggestionsMenu = buttonSuggestId->menu();
@@ -550,24 +588,23 @@ void ReferenceWidget::setEntryIdByDefault()
         /// Collect information on the current entry as it is edited
         QSharedPointer<Entry> guiDataEntry(new Entry());
         m_applyElement->apply(guiDataEntry);
-        QSharedPointer<Entry> crossrefResolvedEntry(Entry::resolveCrossref(*guiDataEntry.data(), m_file));
+        QSharedPointer<Entry> crossrefResolvedEntry(guiDataEntry->resolveCrossref(m_file));
         /// Determine default suggestion based on current data
         const QString defaultSuggestion = idSuggestions->defaultFormatId(*crossrefResolvedEntry.data());
 
         if (!defaultSuggestion.isEmpty()) {
-            disconnect(entryId, &KLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
+            disconnect(entryId, &QLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
             /// Apply default suggestion to widget
             entryId->setText(defaultSuggestion);
-            connect(entryId, &KLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
+            connect(entryId, &QLineEdit::textEdited, this, &ReferenceWidget::entryIdManuallyChanged);
         }
     }
 }
 
 QString ReferenceWidget::computeType() const
 {
-    const BibTeXEntries *be = BibTeXEntries::self();
     if (entryType->currentIndex() < 0 || entryType->lineEdit()->isModified())
-        return be->format(entryType->lineEdit()->text(), KBibTeX::cUpperCamelCase);
+        return BibTeXEntries::instance().format(entryType->lineEdit()->text(), KBibTeX::cUpperCamelCase);
     else
         return entryType->itemData(entryType->currentIndex()).toString();
 }
@@ -641,10 +678,16 @@ bool FilesWidget::apply(QSharedPointer<Element> element) const
     else
         entry->insert(Entry::ftUrl, urlValue);
 
-    if (localFileValue.isEmpty())
+    if (localFileValue.isEmpty()) {
+        entry->remove(Entry::ftFile);
         entry->remove(Entry::ftLocalFile);
-    else
+    } else if (Preferences::instance().bibliographySystem() == Preferences::BibLaTeX) {
+        entry->remove(Entry::ftLocalFile);
+        entry->insert(Entry::ftFile, localFileValue);
+    } else if (Preferences::instance().bibliographySystem() == Preferences::BibTeX) {
+        entry->remove(Entry::ftFile);
         entry->insert(Entry::ftLocalFile, localFileValue);
+    }
 
     if (doiValue.isEmpty())
         entry->remove(Entry::ftDOI);
@@ -671,6 +714,11 @@ bool FilesWidget::reset(QSharedPointer<const Element> element)
     fileList->reset(combinedValue);
 
     return true;
+}
+
+bool FilesWidget::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    return fileList->validate(widgetWithIssue, message);
 }
 
 void FilesWidget::setReadOnly(bool isReadOnly)
@@ -747,6 +795,12 @@ bool OtherFieldsWidget::reset(QSharedPointer<const Element> element)
     return true;
 }
 
+bool OtherFieldsWidget::validate(QWidget **, QString &) const
+{
+    /// No checks to make here; all actual check will be conducted in actionAddApply(..)
+    return true;
+}
+
 void OtherFieldsWidget::setReadOnly(bool isReadOnly)
 {
     ElementWidget::setReadOnly(isReadOnly);
@@ -810,8 +864,9 @@ void OtherFieldsWidget::actionAddApply()
 {
     if (isReadOnly) return; /// never modify anything if in read-only mode
 
-    QString key = fieldName->text();
+    QString key = fieldName->text(), message;
     Value value;
+    if (!fieldContent->validate(nullptr, message)) return; ///< invalid values should not get applied
     if (!fieldContent->apply(value)) return;
 
     if (internalEntry->contains(key))
@@ -872,9 +927,9 @@ void OtherFieldsWidget::createGUI()
 
     QLabel *label = new QLabel(i18n("Name:"), this);
     layout->addWidget(label, 0, 0, 1, 1);
-    label->setAlignment((Qt::Alignment)label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment));
+    label->setAlignment(static_cast<Qt::Alignment>(label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment)));
 
-    fieldName = new KLineEdit(this);
+    fieldName = new QLineEdit(this);
     layout->addWidget(fieldName, 0, 1, 1, 1);
     label->setBuddy(fieldName);
 
@@ -884,14 +939,14 @@ void OtherFieldsWidget::createGUI()
 
     label = new QLabel(i18n("Content:"), this);
     layout->addWidget(label, 1, 0, 1, 1);
-    label->setAlignment((Qt::Alignment)label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment));
+    label->setAlignment(static_cast<Qt::Alignment>(label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment)));
     fieldContent = new FieldInput(KBibTeX::MultiLine, KBibTeX::tfSource, KBibTeX::tfSource, this);
     layout->addWidget(fieldContent, 1, 1, 1, 2);
     label->setBuddy(fieldContent->buddy());
 
     label = new QLabel(i18n("List:"), this);
     layout->addWidget(label, 2,  0, 1, 1);
-    label->setAlignment((Qt::Alignment)label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment));
+    label->setAlignment(static_cast<Qt::Alignment>(label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment)));
 
     otherFieldsList = new QTreeWidget(this);
     otherFieldsList->setHeaderLabels(QStringList {i18n("Key"), i18n("Value")});
@@ -909,7 +964,7 @@ void OtherFieldsWidget::createGUI()
     connect(otherFieldsList, &QTreeWidget::itemActivated, this, &OtherFieldsWidget::listElementExecuted);
     connect(otherFieldsList, &QTreeWidget::currentItemChanged, this, &OtherFieldsWidget::listCurrentChanged);
     connect(otherFieldsList, &QTreeWidget::itemSelectionChanged, this, &OtherFieldsWidget::updateGUI);
-    connect(fieldName, &KLineEdit::textEdited, this, &OtherFieldsWidget::updateGUI);
+    connect(fieldName, &QLineEdit::textEdited, this, &OtherFieldsWidget::updateGUI);
     connect(buttonAddApply, &QPushButton::clicked, this, &OtherFieldsWidget::actionAddApply);
     connect(buttonDelete, &QPushButton::clicked, this, &OtherFieldsWidget::actionDelete);
     connect(buttonOpen, &QPushButton::clicked, this, &OtherFieldsWidget::actionOpen);
@@ -979,6 +1034,11 @@ bool MacroWidget::reset(QSharedPointer<const Element> element)
     return fieldInputValue->reset(macro->value());
 }
 
+bool MacroWidget::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    return fieldInputValue->validate(widgetWithIssue, message);
+}
+
 void MacroWidget::setReadOnly(bool isReadOnly)
 {
     ElementWidget::setReadOnly(isReadOnly);
@@ -1007,7 +1067,7 @@ void MacroWidget::createGUI()
 
     QLabel *label = new QLabel(i18n("Value:"), this);
     layout->addWidget(label, 0);
-    label->setAlignment((Qt::Alignment)label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment));
+    label->setAlignment(static_cast<Qt::Alignment>(label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment)));
     fieldInputValue = new FieldInput(KBibTeX::MultiLine, KBibTeX::tfPlainText, KBibTeX::tfPlainText | KBibTeX::tfSource, this);
     layout->addWidget(fieldInputValue, 1);
     label->setBuddy(fieldInputValue->buddy());
@@ -1044,6 +1104,11 @@ bool PreambleWidget::reset(QSharedPointer<const Element> element)
     return fieldInputValue->reset(preamble->value());
 }
 
+bool PreambleWidget::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    return fieldInputValue->validate(widgetWithIssue, message);
+}
+
 void PreambleWidget::setReadOnly(bool isReadOnly)
 {
     ElementWidget::setReadOnly(isReadOnly);
@@ -1072,7 +1137,7 @@ void PreambleWidget::createGUI()
 
     QLabel *label = new QLabel(i18n("Value:"), this);
     layout->addWidget(label, 0);
-    label->setAlignment((Qt::Alignment)label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment));
+    label->setAlignment(static_cast<Qt::Alignment>(label->style()->styleHint(QStyle::SH_FormLayoutLabelAlignment)));
     fieldInputValue = new FieldInput(KBibTeX::MultiLine, KBibTeX::tfSource, KBibTeX::tfSource, this); // FIXME: other editing modes beyond Source applicable?
     layout->addWidget(fieldInputValue, 1);
     label->setBuddy(fieldInputValue->buddy());
@@ -1081,76 +1146,74 @@ void PreambleWidget::createGUI()
 }
 
 
-class SourceWidget::SourceWidgetTextEdit : public KTextEdit
-{
-    Q_OBJECT
-
-public:
-    SourceWidgetTextEdit(QWidget *parent)
-            : KTextEdit(parent) {
-        /// nothing
-    }
-
-protected:
-    void dropEvent(QDropEvent *event) override {
-        FileImporterBibTeX importer(this);
-        QScopedPointer<File> file(importer.fromString(event->mimeData()->text()));
-        if (!file.isNull() && file->count() == 1) {
-            FileExporterBibTeX exporter(this);
-            document()->setPlainText(exporter.toString(file->first(), file.data()));
-        } else
-            KTextEdit::dropEvent(event);
-    }
-};
-
 class SourceWidget::Private
 {
 public:
+    QComboBox *messages;
     QPushButton *buttonRestore;
     FileImporterBibTeX *importerBibTeX;
+    DelayedExecutionTimer *delayedExecutionTimer;
 
     Private(SourceWidget *parent)
-            : buttonRestore(nullptr), importerBibTeX(new FileImporterBibTeX(parent)) {
+            : messages(nullptr), buttonRestore(nullptr), importerBibTeX(new FileImporterBibTeX(parent)), delayedExecutionTimer(new DelayedExecutionTimer(1500, 500, parent)) {
         /// nothing
+    }
+
+    void addMessage(const FileImporter::MessageSeverity severity, const QString &messageText)
+    {
+        const QIcon icon = severity == FileImporter::SeverityInfo ? QIcon::fromTheme(QStringLiteral("dialog-information")) : (severity == FileImporter::SeverityWarning ? QIcon::fromTheme(QStringLiteral("dialog-warning")) : (severity == FileImporter::SeverityError ? QIcon::fromTheme(QStringLiteral("dialog-error")) : QIcon::fromTheme(QStringLiteral("dialog-question"))));
+        messages->addItem(icon, messageText);
     }
 };
 
 SourceWidget::SourceWidget(QWidget *parent)
-        : ElementWidget(parent), d(new SourceWidget::Private(this))
+        : ElementWidget(parent), elementClass(elementInvalid), d(new SourceWidget::Private(this))
 {
     createGUI();
+
+    connect(document, &KTextEditor::Document::textChanged, d->delayedExecutionTimer, &DelayedExecutionTimer::trigger);
+    connect(document, &KTextEditor::Document::textChanged, d->messages, &QComboBox::clear);
+    connect(d->delayedExecutionTimer, &DelayedExecutionTimer::triggered, this, &SourceWidget::updateMessage);
 }
 
 SourceWidget::~SourceWidget()
 {
-    delete sourceEdit;
+    delete document;
     delete d;
+}
+
+void SourceWidget::setElementClass(ElementClass elementClass)
+{
+    this->elementClass = elementClass;
+    updateMessage();
 }
 
 bool SourceWidget::apply(QSharedPointer<Element> element) const
 {
     if (isReadOnly) return false; ///< never save data if in read-only mode
 
-    const QString text = sourceEdit->document()->toPlainText();
+    const QString text = document->text();
     const QScopedPointer<const File> file(d->importerBibTeX->fromString(text));
     if (file.isNull() || file->count() != 1) return false;
-
 
     QSharedPointer<Entry> entry = element.dynamicCast<Entry>();
     QSharedPointer<Entry> readEntry = file->first().dynamicCast<Entry>();
     if (!readEntry.isNull() && !entry.isNull()) {
+        if (elementClass != elementEntry) return false; ///< Source widget should only edit Entry objects
         entry->operator =(*readEntry.data()); //entry = readEntry;
         return true;
     } else {
         QSharedPointer<Macro> macro = element.dynamicCast<Macro>();
         QSharedPointer<Macro> readMacro = file->first().dynamicCast<Macro>();
         if (!readMacro.isNull() && !macro.isNull()) {
+            if (elementClass != elementMacro) return false; ///< Source widget should only edit Macro objects
             macro->operator =(*readMacro.data());
             return true;
         } else {
             QSharedPointer<Preamble> preamble = element.dynamicCast<Preamble>();
             QSharedPointer<Preamble> readPreamble = file->first().dynamicCast<Preamble>();
             if (!readPreamble.isNull() && !preamble.isNull()) {
+                if (elementClass != elementPreamble) return false; ///< Source widget should only edit Preamble objects
                 preamble->operator =(*readPreamble.data());
                 return true;
             } else {
@@ -1165,19 +1228,77 @@ bool SourceWidget::reset(QSharedPointer<const Element> element)
 {
     /// if signals are not deactivated, the "modified" signal would be emitted when
     /// resetting the widget's value
-    disconnect(sourceEdit, &SourceWidget::SourceWidgetTextEdit::textChanged, this, &SourceWidget::gotModified);
+    disconnect(document, &KTextEditor::Document::textChanged, this, &SourceWidget::gotModified);
 
     FileExporterBibTeX exporter(this);
     exporter.setEncoding(QStringLiteral("utf-8"));
     const QString exportedText = exporter.toString(element, m_file);
     if (!exportedText.isEmpty()) {
         originalText = exportedText;
-        sourceEdit->document()->setPlainText(originalText);
-    }
+        /// Limitation of KTextEditor: If editor is read-only, no text can be set
+        /// Therefore, temporarily lift read-only status
+        const bool originalReadWriteStatus = document->isReadWrite();
+        document->setReadWrite(true);
+        const bool settingTextSuccessful = document->setText(originalText);
+        if (!settingTextSuccessful)
+            qCWarning(LOG_KBIBTEX_GUI) << "Could not set BibTeX source code to source editor";
+        document->setReadWrite(originalReadWriteStatus);
+    } else
+        qCWarning(LOG_KBIBTEX_GUI) << "Converting entry to BibTeX source resulting in empty text";
 
-    connect(sourceEdit, &SourceWidget::SourceWidgetTextEdit::textChanged, this, &SourceWidget::gotModified);
+    connect(document, &KTextEditor::Document::textChanged, this, &SourceWidget::gotModified);
 
     return !exportedText.isEmpty();
+}
+
+bool SourceWidget::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    message.clear();
+    d->messages->clear();
+
+    const QString text = document->text();
+    connect(d->importerBibTeX, &FileImporterBibTeX::message, this, &SourceWidget::addMessage);
+    const QScopedPointer<const File> file(d->importerBibTeX->fromString(text));
+    disconnect(d->importerBibTeX, &FileImporterBibTeX::message, this, &SourceWidget::addMessage);
+    if (file.isNull() || file->count() != 1) {
+        if (widgetWithIssue != nullptr) *widgetWithIssue = document->views().at(0); ///< We create one view initially, so this should never fail
+        message = i18n("Given source code does not parse as one single BibTeX element.");
+        return false;
+    }
+
+    bool result = false;
+    switch (elementClass) {
+    case elementEntry: {
+        QSharedPointer<Entry> entry = file->first().dynamicCast<Entry>();
+        result = !entry.isNull();
+        if (!result) message = i18n("Given source code does not parse as one single BibTeX entry.");
+    }
+    break;
+    case elementMacro: {
+        QSharedPointer<Macro> macro = file->first().dynamicCast<Macro>();
+        result = !macro.isNull();
+        if (!result) message = i18n("Given source code does not parse as one single BibTeX macro.");
+    }
+    break;
+    case elementPreamble: {
+        QSharedPointer<Preamble> preamble = file->first().dynamicCast<Preamble>();
+        result = !preamble.isNull();
+        if (!result) message = i18n("Given source code does not parse as one single BibTeX preamble.");
+    }
+    break;
+    // case elementComment // TODO?
+    default:
+        message = QString(QStringLiteral("elementClass is unknown: %1")).arg(elementClass);
+        result = false;
+    }
+
+    if (!result && widgetWithIssue != nullptr)
+        *widgetWithIssue = document->views().at(0); ///< We create one view initially, so this should never fail
+
+    if (message.isEmpty() && d->messages->count() == 0)
+        d->addMessage(FileImporter::SeverityInfo, i18n("No issues detected"));
+
+    return result;
 }
 
 void SourceWidget::setReadOnly(bool isReadOnly)
@@ -1185,7 +1306,7 @@ void SourceWidget::setReadOnly(bool isReadOnly)
     ElementWidget::setReadOnly(isReadOnly);
 
     d->buttonRestore->setEnabled(!isReadOnly);
-    sourceEdit->setReadOnly(isReadOnly);
+    document->setReadWrite(!isReadOnly);
 }
 
 QString SourceWidget::label()
@@ -1212,27 +1333,49 @@ void SourceWidget::createGUI()
     layout->setRowStretch(0, 1);
     layout->setRowStretch(1, 0);
 
-    sourceEdit = new SourceWidgetTextEdit(this);
-    layout->addWidget(sourceEdit, 0, 0, 1, 3);
-    sourceEdit->document()->setDefaultFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    sourceEdit->setTabStopWidth(QFontMetrics(sourceEdit->font()).averageCharWidth() * 4);
+    KTextEditor::Editor *editor = KTextEditor::Editor::instance();
+    document = editor->createDocument(this);
+    document->setHighlightingMode(QStringLiteral("BibTeX"));
+    KTextEditor::View *view = document->createView(this);
+    layout->addWidget(view, 0, 0, 1, 2);
+
+    d->messages = new QComboBox(this);
+    layout->addWidget(d->messages, 1, 0, 1, 1);
 
     d->buttonRestore = new QPushButton(QIcon::fromTheme(QStringLiteral("edit-undo")), i18n("Restore"), this);
     layout->addWidget(d->buttonRestore, 1, 1, 1, 1);
     connect(d->buttonRestore, &QPushButton::clicked, this, static_cast<void(SourceWidget::*)()>(&SourceWidget::reset));
-    connect(sourceEdit, &SourceWidget::SourceWidgetTextEdit::textChanged, this, &SourceWidget::gotModified);
+    connect(document, &KTextEditor::Document::textChanged, this, &SourceWidget::gotModified);
 }
 
 void SourceWidget::reset()
 {
     /// if signals are not deactivated, the "modified" signal would be emitted when
     /// resetting the widget's value
-    disconnect(sourceEdit, &SourceWidget::SourceWidgetTextEdit::textChanged, this, &SourceWidget::gotModified);
+    disconnect(document, &KTextEditor::Document::textChanged, this, &SourceWidget::gotModified);
 
-    sourceEdit->document()->setPlainText(originalText);
+    document->setText(originalText);
     setModified(false);
 
-    connect(sourceEdit, &SourceWidget::SourceWidgetTextEdit::textChanged, this, &SourceWidget::gotModified);
+    connect(document, &KTextEditor::Document::textChanged, this, &SourceWidget::gotModified);
+}
+
+void SourceWidget::addMessage(const FileImporter::MessageSeverity severity, const QString &messageText)
+{
+    d->addMessage(severity, messageText);
+}
+
+void SourceWidget::updateMessage()
+{
+    QString message;
+    const bool validationResult = validate(nullptr, message);
+
+    if (!message.isEmpty()) {
+        if (validationResult)
+            addMessage(FileImporter::SeverityInfo, message);
+        else
+            addMessage(FileImporter::SeverityError, message);
+    }
 }
 
 #include "elementwidgets.moc"

@@ -20,18 +20,18 @@
 #include <QNetworkReply>
 #include <QDateTime>
 #include <QTimer>
-#include <QStandardPaths>
-#include <QCoreApplication>
 #include <QRegularExpression>
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
 #include <KMessageBox>
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
 #endif // HAVE_KF5
 
-#include "xsltransform.h"
-#include "encoderxml.h"
-#include "fileimporterbibtex.h"
+#include <XSLTransform>
+#include <EncoderXML>
+#include <FileImporterBibTeX>
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
 
@@ -43,15 +43,17 @@ class OnlineSearchPubMed::OnlineSearchPubMedPrivate
 {
 private:
     const QString pubMedUrlPrefix;
+    static const QString xsltFilenameBase;
 
 public:
     const XSLTransform xslt;
 
     OnlineSearchPubMedPrivate(OnlineSearchPubMed *)
             : pubMedUrlPrefix(QStringLiteral("https://eutils.ncbi.nlm.nih.gov/entrez/eutils/")),
-          xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/pubmed2bibtex.xsl")))
+          xslt(XSLTransform::locateXSLTfile(xsltFilenameBase))
     {
-        /// nothing
+        if (!xslt.isValid())
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "Failed to initialize XSL transformation based on file '" << xsltFilenameBase << "'";
     }
 
     QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
@@ -71,7 +73,7 @@ public:
 
         /// add words from "free text" field, but auto-detect PMIDs
         for (const QString &text : freeTextWords)
-            queryFragments.append(text + (pmidRegExp.match(text).hasMatch() ? QStringLiteral("") : QStringLiteral("[All Fields]")));
+            queryFragments.append(text + (pmidRegExp.match(text).hasMatch() ? QString() : QStringLiteral("[All Fields]")));
 
         /// add words from "year" field
         for (const QString &text : yearWords)
@@ -100,6 +102,9 @@ public:
         return QUrl::fromUserInput(urlText);
     }
 };
+
+const QString OnlineSearchPubMed::OnlineSearchPubMedPrivate::xsltFilenameBase = QStringLiteral("pubmed2bibtex.xsl");
+
 
 OnlineSearchPubMed::OnlineSearchPubMed(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchPubMed::OnlineSearchPubMedPrivate(this))
@@ -137,7 +142,12 @@ void OnlineSearchPubMed::startSearch(const QMap<QString, QString> &query, int nu
 
 QString OnlineSearchPubMed::label() const
 {
+#ifdef HAVE_KF5
     return i18n("PubMed");
+#else // HAVE_KF5
+    //= onlinesearch-pubmed-label
+    return QObject::tr("PubMed");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchPubMed::favIconUrl() const

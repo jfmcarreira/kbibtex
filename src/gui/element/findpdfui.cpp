@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -44,8 +44,9 @@
 #include <KRun>
 #include <kio_version.h>
 
-#include "fileinfo.h"
-#include "fieldlistedit.h"
+#include <Preferences>
+#include <FileInfo>
+#include "field/fieldlistedit.h"
 #include "logging_gui.h"
 
 class PDFListModel;
@@ -481,15 +482,16 @@ void FindPDFUI::apply(Entry &entry, const File &bibtexFile)
 
                 bool alreadyContained = false;
                 for (QMap<QString, Value>::ConstIterator it = entry.constBegin(); !alreadyContained && it != entry.constEnd(); ++it)
-                    alreadyContained |= (it.key().toLower().startsWith(Entry::ftLocalFile) || it.key().toLower().startsWith(Entry::ftUrl)) && PlainTextValue::text(it.value()) == url.toDisplayString();
+                    alreadyContained |= (it.key().toLower().startsWith(Entry::ftFile) || it.key().toLower().startsWith(Entry::ftLocalFile) || it.key().toLower().startsWith(Entry::ftUrl)) && PlainTextValue::text(it.value()) == url.toDisplayString();
                 if (!alreadyContained) {
                     Value value;
                     value.append(QSharedPointer<VerbatimText>(new VerbatimText(visibleFilename)));
-                    if (!entry.contains(Entry::ftLocalFile))
-                        entry.insert(Entry::ftLocalFile, value);
+                    const QString fieldNameStem = Preferences::instance().bibliographySystem() == Preferences::BibTeX ? Entry::ftLocalFile : Entry::ftFile;
+                    if (!entry.contains(fieldNameStem))
+                        entry.insert(fieldNameStem, value);
                     else
                         for (int i = 2; i < 256; ++i) {
-                            const QString keyName = QString(QStringLiteral("%1%2")).arg(Entry::ftLocalFile).arg(i);
+                            const QString keyName = QString(QStringLiteral("%1%2")).arg(fieldNameStem).arg(i);
                             if (!entry.contains(keyName)) {
                                 entry.insert(keyName, value);
                                 break;

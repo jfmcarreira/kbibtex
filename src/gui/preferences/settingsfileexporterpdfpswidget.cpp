@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,99 +18,84 @@
 #include "settingsfileexporterpdfpswidget.h"
 
 #include <QFormLayout>
-#include <KLineEdit>
+#include <QPageSize>
+#include <QLineEdit>
+#include <QComboBox>
 
-#include <KSharedConfig>
-#include <KConfigGroup>
-#include <KComboBox>
 #include <KLocalizedString>
 
+#include <Preferences>
+#include <FileExporterToolchain>
 #include "guihelper.h"
-#include "fileexportertoolchain.h"
 
 class SettingsFileExporterPDFPSWidget::SettingsFileExporterPDFPSWidgetPrivate
 {
 private:
     SettingsFileExporterPDFPSWidget *p;
 
-    KComboBox *comboBoxPaperSize;
-    QMap<QString, QString> paperSizeLabelToName;
+    QComboBox *comboBoxPaperSize;
 
-    KComboBox *comboBoxBabelLanguage;
-    KComboBox *comboBoxBibliographyStyle;
-
-    KSharedConfigPtr config;
-    const QString configGroupName, configGroupNameGeneral ;
+    QComboBox *comboBoxBabelLanguage;
+    QComboBox *comboBoxBibliographyStyle;
 
 public:
 
     SettingsFileExporterPDFPSWidgetPrivate(SettingsFileExporterPDFPSWidget *parent)
-            : p(parent), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), configGroupName(QStringLiteral("FileExporterPDFPS")), configGroupNameGeneral(QStringLiteral("General")) {
-        paperSizeLabelToName.insert(i18n("A4"), QStringLiteral("a4"));
-        paperSizeLabelToName.insert(i18n("Letter"), QStringLiteral("letter"));
-        paperSizeLabelToName.insert(i18n("Legal"), QStringLiteral("legal"));
-
+            : p(parent)
+    {
         setupGUI();
     }
 
     void loadState() {
-        KConfigGroup configGroupGeneral(config, configGroupNameGeneral);
-        const QString paperSizeName = configGroupGeneral.readEntry(FileExporter::keyPaperSize, FileExporter::defaultPaperSize);
-        int row = GUIHelper::selectValue(comboBoxPaperSize->model(), paperSizeLabelToName.key(paperSizeName));
+        int row = qMax(0, GUIHelper::selectValue(comboBoxPaperSize->model(), static_cast<int>(Preferences::instance().pageSize()), Qt::UserRole));
         comboBoxPaperSize->setCurrentIndex(row);
 
-        KConfigGroup configGroup(config, configGroupName);
-        QString babelLanguage = configGroup.readEntry(FileExporterToolchain::keyBabelLanguage, FileExporterToolchain::defaultBabelLanguage);
-        row = GUIHelper::selectValue(comboBoxBabelLanguage->model(), babelLanguage);
+        const QString babelLanguage = Preferences::instance().laTeXBabelLanguage();
+        row = qMax(0, GUIHelper::selectValue(comboBoxBabelLanguage->model(), babelLanguage));
         comboBoxBabelLanguage->setCurrentIndex(row);
-        QString bibliographyStyle = configGroup.readEntry(FileExporterToolchain::keyBibliographyStyle, FileExporterToolchain::defaultBibliographyStyle);
-        row = GUIHelper::selectValue(comboBoxBibliographyStyle->model(), bibliographyStyle);
+        const QString bibliographyStyle = Preferences::instance().bibTeXBibliographyStyle();
+        row = qMax(0, GUIHelper::selectValue(comboBoxBibliographyStyle->model(), bibliographyStyle));
         comboBoxBibliographyStyle->setCurrentIndex(row);
     }
 
     void saveState() {
-        KConfigGroup configGroupGeneral(config, configGroupNameGeneral);
-        const QString paperSizeName = paperSizeLabelToName.value(comboBoxPaperSize->currentText(), FileExporter::defaultPaperSize);
-        configGroupGeneral.writeEntry(FileExporter::keyPaperSize, paperSizeName);
+        Preferences::instance().setPageSize(static_cast<QPageSize::PageSizeId>(comboBoxPaperSize->currentData().toInt()));
 
-        KConfigGroup configGroup(config, configGroupName);
-        configGroup.writeEntry(FileExporterToolchain::keyBabelLanguage, comboBoxBabelLanguage->lineEdit()->text());
-        configGroup.writeEntry(FileExporterToolchain::keyBibliographyStyle, comboBoxBibliographyStyle->lineEdit()->text());
-        config->sync();
+        Preferences::instance().setLaTeXBabelLanguage(comboBoxBabelLanguage->lineEdit()->text());
+        Preferences::instance().setBibTeXBibliographyStyle(comboBoxBibliographyStyle->lineEdit()->text());
     }
 
     void resetToDefaults() {
-        int row = GUIHelper::selectValue(comboBoxPaperSize->model(), FileExporter::defaultPaperSize);
+        int row = qMax(0, GUIHelper::selectValue(comboBoxPaperSize->model(), static_cast<int>(Preferences::defaultPageSize), Qt::UserRole));
         comboBoxPaperSize->setCurrentIndex(row);
-        row = GUIHelper::selectValue(comboBoxBabelLanguage->model(), FileExporterToolchain::defaultBabelLanguage);
+        row = qMax(0, GUIHelper::selectValue(comboBoxBabelLanguage->model(), Preferences::defaultLaTeXBabelLanguage));
         comboBoxBabelLanguage->setCurrentIndex(row);
-        row = GUIHelper::selectValue(comboBoxBibliographyStyle->model(), FileExporterToolchain::defaultBibliographyStyle);
+        row = qMax(0, GUIHelper::selectValue(comboBoxBibliographyStyle->model(), Preferences::defaultBibTeXBibliographyStyle));
         comboBoxBibliographyStyle->setCurrentIndex(row);
     }
 
     void setupGUI() {
         QFormLayout *layout = new QFormLayout(p);
 
-        comboBoxPaperSize = new KComboBox(false, p);
+        comboBoxPaperSize = new QComboBox(p);
         comboBoxPaperSize->setObjectName(QStringLiteral("comboBoxPaperSize"));
         layout->addRow(i18n("Paper Size:"), comboBoxPaperSize);
-        QStringList paperSizeLabelToNameKeys = paperSizeLabelToName.keys();
-        paperSizeLabelToNameKeys.sort();
-        for (const QString &labelText : const_cast<const QStringList &>(paperSizeLabelToNameKeys)) {
-            comboBoxPaperSize->addItem(labelText, paperSizeLabelToName[labelText]);
-        }
+        for (const auto &dbItem : Preferences::availablePageSizes)
+            comboBoxPaperSize->addItem(QPageSize::name(dbItem.first), dbItem.second);
         connect(comboBoxPaperSize, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), p, &SettingsAbstractWidget::changed);
 
-        comboBoxBabelLanguage = new KComboBox(true, p);
+        comboBoxBabelLanguage = new QComboBox(p);
         comboBoxBabelLanguage->setObjectName(QStringLiteral("comboBoxBabelLanguage"));
+        comboBoxBabelLanguage->setEditable(true);
         layout->addRow(i18n("Language for 'babel':"), comboBoxBabelLanguage);
         comboBoxBabelLanguage->addItem(QStringLiteral("english"));
         comboBoxBabelLanguage->addItem(QStringLiteral("ngerman"));
         comboBoxBabelLanguage->addItem(QStringLiteral("swedish"));
         connect(comboBoxBabelLanguage->lineEdit(), &QLineEdit::textChanged, p, &SettingsFileExporterPDFPSWidget::changed);
 
-        comboBoxBibliographyStyle = new KComboBox(true, p);
+        comboBoxBibliographyStyle = new QComboBox(p);
         comboBoxBibliographyStyle->setObjectName(QStringLiteral("comboBoxBibliographyStyle"));
+        comboBoxBibliographyStyle->setEditable(true);
         layout->addRow(i18n("Bibliography style:"), comboBoxBibliographyStyle);
         static const QStringList styles {QString(QStringLiteral("abbrv")), QString(QStringLiteral("alpha")), QString(QStringLiteral("plain")), QString(QStringLiteral("agsm")), QString(QStringLiteral("dcu")), QString(QStringLiteral("jmr")), QString(QStringLiteral("jphysicsB")), QString(QStringLiteral("kluwer")), QString(QStringLiteral("nederlands"))};
         for (const QString &style : styles) {

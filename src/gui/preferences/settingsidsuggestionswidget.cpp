@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -22,13 +22,12 @@
 #include <QPushButton>
 #include <QFontDatabase>
 
-#include <KSharedConfig>
-#include <KConfigGroup>
 #include <KLocalizedString>
 #include <KMessageBox>
 
-#include "fileimporterbibtex.h"
-#include "idsuggestions.h"
+#include <Preferences>
+#include <FileImporterBibTeX>
+#include <IdSuggestions>
 #include "settingsidsuggestionseditor.h"
 
 class IdSuggestionsModel : public QAbstractListModel
@@ -225,31 +224,27 @@ class SettingsIdSuggestionsWidget::SettingsIdSuggestionsWidgetPrivate
 private:
     SettingsIdSuggestionsWidget *p;
 
-    KSharedConfigPtr config;
-    KConfigGroup configGroup;
-
 public:
     QTreeView *treeViewSuggestions;
     IdSuggestionsModel *idSuggestionsModel;
     QPushButton *buttonNewSuggestion, *buttonEditSuggestion, *buttonDeleteSuggestion, *buttonSuggestionUp, *buttonSuggestionDown, *buttonToggleDefaultString;
 
     SettingsIdSuggestionsWidgetPrivate(SettingsIdSuggestionsWidget *parent)
-            : p(parent), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), configGroup(config, IdSuggestions::configGroupName) {
+            : p(parent) {
         setupGUI();
     }
 
     void loadState() {
-        idSuggestionsModel->setFormatStringList(configGroup.readEntry(IdSuggestions::keyFormatStringList, IdSuggestions::defaultFormatStringList), configGroup.readEntry(IdSuggestions::keyDefaultFormatString, IdSuggestions::defaultDefaultFormatString));
+        idSuggestionsModel->setFormatStringList(Preferences::instance().idSuggestionFormatStrings(), Preferences::instance().activeIdSuggestionFormatString());
     }
 
     void saveState() {
-        configGroup.writeEntry(IdSuggestions::keyFormatStringList, idSuggestionsModel->formatStringList());
-        configGroup.writeEntry(IdSuggestions::keyDefaultFormatString, idSuggestionsModel->defaultFormatString());
-        config->sync();
+        Preferences::instance().setIdSuggestionFormatStrings(idSuggestionsModel->formatStringList());
+        Preferences::instance().setActiveIdSuggestionFormatString(idSuggestionsModel->defaultFormatString());
     }
 
     void resetToDefaults() {
-        idSuggestionsModel->setFormatStringList(IdSuggestions::defaultFormatStringList);
+        idSuggestionsModel->setFormatStringList(Preferences::defaultIdSuggestionFormatStrings);
     }
 
     void setupGUI() {
@@ -335,7 +330,7 @@ void SettingsIdSuggestionsWidget::buttonClicked()
     QModelIndex selectedIndex = d->treeViewSuggestions->selectionModel()->currentIndex();
 
     if (button == d->buttonNewSuggestion) {
-        const QString newSuggestion = IdSuggestionsEditDialog::editSuggestion(d->idSuggestionsModel->previewEntry().data(), QStringLiteral(""), this);
+        const QString newSuggestion = IdSuggestionsEditDialog::editSuggestion(d->idSuggestionsModel->previewEntry().data(), QString(), this);
         const int row = d->treeViewSuggestions->model()->rowCount(QModelIndex());
         if (!newSuggestion.isEmpty() && d->idSuggestionsModel->insertRow(row)) {
             QModelIndex index = d->idSuggestionsModel->index(row, 0, QModelIndex());

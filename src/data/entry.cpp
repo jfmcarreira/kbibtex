@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -56,10 +56,13 @@ const QString Entry::ftUrlDate = QStringLiteral("urldate");
 const QString Entry::ftVolume = QStringLiteral("volume");
 const QString Entry::ftYear = QStringLiteral("year");
 
+const QString Entry::ftXData = QStringLiteral("xdata");
+
 const QString Entry::etArticle = QStringLiteral("article");
 const QString Entry::etBook = QStringLiteral("book");
 const QString Entry::etInBook = QStringLiteral("inbook");
 const QString Entry::etInProceedings = QStringLiteral("inproceedings");
+const QString Entry::etProceedings = QStringLiteral("proceedings");
 const QString Entry::etMisc = QStringLiteral("misc");
 const QString Entry::etPhDThesis = QStringLiteral("phdthesis");
 const QString Entry::etMastersThesis = QStringLiteral("mastersthesis");
@@ -116,6 +119,11 @@ bool Entry::operator==(const Entry &other) const
         const Value &otherValue = other.value(it.key());
         if (thisValue != otherValue) return false;
     }
+
+    /// All fields of the other entry must occurr as well in this entry
+    /// (no need to check equivalence again)
+    for (Entry::ConstIterator it = other.constBegin(); it != other.constEnd(); ++it)
+        if (!contains(it.key())) return false;
 
     return true;
 }
@@ -191,34 +199,37 @@ bool Entry::contains(const QString &key) const
 
 Entry *Entry::resolveCrossref(const File *bibTeXfile) const
 {
-    return resolveCrossref(*this, bibTeXfile);
-}
-
-Entry *Entry::resolveCrossref(const Entry &original, const File *bibTeXfile)
-{
-    Entry *result = new Entry(original);
+    Entry *result = new Entry(*this);
 
     if (bibTeXfile == nullptr)
         return result;
 
-    const QString crossRef = PlainTextValue::text(original.value(ftCrossRef));
-    if (crossRef.isEmpty())
-        return result;
+    static const QStringList crossRefFields = {ftCrossRef, ftXData};
+    for (const QString &crossRefField : crossRefFields) {
+        const QString crossRefValue = PlainTextValue::text(result->value(crossRefField));
+        if (crossRefValue.isEmpty())
+            continue;
 
-    const QSharedPointer<Entry> crossRefEntry = bibTeXfile->containsKey(crossRef, File::etEntry).dynamicCast<Entry>();
-    if (!crossRefEntry.isNull()) {
-        /// copy all fields from crossref'ed entry to new entry which do not (yet) exist in the new entry
-        for (Entry::ConstIterator it = crossRefEntry->constBegin(); it != crossRefEntry->constEnd(); ++it)
-            if (!result->contains(it.key()))
-                result->insert(it.key(), Value(it.value()));
+        const QSharedPointer<Entry> crossRefEntry = bibTeXfile->containsKey(crossRefField, File::etEntry).dynamicCast<Entry>();
+        if (!crossRefEntry.isNull()) {
+            /// Copy all fields from crossref'ed entry to new entry which do not (yet) exist in the new entry
+            for (Entry::ConstIterator it = crossRefEntry->constBegin(); it != crossRefEntry->constEnd(); ++it)
+                if (!result->contains(it.key()))
+                    result->insert(it.key(), Value(it.value()));
 
-        if (crossRefEntry->contains(ftTitle)) {
-            /// translate crossref's title into new entry's booktitle
-            result->insert(ftBookTitle, Value(crossRefEntry->operator [](ftTitle)));
+            if (crossRefEntry->type().compare(etProceedings, Qt::CaseInsensitive) && result->type().compare(etInProceedings, Qt::CaseInsensitive) && crossRefEntry->contains(ftTitle) && !result->contains(ftBookTitle)) {
+                /// In case current entry is of type 'inproceedings' but lacks a 'book title'
+                /// and the crossref'ed entry is of type 'proceedings' and has a 'title', then
+                /// copy this 'title into as the 'book title' of the current entry.
+                /// Note: the correct way should be that the crossref'ed entry has a 'book title'
+                /// field, but that case was handled above when copying non-existing fields,
+                /// so this if-block is only a fall-back case.
+                result->insert(ftBookTitle, Value(crossRefEntry->operator [](ftTitle)));
+            }
+
+            /// Remove crossref field (no longer of use as all data got copied)
+            result->remove(crossRefField);
         }
-
-        /// remove crossref field (no longer of use)
-        result->remove(ftCrossRef);
     }
 
     return result;
@@ -237,7 +248,7 @@ QStringList Entry::authorsLastName(const Entry &entry)
     QStringList result;
     int maxAuthors = 16; ///< limit the number of authors considered
     result.reserve(maxAuthors);
-    for (const QSharedPointer<const ValueItem> &item : const_cast<const Value &>(value)) {
+    for (const QSharedPointer<ValueItem> &item : const_cast<const Value &>(value)) {
         QSharedPointer<const Person> person = item.dynamicCast<const Person>();
         if (!person.isNull()) {
             const QString lastName = person->lastName();

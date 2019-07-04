@@ -14,14 +14,19 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
-#ifndef BIBTEXFILEEXPORTERXSLT_H
-#define BIBTEXFILEEXPORTERXSLT_H
+
+#ifndef KBIBTEX_IO_FILEEXPORTERXSLT_H
+#define KBIBTEX_IO_FILEEXPORTERXSLT_H
 
 #include <QTextStream>
 
-#include "element.h"
-#include "value.h"
-#include "fileexporter.h"
+#include <Element>
+#include <Value>
+#include <FileExporter>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 class Entry;
 class Macro;
@@ -60,4 +65,5 @@ class KBIBTEXIO_EXPORT FileExporterHTML : public FileExporterXSLT
 public:
     explicit FileExporterHTML(QObject *parent);
 };
-#endif
+
+#endif // KBIBTEX_IO_FILEEXPORTERXSLT_H

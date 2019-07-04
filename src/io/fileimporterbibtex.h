@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,15 +18,17 @@
 #ifndef KBIBTEX_IO_FILEIMPORTERBIBTEX_H
 #define KBIBTEX_IO_FILEIMPORTERBIBTEX_H
 
-#include "kbibtexio_export.h"
-
 #include <QTextStream>
 #include <QSharedPointer>
 #include <QStringList>
 #include <QSet>
 
-#include "kbibtex.h"
-#include "fileimporter.h"
+#include <KBibTeX>
+#include <FileImporter>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 class Element;
 class Comment;
@@ -47,8 +49,6 @@ class KBIBTEXIO_EXPORT FileImporterBibTeX : public FileImporter
     Q_OBJECT
 
 public:
-    static const char *defaultCodecName;
-
     enum CommentHandling {IgnoreComments = 0, KeepComments = 1};
 
     /**
@@ -84,7 +84,7 @@ public:
      * @return A list of Person object containing the names
      * @see Person
      */
-    static QList<QSharedPointer<Person> > splitNames(const QString &text);
+    static QList<QSharedPointer<Person> > splitNames(const QString &text, const int line_number = 1, QObject *parent = nullptr);
 
     /**
      * Split a person's name into its parts and construct a Person object from them.
@@ -94,9 +94,9 @@ public:
      * @return A Person object containing the name
      * @see Person
      */
-    static QSharedPointer<Person> personFromString(const QString &name);
+    static QSharedPointer<Person> personFromString(const QString &name, const int line_number = 1, QObject *parent = nullptr);
 
-    static void parsePersonList(const QString &text, Value &value);
+    static void parsePersonList(const QString &text, Value &value, const int line_number = 1, QObject *parent = nullptr);
 
     void setCommentHandling(CommentHandling commentHandling);
 
@@ -135,21 +135,21 @@ private:
 
     /// high-level parsing functions
     Comment *readCommentElement();
-    Comment *readPlainCommentElement(const QString &prefix = QString());
+    Comment *readPlainCommentElement(const QString &prefix);
     Macro *readMacroElement();
     Preamble *readPreambleElement();
     Entry *readEntryElement(const QString &typeString);
     Element *nextElement();
     Token nextToken();
     QString readString(bool &isStringKey);
-    QString readSimpleString(const char until = '\0');
+    QString readSimpleString(const QString &until = QString(), const bool readNestedCurlyBrackets = false);
     QString readQuotedString();
     QString readBracketString();
     Token readValue(Value &value, const QString &fieldType);
 
-    static QSharedPointer<Person> personFromString(const QString &name, CommaContainment *comma);
-    static QSharedPointer<Person> personFromTokenList(const QStringList &tokens, CommaContainment *comma = nullptr);
-    static void parsePersonList(const QString &text, Value &value, CommaContainment *comma);
+    static QSharedPointer<Person> personFromString(const QString &name, CommaContainment *comma, const int line_number, QObject *parent);
+    static QSharedPointer<Person> personFromTokenList(const QStringList &tokens, CommaContainment *comma, const int line_number, QObject *parent);
+    static void parsePersonList(const QString &text, Value &value, CommaContainment *comma, const int line_number, QObject *parent);
 
     /**
      * Split a string into white-space separated chunks,

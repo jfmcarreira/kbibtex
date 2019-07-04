@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,17 +15,20 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_ONLINESEARCH_GENERAL_H
-#define KBIBTEX_ONLINESEARCH_GENERAL_H
+#ifndef KBIBTEX_NETWORKING_ONLINESEARCHGENERAL_H
+#define KBIBTEX_NETWORKING_ONLINESEARCHGENERAL_H
 
 #include <KSharedConfig>
 
-#include "onlinesearchabstract.h"
+#include <onlinesearch/OnlineSearchAbstract>
+
+#ifdef HAVE_KF5
+#include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
 
 #ifdef HAVE_QTWIDGETS
 class QSpinBox;
-
-class KLineEdit;
+class QLineEdit;
 
 class KBIBTEXNETWORKING_EXPORT OnlineSearchQueryFormGeneral : public OnlineSearchQueryFormAbstract
 {
@@ -41,7 +44,7 @@ public:
     int getNumResults();
 
 private:
-    QMap<QString, KLineEdit *> queryFields;
+    QMap<QString, QLineEdit *> queryFields;
     QSpinBox *numResultsField;
     const QString configGroupName;
 
@@ -50,4 +53,4 @@ private:
 };
 #endif // HAVE_QTWIDGETS
 
-#endif // KBIBTEX_ONLINESEARCH_GENERAL_H
+#endif // KBIBTEX_NETWORKING_ONLINESEARCHGENERAL_H

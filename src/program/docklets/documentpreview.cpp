@@ -32,6 +32,7 @@
 #include <QDockWidget>
 #include <QDebug>
 #include <QPushButton>
+#include <QComboBox>
 #include <QMutex>
 #include <QMimeDatabase>
 #include <QMimeType>
@@ -45,7 +46,6 @@
 #endif // HAVE_WEBENGINEWIDGETS
 
 #include <KLocalizedString>
-#include <KComboBox>
 #include <KJobWidgets>
 #include <KRun>
 #include <KMimeTypeTrader>
@@ -61,11 +61,11 @@
 #include <KConfigGroup>
 #include <kio_version.h>
 
-#include "kbibtex.h"
-#include "element.h"
-#include "entry.h"
-#include "file.h"
-#include "fileinfo.h"
+#include <KBibTeX>
+#include <Element>
+#include <Entry>
+#include <File>
+#include <FileInfo>
 #include "logging_program.h"
 
 ImageLabel::ImageLabel(const QString &text, QWidget *parent, Qt::WindowFlags f)
@@ -139,7 +139,7 @@ private:
     int swpMessage, swpOkular, swpHTML;
 
 public:
-    KComboBox *urlComboBox;
+    QComboBox *urlComboBox;
     QPushButton *onlyLocalFilesButton;
     QList<KIO::StatJob *> runningJobs;
     QSharedPointer<const Entry> entry;
@@ -185,7 +185,7 @@ public:
         sp.setVerticalPolicy(QSizePolicy::MinimumExpanding);
         onlyLocalFilesButton->setSizePolicy(sp);
 
-        urlComboBox = new KComboBox(false, p);
+        urlComboBox = new QComboBox(p);
         innerLayout->addWidget(urlComboBox, 1);
 
         externalViewerButton = new QPushButton(QIcon::fromTheme(QStringLiteral("document-open")), QString(), p);
@@ -226,6 +226,14 @@ public:
         }
 #ifdef HAVE_WEBENGINEWIDGETS
         qCDebug(LOG_KBIBTEX_PROGRAM) << "WebEngine is available, using it instead of WebKit or HTML KPart (both neither considered nor tested for) for HTML/Web preview.";
+        /// To make DrKonqi handle crashes in Chromium-based QtWebEngine,
+        /// set a certain environment variable. For details, see here:
+        /// https://www.dvratil.cz/2018/10/drkonqi-and-qtwebengine/
+        /// https://phabricator.kde.org/D16004
+        const auto chromiumFlags = qgetenv("QTWEBENGINE_CHROMIUM_FLAGS");
+        if (!chromiumFlags.contains("disable-in-process-stack-traces")) {
+            qputenv("QTWEBENGINE_CHROMIUM_FLAGS", chromiumFlags + " --disable-in-process-stack-traces");
+        }
         htmlWidget = new QWebEngineView(stackedWidget);
         swpHTML = stackedWidget->addWidget(htmlWidget);
         connect(htmlWidget, &QWebEngineView::loadFinished, p, &DocumentPreview::loadingFinished);

@@ -27,11 +27,13 @@
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
 #endif // HAVE_KF5
 
-#include "file.h"
-#include "entry.h"
-#include "fileimporterbibtex.h"
+#include <File>
+#include <Entry>
+#include <FileImporterBibTeX>
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
 
@@ -106,7 +108,12 @@ void OnlineSearchAcmPortal::startSearch(const QMap<QString, QString> &query, int
 
 QString OnlineSearchAcmPortal::label() const
 {
+#ifdef HAVE_KF5
     return i18n("ACM Digital Library");
+#else // HAVE_KF5
+    //= onlinesearch-acmdigitallibrary-label
+    return QObject::tr("ACM Digital Library");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchAcmPortal::favIconUrl() const

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,11 +15,11 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_IO_PREAMBLE_H
-#define KBIBTEX_IO_PREAMBLE_H
+#ifndef KBIBTEX_DATA_PREAMBLE_H
+#define KBIBTEX_DATA_PREAMBLE_H
 
-#include "element.h"
-#include "value.h"
+#include <Element>
+#include <Value>
 
 /**
  * This class represents a preamble in a BibTeX file. Preables contain
@@ -32,6 +32,9 @@ public:
     explicit Preamble(const Value &value = Value());
     Preamble(const Preamble &other);
     ~Preamble() override;
+
+    bool operator==(const Preamble &other) const;
+    bool operator!=(const Preamble &other) const;
 
     /**
      * Assignment operator, working similar to a copy constructor,
@@ -59,4 +62,4 @@ private:
 
 QDebug operator<<(QDebug dbg, const Preamble &preamble);
 
-#endif // KBIBTEX_IO_PREAMBLE_H
+#endif // KBIBTEX_DATA_PREAMBLE_H

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -37,19 +37,17 @@
 #include <KRun>
 #include <KMessageBox>
 #include <KLocalizedString>
-#include <KSharedConfig>
-#include <KConfigGroup>
 #include <kio_version.h>
 
-#include "fileinfo.h"
-#include "file.h"
-#include "entry.h"
-#include "value.h"
-#include "fileimporterbibtex.h"
-#include "fileexporterbibtex.h"
-#include "bibtexfields.h"
-#include "encoderlatex.h"
-#include "preferences.h"
+#include <BibTeXFields>
+#include <Preferences>
+#include <File>
+#include <Entry>
+#include <Value>
+#include <FileInfo>
+#include <FileImporterBibTeX>
+#include <FileExporterBibTeX>
+#include <EncoderLaTeX>
 #include "logging_gui.h"
 
 class FieldLineEdit::FieldLineEditPrivate
@@ -62,10 +60,6 @@ private:
     QSignalMapper *menuTypesSignalMapper;
     QPushButton *buttonOpenUrl;
 
-    KSharedConfigPtr config;
-    const QString configGroupNameGeneral;
-    QString personNameFormatting;
-
 public:
     QMenu *menuTypes;
     KBibTeX::TypeFlag typeFlag;
@@ -74,13 +68,13 @@ public:
     QString fieldKey;
 
     FieldLineEditPrivate(KBibTeX::TypeFlag ptf, KBibTeX::TypeFlags tf, FieldLineEdit *p)
-            : parent(p), preferredTypeFlag(ptf), typeFlags(tf), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), configGroupNameGeneral(QStringLiteral("General")), file(nullptr) {
+            : parent(p), preferredTypeFlag(ptf), typeFlags(tf), file(nullptr) {
         menuTypes = new QMenu(parent);
         menuTypesSignalMapper = new QSignalMapper(parent);
         setupMenu();
         connect(menuTypesSignalMapper, static_cast<void(QSignalMapper::*)(int)>(&QSignalMapper::mapped), parent, &FieldLineEdit::slotTypeChanged);
 
-        buttonOpenUrl = new QPushButton(QIcon::fromTheme(QStringLiteral("document-open-remote")), QStringLiteral(""), parent);
+        buttonOpenUrl = new QPushButton(QIcon::fromTheme(QStringLiteral("document-open-remote")), QString(), parent);
         buttonOpenUrl->setVisible(false);
         buttonOpenUrl->setProperty("isConst", true);
         parent->appendWidget(buttonOpenUrl);
@@ -91,9 +85,6 @@ public:
         Value value;
         typeFlag = determineTypeFlag(value, preferredTypeFlag, typeFlags);
         updateGUI(typeFlag);
-
-        KConfigGroup configGroup(config, configGroupNameGeneral);
-        personNameFormatting = configGroup.readEntry(Preferences::keyPersonNameFormatting, Preferences::defaultPersonNameFormatting);
     }
 
     bool reset(const Value &value) {
@@ -120,7 +111,7 @@ public:
                 } else {
                     const QSharedPointer<Person> person = first.dynamicCast<Person>();
                     if (typeFlag == KBibTeX::tfPerson && !person.isNull()) {
-                        text = Person::transcribePersonName(person.data(), personNameFormatting);
+                        text = Person::transcribePersonName(person.data(), Preferences::instance().personNameFormat());
                         result = true;
                     } else {
                         const QSharedPointer<MacroKey> macroKey = first.dynamicCast<MacroKey>();
@@ -201,6 +192,50 @@ public:
         }
 
         return false;
+    }
+
+    bool validate(QWidget **widgetWithIssue, QString &message) const {
+        message.clear();
+
+        /// Remove unnecessary white space from input
+        /// Exception: source and verbatim content is kept unmodified
+        const QString text = typeFlag == KBibTeX::tfSource || typeFlag == KBibTeX::tfVerbatim ? parent->text() : parent->text().simplified();
+        if (text.isEmpty())
+            return true;
+
+        const EncoderLaTeX &encoder = EncoderLaTeX::instance();
+        const QString encodedText = encoder.decode(text);
+        if (encodedText.isEmpty())
+            return true;
+
+        bool result = false;
+        if (typeFlag == KBibTeX::tfPlainText || typeFlag == KBibTeX::tfPerson || typeFlag == KBibTeX::tfKeyword) {
+            result = KBibTeX::validateCurlyBracketContext(text) == 0;
+            if (!result) message = i18n("Opening and closing curly brackets do not match.");
+        } else if (typeFlag == KBibTeX::tfReference) {
+            static const QRegularExpression validReferenceRegExp(QStringLiteral("^[-_:/a-zA-Z0-9]+$"));
+            const QRegularExpressionMatch validReferenceMatch = validReferenceRegExp.match(text);
+            result = validReferenceMatch.hasMatch() && validReferenceMatch.captured() == text;
+            if (!result) message = i18n("Reference contains characters outside of the allowed set.");
+        } else if (typeFlag == KBibTeX::tfSource) {
+            const QString key = typeFlags.testFlag(KBibTeX::tfPerson) ? QStringLiteral("author") : QStringLiteral("title");
+            FileImporterBibTeX importer(parent);
+            const QString fakeBibTeXFile = QString(QStringLiteral("@article{dummy, %1=%2}")).arg(key, encodedText);
+
+            const QScopedPointer<const File> file(importer.fromString(fakeBibTeXFile));
+            if (file.isNull() || file->count() != 1) return false;
+            QSharedPointer<Entry> entry = file->first().dynamicCast<Entry>();
+            result = !entry.isNull() && entry->count() == 1;
+            if (!result) message = i18n("Source code could not be parsed correctly.");
+        } else if (typeFlag == KBibTeX::tfVerbatim) {
+            result = KBibTeX::validateCurlyBracketContext(text) == 0;
+            if (!result) message = i18n("Opening and closing curly brackets do not match.");
+        }
+
+        if (!result && widgetWithIssue != nullptr)
+            *widgetWithIssue = parent;
+
+        return result;
     }
 
     KBibTeX::TypeFlag determineTypeFlag(const Value &value, KBibTeX::TypeFlag preferredTypeFlag, KBibTeX::TypeFlags availableTypeFlags) {
@@ -295,7 +330,7 @@ public:
             parent->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
             break;
         case KBibTeX::tfVerbatim: parent->setButtonToolTip(i18n("Verbatim Text")); break;
-        default: parent->setButtonToolTip(QStringLiteral("")); break;
+        default: parent->setButtonToolTip(QString()); break;
         };
     }
 
@@ -429,6 +464,11 @@ bool FieldLineEdit::apply(Value &value) const
 bool FieldLineEdit::reset(const Value &value)
 {
     return d->reset(value);
+}
+
+bool FieldLineEdit::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    return d->validate(widgetWithIssue, message);
 }
 
 void FieldLineEdit::setReadOnly(bool isReadOnly)

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -25,8 +25,7 @@
 #include <QVariant>
 
 #include <KService>
-
-#include "fileinfo.h"
+#include <FileInfo>
 
 namespace KParts
 {
@@ -105,7 +104,7 @@ class OpenFileInfoManager: public QObject
 public:
     typedef QVector<OpenFileInfo *> OpenFileInfoList;
 
-    static OpenFileInfoManager *instance();
+    static OpenFileInfoManager &instance();
     ~OpenFileInfoManager() override;
 
     OpenFileInfo *createNew(const QString &mimeType = FileInfo::mimetypeBibTeX);
@@ -160,8 +159,6 @@ protected:
 private:
     class OpenFileInfoManagerPrivate;
     OpenFileInfoManagerPrivate *d;
-
-    static OpenFileInfoManager *singleton;
 
 private slots:
     void deferredListsChanged();

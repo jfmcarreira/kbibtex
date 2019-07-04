@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2016 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,12 +21,16 @@
 #include <QMap>
 #include <QUrl>
 
+#ifdef HAVE_KF5
+#include "kbibtexglobal_export.h"
+#endif // HAVE_KF5
+
 #define squeeze_text(text, n) ((text).length()<=(n)?(text):(text).left((n)/2-1)+QStringLiteral("...")+(text).right((n)/2-2))
 
 /**
  @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBibTeX {
+class KBIBTEXGLOBAL_EXPORT KBibTeX {
 public:
     static const QString extensionTeX;
     static const QString extensionAux;
@@ -70,12 +74,15 @@ public:
     };
     Q_DECLARE_FLAGS(TypeFlags, TypeFlag)
 
-    static const QString Months[], MonthsTriple[];
+    static const QString Months[];
+    static const QString MonthsTriple[];
 
     static const QRegularExpression fileListSeparatorRegExp;
     static const QRegularExpression fileRegExp;
     static const QRegularExpression urlRegExp;
     static const QRegularExpression doiRegExp;
+    static const QRegularExpression arXivRegExpWithPrefix;
+    static const QRegularExpression arXivRegExpWithoutPrefix;
     static const QRegularExpression mendeleyFileRegExp;
     static const QRegularExpression domainNameRegExp;
     static const QRegularExpression htmlRegExp;
@@ -94,6 +101,7 @@ public:
 
     static QString leftSqueezeText(const QString &text, int n);
 
+    static int validateCurlyBracketContext(const QString &text);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(KBibTeX::TypeFlags)

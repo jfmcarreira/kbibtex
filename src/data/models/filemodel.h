@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,23 +14,24 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
-#ifndef KBIBTEX_GUI_FILEMODEL_H
-#define KBIBTEX_GUI_FILEMODEL_H
+
+#ifndef KBIBTEX_DATA_FILEMODEL_H
+#define KBIBTEX_DATA_FILEMODEL_H
 
 #include <QAbstractItemModel>
 #include <QLatin1String>
 #include <QList>
 #include <QStringList>
 
-#include <KSharedConfig>
+#include <NotificationHub>
+#include <Element>
 
+#ifdef HAVE_KF5
 #include "kbibtexdata_export.h"
+#endif // HAVE_KF5
 
-#include "notificationhub.h"
-#include "file.h"
-#include "entry.h"
-
-class FileModel;
+class File;
+class Entry;
 
 /**
 @author Thomas Fischer
@@ -42,10 +43,6 @@ class KBIBTEXDATA_EXPORT FileModel : public QAbstractTableModel, private Notific
 public:
     static const int NumberRole;
     static const int SortRole;
-    static const QString keyShowComments;
-    static const bool defaultShowComments;
-    static const QString keyShowMacros;
-    static const bool defaultShowMacros;
 
     explicit FileModel(QObject *parent = nullptr);
 
@@ -78,7 +75,7 @@ private:
 
     void readConfiguration();
 
-    QVariant entryData(const Entry *entry, const QString &raw, const QString &rawAlt, int role, bool followCrossRef) const;
+    QString entryText(const Entry *entry, const QString &raw, const QString &rawAlt, const QStringList &rawAliases, int role, bool followCrossRef) const;
 };
 
-#endif // KBIBTEX_GUI_FILEMODEL_H
+#endif // KBIBTEX_DATA_FILEMODEL_H

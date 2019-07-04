@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2016-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2016-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,10 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_ONLINESEARCH_BIORXIV_H
-#define KBIBTEX_ONLINESEARCH_BIORXIV_H
+#ifndef KBIBTEX_NETWORKING_ONLINESEARCHBIORXIV_H
+#define KBIBTEX_NETWORKING_ONLINESEARCHBIORXIV_H
 
-#include "onlinesearchabstract.h"
+#include <onlinesearch/OnlineSearchAbstract>
+
+#ifdef HAVE_KF5
+#include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
@@ -48,4 +52,4 @@ private:
     Private *const d;
 };
 
-#endif // KBIBTEX_ONLINESEARCH_BIORXIV_H
+#endif // KBIBTEX_NETWORKING_ONLINESEARCHBIORXIV_H

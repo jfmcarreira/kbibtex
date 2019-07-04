@@ -17,72 +17,41 @@ function(enable_unity_build UB_SUFFIX SOURCE_VARIABLE_NAME)
 endfunction(enable_unity_build)
 
 
-if(Qt5WebEngineWidgets_FOUND)
-    add_definitions(
-        -DHAVE_WEBENGINEWIDGETS
-    )
-endif(Qt5WebEngineWidgets_FOUND)
-
-if(Qt5WebKitWidgets_FOUND)
-    add_definitions(
-        -DHAVE_WEBKITWIDGETS
-    )
-endif(Qt5WebKitWidgets_FOUND)
-
-if(Qt5WebEngineWidgets_FOUND)
-    if(Qt5WebKitWidgets_FOUND)
-        message(STATUS "Found both QtWebEngine and QtWebKit, preferring to use QtWebEngine")
-    else(Qt5WebKitWidgets_FOUND)
-        message(STATUS "Found QtWebEngine, but not QtWebKit, therefore going to use QtWebEngine")
-    endif(Qt5WebKitWidgets_FOUND)
-else(Qt5WebEngineWidgets_FOUND)
-    if(Qt5WebKitWidgets_FOUND)
-        message(STATUS "Found QtWebKit, but not QtWebEngine, therefore going to use QtWebKit")
-    else(Qt5WebKitWidgets_FOUND)
-        message(STATUS "Found neither QtWebEngine nor QtWebKit, therefore trying to locate a KPart for HTML data")
-    endif(Qt5WebKitWidgets_FOUND)
-endif(Qt5WebEngineWidgets_FOUND)
-
-
-add_subdirectory(
-    config
+# Creates kbibtex-git-info.h containing information about the source code's Git revision
+# (if source directory is a Git clone)
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/kbibtex-git-info.h
+    COMMAND
+    ${CMAKE_COMMAND}
+    -DSOURCE_DIR=${CMAKE_SOURCE_DIR}
+    -DBINARY_DIR=${CMAKE_BINARY_DIR}
+    -P
+    ${CMAKE_CURRENT_SOURCE_DIR}/getgit.cmake
+    COMMENT "Determine Git revision in case this source code is a Git checkout"
 )
-add_subdirectory(
-    data
+set_source_files_properties(
+    ${CMAKE_CURRENT_BINARY_DIR}/kbibtex-git-info.h
+    PROPERTIES
+    GENERATED 1
+    HEADER_FILE_ONLY 1
+    SKIP_AUTOMOC ON
+    SKIP_AUTOUIC ON
+    SKIP_AUTOGEN ON
 )
-add_subdirectory(
-    io
-)
-add_subdirectory(
-    processing
-)
-add_subdirectory(
-    networking
-)
-add_subdirectory(
-    gui
-)
-add_subdirectory(
-    program
-)
-add_subdirectory(
-    parts
-)
-if(
-    BUILD_TESTING
-)
-    add_subdirectory(
-        test
-    )
-endif(
-    BUILD_TESTING
+add_custom_target(generate-kbibtex-git-info
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/kbibtex-git-info.h
 )
 
-# install(
-#     FILES
-#     kbibtexnamespace.h
-#     DESTINATION
-#     ${INCLUDE_INSTALL_DIR}/kbibtex
-#     COMPONENT
-#     development
-# )
+
+add_subdirectory(global)
+add_subdirectory(config)
+add_subdirectory(data)
+add_subdirectory(io)
+add_subdirectory(processing)
+add_subdirectory(networking)
+add_subdirectory(gui)
+add_subdirectory(program)
+add_subdirectory(parts)
+if(BUILD_TESTING)
+    add_subdirectory(test)
+endif()

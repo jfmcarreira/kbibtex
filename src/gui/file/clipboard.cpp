@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -24,38 +24,34 @@
 #include <QMouseEvent>
 #include <QDrag>
 
-#include <KConfigGroup>
-#include <KSharedConfig>
-
+#include <Preferences>
+#include <models/FileModel>
+#include <FileImporterBibTeX>
+#include <FileExporterBibTeX>
+#include <File>
 #include "fileview.h"
-#include "models/filemodel.h"
-#include "fileimporterbibtex.h"
-#include "fileexporterbibtex.h"
-#include "file.h"
-#include "associatedfilesui.h"
+#include "element/associatedfilesui.h"
 #include "logging_gui.h"
-
-const QString Clipboard::keyCopyReferenceCommand = QStringLiteral("copyReferenceCommand");
-const QString Clipboard::defaultCopyReferenceCommand = QStringLiteral("");
 
 class Clipboard::ClipboardPrivate
 {
 public:
     FileView *fileView;
     QPoint previousPosition;
-    KSharedConfigPtr config;
-    const QString configGroupName;
 
     ClipboardPrivate(FileView *fv, Clipboard *parent)
-            : fileView(fv), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), configGroupName(QStringLiteral("General")) {
+            : fileView(fv) {
         Q_UNUSED(parent)
     }
 
     QString selectionToText() {
+        FileModel *model = fileView->fileModel();
+        if (model == nullptr) return QString();
+
         const QModelIndexList mil = fileView->selectionModel()->selectedRows();
         QScopedPointer<File> file(new File());
         for (const QModelIndex &index : mil)
-            file->append(fileView->fileModel()->element(fileView->sortFilterProxyModel()->mapToSource(index).row()));
+            file->append(model->element(fileView->sortFilterProxyModel()->mapToSource(index).row()));
 
         FileExporterBibTeX exporter(fileView);
         exporter.setEncoding(QStringLiteral("latex"));
@@ -88,9 +84,11 @@ public:
         QSharedPointer<Entry> entry = element.dynamicCast<Entry>();
         if (entry.isNull()) return false;
         if (!url.isValid()) return false;
+        FileModel *model = fileView->fileModel();
+        if (model == nullptr) return false;
 
         qCDebug(LOG_KBIBTEX_GUI) << "About to add URL " << url.toDisplayString() << " to entry" << entry->id();
-        return AssociatedFilesUI::associateUrl(url, entry, fileView->fileModel()->bibliographyFile(), fileView);
+        return AssociatedFilesUI::associateUrl(url, entry, model->bibliographyFile(), fileView);
     }
 
     bool insertText(const QString &text, QSharedPointer<Element> element = QSharedPointer<Element>()) {
@@ -105,13 +103,15 @@ public:
                 insertUrlPreviouslyCalled = true;
         }
 
+        FileModel *fileModel = fileView->fileModel();
+        if (fileModel == nullptr) return false;
+
         /// Assumption: user dropped a piece of BibTeX code,
         /// use BibTeX importer to generate representation from plain text
         FileImporterBibTeX importer(fileView);
         File *file = importer.fromString(text);
         if (file != nullptr) {
             if (!file->isEmpty()) {
-                FileModel *fileModel = fileView->fileModel();
                 QSortFilterProxyModel *sfpModel = fileView->sortFilterProxyModel();
 
                 /// Insert new elements one by one
@@ -189,11 +189,14 @@ void Clipboard::copy()
 
 void Clipboard::copyReferences()
 {
+    FileModel *model = d->fileView != nullptr ? d->fileView->fileModel() : nullptr;
+    if (model == nullptr) return;
+
     QStringList references;
     const QModelIndexList mil = d->fileView->selectionModel()->selectedRows();
     references.reserve(mil.size());
     for (const QModelIndex &index : mil) {
-        QSharedPointer<Entry> entry = d->fileView->fileModel()->element(d->fileView->sortFilterProxyModel()->mapToSource(index).row()).dynamicCast<Entry>();
+        QSharedPointer<Entry> entry = model->element(d->fileView->sortFilterProxyModel()->mapToSource(index).row()).dynamicCast<Entry>();
         if (!entry.isNull())
             references << entry->id();
     }
@@ -202,8 +205,7 @@ void Clipboard::copyReferences()
         QClipboard *clipboard = QApplication::clipboard();
         QString text = references.join(QStringLiteral(","));
 
-        KConfigGroup configGroup(d->config, d->configGroupName);
-        const QString copyReferenceCommand = configGroup.readEntry(keyCopyReferenceCommand, defaultCopyReferenceCommand);
+        const QString copyReferenceCommand = Preferences::instance().copyReferenceCommand();
         if (!copyReferenceCommand.isEmpty())
             text = QString(QStringLiteral("\\%1{%2}")).arg(copyReferenceCommand, text);
 

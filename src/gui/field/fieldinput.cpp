@@ -28,12 +28,12 @@
 
 #include <KLocalizedString>
 
-#include "file.h"
-#include "entry.h"
+#include <File>
+#include <Entry>
 #include "fieldlineedit.h"
 #include "fieldlistedit.h"
 #include "colorlabelwidget.h"
-#include "starrating.h"
+#include "widgets/starrating.h"
 
 class FieldInput::FieldInputPrivate
 {
@@ -79,7 +79,7 @@ public:
         case KBibTeX::Month: {
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, false, p);
             layout->addWidget(fieldLineEdit);
-            QPushButton *monthSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("view-calendar-month")), QStringLiteral(""));
+            QPushButton *monthSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("view-calendar-month")), QString());
             monthSelector->setToolTip(i18n("Select a predefined month"));
             fieldLineEdit->prependWidget(monthSelector);
 
@@ -114,7 +114,7 @@ public:
         case KBibTeX::CrossRef: {
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, false, p);
             layout->addWidget(fieldLineEdit);
-            QPushButton *referenceSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("flag-green")), QStringLiteral("")); ///< find better icon
+            QPushButton *referenceSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("flag-green")), QString()); ///< find better icon
             referenceSelector->setToolTip(i18n("Select an existing entry"));
             fieldLineEdit->prependWidget(referenceSelector);
             connect(referenceSelector, &QPushButton::clicked, p, &FieldInput::selectCrossRef);
@@ -153,7 +153,7 @@ public:
     void clear() {
         disableModifiedSignal();
         if (fieldLineEdit != nullptr)
-            fieldLineEdit->setText(QStringLiteral(""));
+            fieldLineEdit->setText(QString());
         else if (fieldListEdit != nullptr)
             fieldListEdit->clear();
         else if (colorWidget != nullptr)
@@ -193,6 +193,18 @@ public:
         else if (starRatingWidget != nullptr)
             result = starRatingWidget->apply(value);
         return result;
+    }
+
+    bool validate(QWidget **widgetWithIssue, QString &message) const {
+        if (fieldLineEdit != nullptr)
+            return fieldLineEdit->validate(widgetWithIssue, message);
+        else if (fieldListEdit != nullptr)
+            return fieldListEdit->validate(widgetWithIssue, message);
+        else if (colorWidget != nullptr)
+            return colorWidget->validate(widgetWithIssue, message);
+        else if (starRatingWidget != nullptr)
+            return starRatingWidget->validate(widgetWithIssue, message);
+        return false;
     }
 
     void setReadOnly(bool isReadOnly) {
@@ -311,6 +323,11 @@ bool FieldInput::reset(const Value &value)
 bool FieldInput::apply(Value &value) const
 {
     return d->apply(value);
+}
+
+bool FieldInput::validate(QWidget **widgetWithIssue, QString &message) const
+{
+    return d->validate(widgetWithIssue, message);
 }
 
 void FieldInput::setReadOnly(bool isReadOnly)

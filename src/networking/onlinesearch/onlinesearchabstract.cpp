@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QTimer>
 #include <QStandardPaths>
+#include <QRegularExpression>
 #ifdef HAVE_QTWIDGETS
 #include <QListWidgetItem>
 #include <QDBusConnection>
@@ -33,9 +34,9 @@
 #include <KMessageBox>
 #endif // HAVE_KF5
 
-#include "encoderlatex.h"
+#include <KBibTeX>
+#include <Encoder>
 #include "internalnetworkaccessmanager.h"
-#include "kbibtex.h"
 #include "logging_networking.h"
 
 const QString OnlineSearchAbstract::queryKeyFreeText = QStringLiteral("free");
@@ -56,7 +57,7 @@ const char *OnlineSearchAbstract::httpUnsafeChars = "%:/=+$?&\0";
 #ifdef HAVE_QTWIDGETS
 QStringList OnlineSearchQueryFormAbstract::authorLastNames(const Entry &entry)
 {
-    const EncoderLaTeX &encoder = EncoderLaTeX::instance();
+    const Encoder &encoder = Encoder::instance();
     const Value v = entry[Entry::ftAuthor];
     QStringList result;
     result.reserve(v.size());
@@ -67,6 +68,31 @@ QStringList OnlineSearchQueryFormAbstract::authorLastNames(const Entry &entry)
     }
 
     return result;
+}
+
+QString OnlineSearchQueryFormAbstract::guessFreeText(const Entry &entry) const
+{
+    /// If there is a DOI value in this entry, use it as free text
+    static const QStringList doiKeys = {Entry::ftDOI, Entry::ftUrl};
+    for (const QString &doiKey : doiKeys)
+        if (!entry.value(doiKey).isEmpty()) {
+            const QString text = PlainTextValue::text(entry[doiKey]);
+            const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(text);
+            if (doiRegExpMatch.hasMatch())
+                return doiRegExpMatch.captured(0);
+        }
+
+    /// If there is no free text yet (e.g. no DOI number), try to identify an arXiv eprint number
+    static const QStringList arxivKeys = {QStringLiteral("eprint"), Entry::ftNumber};
+    for (const QString &arxivKey : arxivKeys)
+        if (!entry.value(arxivKey).isEmpty()) {
+            const QString text = PlainTextValue::text(entry[arxivKey]);
+            const QRegularExpressionMatch arXivRegExpMatch = KBibTeX::arXivRegExpWithPrefix.match(text);
+            if (arXivRegExpMatch.hasMatch())
+                return arXivRegExpMatch.captured(1);
+        }
+
+    return QString();
 }
 #endif // HAVE_QTWIDGETS
 
@@ -114,9 +140,10 @@ void OnlineSearchAbstract::startSearchFromForm()
 
 QString OnlineSearchAbstract::name()
 {
-    static const QRegularExpression invalidChars(QStringLiteral("[^-a-z0-9]"), QRegularExpression::CaseInsensitiveOption);
-    if (m_name.isEmpty())
+    if (m_name.isEmpty()) {
+        static const QRegularExpression invalidChars(QStringLiteral("[^-a-z0-9]"), QRegularExpression::CaseInsensitiveOption);
         m_name = label().remove(invalidChars);
+    }
     return m_name;
 }
 
@@ -173,10 +200,16 @@ bool OnlineSearchAbstract::handleErrors(QNetworkReply *reply, QUrl &newUrl)
         qCWarning(LOG_KBIBTEX_NETWORKING) << "Search using" << label() << "failed (error code" << reply->error() << "," << errorString << "), HTTP code" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() << ":" << reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toByteArray() << ") for URL" << urlToShow.toDisplayString();
         const QNetworkRequest &request = reply->request();
         /// Dump all HTTP headers that were sent with the original request (except for API keys)
-        const QList<QByteArray> rawHeaderList = request.rawHeaderList();
-        for (const QByteArray &rawHeaderName : rawHeaderList) {
+        const QList<QByteArray> rawHeadersSent = request.rawHeaderList();
+        for (const QByteArray &rawHeaderName : rawHeadersSent) {
             if (rawHeaderName.toLower().contains("apikey") || rawHeaderName.toLower().contains("api-key")) continue; ///< skip dumping header values containing an API key
-            qCDebug(LOG_KBIBTEX_NETWORKING) << " " << rawHeaderName << ":" << request.rawHeader(rawHeaderName);
+            qCDebug(LOG_KBIBTEX_NETWORKING) << "SENT " << rawHeaderName << ":" << request.rawHeader(rawHeaderName);
+        }
+        /// Dump all HTTP headers that were received
+        const QList<QByteArray> rawHeadersReceived = reply->rawHeaderList();
+        for (const QByteArray &rawHeaderName : rawHeadersReceived) {
+            if (rawHeaderName.toLower().contains("apikey") || rawHeaderName.toLower().contains("api-key")) continue; ///< skip dumping header values containing an API key
+            qCDebug(LOG_KBIBTEX_NETWORKING) << "RECVD " << rawHeaderName << ":" << reply->rawHeader(rawHeaderName);
         }
 #ifdef HAVE_KF5
         sendVisualNotification(errorString.isEmpty() ? i18n("Searching '%1' failed for unknown reason.", label()) : i18n("Searching '%1' failed with error message:\n\n%2", label(), errorString), label(), QStringLiteral("kbibtex"), 7 * 1000);
@@ -453,8 +486,13 @@ void OnlineSearchAbstract::iconDownloadFinished()
             iconFile.close();
 
             QListWidgetItem *listWidgetItem = m_iconReplyToListWidgetItem.value(reply, nullptr);
-            if (listWidgetItem != nullptr)
+            if (listWidgetItem != nullptr) {
+                /// Disable signals while updating the widget and its items
+                blockSignals(true);
                 listWidgetItem->setIcon(QIcon(filename));
+                /// Re-enable signals after updating the widget and its items
+                blockSignals(false);
+            }
         } else {
             qCWarning(LOG_KBIBTEX_NETWORKING) << "Could not save icon data from URL" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString() << "to file" << filename;
             return;
@@ -568,7 +606,7 @@ void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
         }
     } else if (!entry->contains(Entry::ftDOI) && entry->contains(Entry::ftUrl)) {
         /// If URL looks like a DOI, remove URL and add a DOI field
-        QSet<QString> doiSet;
+        QSet<QString> doiSet; ///< using a QSet here to keep only unique DOIs
         Value v = entry->value(Entry::ftUrl);
         bool gotChanged = false;
         for (Value::Iterator it = v.begin(); it != v.end();) {
@@ -587,7 +625,13 @@ void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
             entry->insert(Entry::ftUrl, v);
         if (!doiSet.isEmpty()) {
             Value doiValue;
+            /// Rewriting QSet<QString> doiSet into a (sorted) list for reproducibility
+            /// (required for automated test in KBibTeXNetworkingTest)
+            QStringList list;
             for (const QString &doi : doiSet)
+                list.append(doi);
+            list.sort();
+            for (const QString &doi : const_cast<const QStringList &>(list))
                 doiValue.append(QSharedPointer<PlainText>(new PlainText(doi)));
             entry->insert(Entry::ftDOI, doiValue);
         }

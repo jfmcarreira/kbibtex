@@ -19,18 +19,17 @@
 #ifndef KBIBTEX_GUI_STARRATING_H
 #define KBIBTEX_GUI_STARRATING_H
 
-#include "kbibtexgui_export.h"
-
 #include <QWidget>
 
 #include <KIconLoader>
 
-#include "value.h"
+#include <Value>
+
+#include "kbibtexgui_export.h"
 
 class QLabel;
 class QPaintEvent;
 class QMouseEvent;
-
 class QPushButton;
 
 /**
@@ -143,6 +142,8 @@ public:
      * @return @c true if the apply operation succeeded, @c false otherwise (should not happen)
      */
     bool apply(Value &value) const;
+
+    bool validate(QWidget **widgetWithIssue, QString &message) const;
 };
 
 #endif // KBIBTEX_GUI_STARRATING_H

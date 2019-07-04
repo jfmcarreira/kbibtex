@@ -15,15 +15,18 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef BIBTEXFILEEXPORTERBIBTEX_H
-#define BIBTEXFILEEXPORTERBIBTEX_H
+#ifndef KBIBTEX_IO_FILEEXPORTERBIBTEX_H
+#define KBIBTEX_IO_FILEEXPORTERBIBTEX_H
 
 #include <QTextStream>
 
-#include "kbibtex.h"
-#include "element.h"
-#include "value.h"
-#include "fileexporter.h"
+#include <Element>
+#include <Value>
+#include <FileExporter>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 class QChar;
 
@@ -72,4 +75,4 @@ private:
     static FileExporterBibTeX *staticFileExporterBibTeX;
 };
 
-#endif
+#endif // KBIBTEX_IO_FILEEXPORTERBIBTEX_H

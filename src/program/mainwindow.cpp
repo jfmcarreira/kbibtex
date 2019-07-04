@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -34,28 +34,26 @@
 #include <KPluginFactory>
 #include <KPluginLoader>
 #include <KLocalizedString>
-#include <KSharedConfig>
 #include <KMessageBox>
 
-#include "kbibtex.h"
-#include "preferences/kbibtexpreferencesdialog.h"
-#include "valuelist.h"
-#ifdef HAVE_ZOTERO
-#include "zoterobrowser.h"
-#endif // HAVE_ZOTERO
-#include "statistics.h"
+#include <KBibTeX>
+#include <preferences/KBibTeXPreferencesDialog>
+#include <file/FileView>
+#include <XSLTransform>
+#include <BibliographyService>
+#include <BibUtils>
+#include "docklets/referencepreview.h"
+#include "docklets/documentpreview.h"
+#include "docklets/searchform.h"
+#include "docklets/searchresults.h"
+#include "docklets/elementform.h"
+#include "docklets/documentpreview.h"
+#include "docklets/statistics.h"
+#include "docklets/filesettings.h"
+#include "docklets/valuelist.h"
+#include "docklets/zoterobrowser.h"
 #include "documentlist.h"
 #include "mdiwidget.h"
-#include "referencepreview.h"
-#include "documentpreview.h"
-#include "searchform.h"
-#include "searchresults.h"
-#include "elementform.h"
-#include "fileview.h"
-#include "filesettings.h"
-#include "xsltransform.h"
-#include "bibliographyservice.h"
-#include "bibutils.h"
 
 class KBibTeXMainWindow::KBibTeXMainWindowPrivate
 {
@@ -68,9 +66,7 @@ public:
     QDockWidget *dockReferencePreview;
     QDockWidget *dockDocumentPreview;
     QDockWidget *dockValueList;
-#ifdef HAVE_ZOTERO
     QDockWidget *dockZotero;
-#endif // HAVE_ZOTERO
     QDockWidget *dockStatistics;
     QDockWidget *dockSearchForm;
     QDockWidget *dockSearchResults;
@@ -82,9 +78,7 @@ public:
     DocumentPreview *documentPreview;
     FileSettings *fileSettings;
     ValueList *valueList;
-#ifdef HAVE_ZOTERO
     ZoteroBrowser *zotero;
-#endif // HAVE_ZOTERO
     Statistics *statistics;
     SearchForm *searchForm;
     SearchResults *searchResults;
@@ -167,7 +161,6 @@ public:
         dockSearchForm->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
         showPanelsMenu->addAction(dockSearchForm->toggleViewAction());
 
-#ifdef HAVE_ZOTERO
         dockZotero = new QDockWidget(i18n("Zotero"), p);
         dockZotero->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea | Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
         p->addDockWidget(Qt::LeftDockWidgetArea, dockZotero);
@@ -178,7 +171,6 @@ public:
         dockZotero->setObjectName(QStringLiteral("dockZotero"));
         dockZotero->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetMovable | QDockWidget::DockWidgetFloatable);
         showPanelsMenu->addAction(dockZotero->toggleViewAction());
-#endif // HAVE_ZOTERO
 
         dockReferencePreview = new QDockWidget(i18n("Reference Preview"), p);
         dockReferencePreview->setAllowedAreas(Qt::BottomDockWidgetArea | Qt::TopDockWidgetArea | Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
@@ -220,9 +212,7 @@ public:
         showPanelsMenu->addAction(dockFileSettings->toggleViewAction());
 
         p->tabifyDockWidget(dockFileSettings, dockSearchForm);
-#ifdef HAVE_ZOTERO
         p->tabifyDockWidget(dockZotero, dockSearchForm);
-#endif // HAVE_ZOTERO
         p->tabifyDockWidget(dockValueList, dockStatistics);
         p->tabifyDockWidget(dockStatistics, dockFileSettings);
         p->tabifyDockWidget(dockSearchForm, dockReferencePreview);
@@ -253,13 +243,6 @@ KBibTeXMainWindow::KBibTeXMainWindow(QWidget *parent)
 {
     setObjectName(QStringLiteral("KBibTeXShell"));
 
-    /*
-        const char mainWindowStateKey[] = "State";
-        KConfigGroup group( KSharedConfig::openConfig(), "MainWindow" );
-        if( !group.hasKey(mainWindowStateKey) )
-            group.writeEntry( mainWindowStateKey, mainWindowState );
-    */
-
     setXMLFile(QStringLiteral("kbibtexui.rc"));
 
     setCentralWidget(d->mdiWidget);
@@ -269,8 +252,8 @@ KBibTeXMainWindow::KBibTeXMainWindow(QWidget *parent)
     connect(d->mdiWidget, &MDIWidget::documentNew, this, &KBibTeXMainWindow::newDocument);
     connect(d->mdiWidget, &MDIWidget::documentOpen, this, &KBibTeXMainWindow::openDocumentDialog);
     connect(d->mdiWidget, &MDIWidget::documentOpenURL, this, &KBibTeXMainWindow::openDocument);
-    connect(OpenFileInfoManager::instance(), &OpenFileInfoManager::currentChanged, d->mdiWidget, &MDIWidget::setFile);
-    connect(OpenFileInfoManager::instance(), &OpenFileInfoManager::flagsChanged, this, &KBibTeXMainWindow::documentListsChanged);
+    connect(&OpenFileInfoManager::instance(), &OpenFileInfoManager::currentChanged, d->mdiWidget, &MDIWidget::setFile);
+    connect(&OpenFileInfoManager::instance(), &OpenFileInfoManager::flagsChanged, this, &KBibTeXMainWindow::documentListsChanged);
     connect(d->mdiWidget, &MDIWidget::setCaption, this, static_cast<void(KMainWindow::*)(const QString &)>(&KMainWindow::setCaption)); ///< actually: KMainWindow::setCaption
 
     documentListsChanged(OpenFileInfo::RecentlyUsed); /// force initialization of menu of recently used files
@@ -321,20 +304,19 @@ void KBibTeXMainWindow::dropEvent(QDropEvent *event)
 void KBibTeXMainWindow::newDocument()
 {
     const QString mimeType = FileInfo::mimetypeBibTeX;
-    OpenFileInfo *openFileInfo = OpenFileInfoManager::instance()->createNew(mimeType);
-    if (openFileInfo) {
-        OpenFileInfoManager::instance()->setCurrentFile(openFileInfo);
-        openFileInfo->addFlags(OpenFileInfo::Open);
-    } else
+    OpenFileInfo *openFileInfo = OpenFileInfoManager::instance().createNew(mimeType);
+    if (openFileInfo)
+        OpenFileInfoManager::instance().setCurrentFile(openFileInfo);
+    else
         KMessageBox::error(this, i18n("Creating a new document of mime type '%1' failed as no editor component could be instantiated.", mimeType), i18n("Creating document failed"));
 }
 
 void KBibTeXMainWindow::openDocumentDialog()
 {
-    OpenFileInfo *currFile = OpenFileInfoManager::instance()->currentFile();
+    OpenFileInfo *currFile = OpenFileInfoManager::instance().currentFile();
     QUrl currFileUrl = currFile == nullptr ? QUrl() : currFile->url();
     QString startDir = currFileUrl.isValid() ? QUrl(currFileUrl.url()).path() : QString();
-    OpenFileInfo *ofi = OpenFileInfoManager::instance()->currentFile();
+    OpenFileInfo *ofi = OpenFileInfoManager::instance().currentFile();
     if (ofi != nullptr) {
         QUrl url = ofi->url();
         if (url.isValid()) startDir = url.path();
@@ -363,20 +345,20 @@ void KBibTeXMainWindow::openDocumentDialog()
 
 void KBibTeXMainWindow::openDocument(const QUrl &url)
 {
-    OpenFileInfo *openFileInfo = OpenFileInfoManager::instance()->open(url);
-    OpenFileInfoManager::instance()->setCurrentFile(openFileInfo);
+    OpenFileInfo *openFileInfo = OpenFileInfoManager::instance().open(url);
+    OpenFileInfoManager::instance().setCurrentFile(openFileInfo);
 }
 
 void KBibTeXMainWindow::closeDocument()
 {
-    OpenFileInfoManager::instance()->close(OpenFileInfoManager::instance()->currentFile());
+    OpenFileInfoManager::instance().close(OpenFileInfoManager::instance().currentFile());
 }
 
 void KBibTeXMainWindow::closeEvent(QCloseEvent *event)
 {
     KMainWindow::closeEvent(event);
 
-    if (OpenFileInfoManager::instance()->queryCloseAll())
+    if (OpenFileInfoManager::instance().queryCloseAll())
         event->accept();
     else
         event->ignore();
@@ -441,7 +423,7 @@ void KBibTeXMainWindow::showSearchResults()
 void KBibTeXMainWindow::documentListsChanged(OpenFileInfo::StatusFlags statusFlags)
 {
     if (statusFlags.testFlag(OpenFileInfo::RecentlyUsed)) {
-        const OpenFileInfoManager::OpenFileInfoList list = OpenFileInfoManager::instance()->filteredItems(OpenFileInfo::RecentlyUsed);
+        const OpenFileInfoManager::OpenFileInfoList list = OpenFileInfoManager::instance().filteredItems(OpenFileInfo::RecentlyUsed);
         d->actionMenuRecentFilesMenu->clear();
         for (OpenFileInfo *cur : list) {
             /// Fixing bug 19511: too long filenames make menu too large,
@@ -467,7 +449,7 @@ void KBibTeXMainWindow::openRecentFile()
 
 void KBibTeXMainWindow::queryCloseAll()
 {
-    if (OpenFileInfoManager::instance()->queryCloseAll())
+    if (OpenFileInfoManager::instance().queryCloseAll())
         qApp->quit();
 }
 

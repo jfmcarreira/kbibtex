@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,12 +15,17 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef BIBTEXFILEEXPORTERTOOLCHAIN_H
-#define BIBTEXFILEEXPORTERTOOLCHAIN_H
+#ifndef KBIBTEX_IO_FILEEXPORTERTOOLCHAIN_H
+#define KBIBTEX_IO_FILEEXPORTERTOOLCHAIN_H
 
 #include <QTemporaryDir>
+#include <QPageSize>
 
-#include "fileexporter.h"
+#include <FileExporter>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 class QString;
 
@@ -32,15 +37,7 @@ class KBIBTEXIO_EXPORT FileExporterToolchain : public FileExporter
     Q_OBJECT
 
 public:
-    static const QString keyBabelLanguage;
-    static const QString defaultBabelLanguage;
-
-    static const QString keyBibliographyStyle;
-    static const QString defaultBibliographyStyle;
-
     explicit FileExporterToolchain(QObject *parent);
-
-    virtual void reloadConfig() = 0;
 
     static bool kpsewhich(const QString &filename);
 
@@ -50,6 +47,8 @@ protected:
     bool runProcesses(const QStringList &progs, QStringList *errorLog = nullptr);
     bool runProcess(const QString &cmd, const QStringList &args, QStringList *errorLog = nullptr);
     bool writeFileToIODevice(const QString &filename, QIODevice *device, QStringList *errorLog = nullptr);
+
+    QString pageSizeToLaTeXName(const QPageSize::PageSizeId pageSizeId) const;
 };
 
-#endif
+#endif // KBIBTEX_IO_FILEEXPORTERTOOLCHAIN_H

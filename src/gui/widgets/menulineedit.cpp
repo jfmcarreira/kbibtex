@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -28,7 +28,7 @@
 #include <KConfigGroup>
 #include <KSharedConfig>
 
-#include "notificationhub.h"
+#include <NotificationHub>
 
 const int MenuLineEdit::MenuLineConfigurationChangedEvent = NotificationHub::EventUserDefined + 1861;
 const QString MenuLineEdit::keyLimitKeyboardTabStops = QStringLiteral("LimitKeyboardTabStops");
@@ -111,7 +111,7 @@ public:
             m_singleLineEditText->setCompletionMode(KCompletion::CompletionPopup);
             m_singleLineEditText->completionObject()->setIgnoreCase(true);
             p->setFocusProxy(m_singleLineEditText);
-            connect(m_singleLineEditText, &KLineEdit::textEdited, p, &MenuLineEdit::textChanged);
+            connect(m_singleLineEditText, &QLineEdit::textEdited, p, &MenuLineEdit::textChanged);
         }
 
         p->setFocusPolicy(Qt::StrongFocus); // FIXME improve focus handling
@@ -187,7 +187,7 @@ public:
     }
 };
 
-const QString MenuLineEdit::MenuLineEditPrivate::transparentStyleSheet = QStringLiteral("KTextEdit { border-style: none; background-color: transparent; }\nKLineEdit { border-style: none; background-color: transparent; }\nKPushButton { border-style: none; background-color: transparent; padding: 0px; margin-left: 2px; margin-right:2px; text-align: left; }");
+const QString MenuLineEdit::MenuLineEditPrivate::transparentStyleSheet = QStringLiteral("KTextEdit { border-style: none; background-color: transparent; }\nQLineEdit { border-style: none; background-color: transparent; }\nKPushButton { border-style: none; background-color: transparent; padding: 0px; margin-left: 2px; margin-right:2px; text-align: left; }");
 const QString MenuLineEdit::MenuLineEditPrivate::normalStyleSheet = QStringLiteral("QPushButton { padding:4px; margin:0px;  text-align: left; }\nQPushButton::menu-indicator {subcontrol-position: right center; subcontrol-origin: content;}");
 
 MenuLineEdit::MenuLineEdit(bool isMultiLine, QWidget *parent)
@@ -220,7 +220,7 @@ QString MenuLineEdit::text() const
         return d->m_singleLineEditText->text();
     if (d->m_multiLineEditText != nullptr)
         return d->m_multiLineEditText->document()->toPlainText();
-    return QStringLiteral("");
+    return QString();
 }
 
 void MenuLineEdit::setText(const QString &text)

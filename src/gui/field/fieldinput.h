@@ -18,12 +18,12 @@
 #ifndef KBIBTEX_GUI_FIELDINPUT_H
 #define KBIBTEX_GUI_FIELDINPUT_H
 
-#include "kbibtexgui_export.h"
-
 #include <QWidget>
 
-#include "value.h"
-#include "kbibtex.h"
+#include <KBibTeX>
+#include <Value>
+
+#include "kbibtexgui_export.h"
 
 class Element;
 
@@ -40,6 +40,7 @@ public:
 
     bool reset(const Value &value);
     bool apply(Value &value) const;
+    bool validate(QWidget **widgetWithIssue, QString &message) const;
 
     void clear();
     void setReadOnly(bool isReadOnly);

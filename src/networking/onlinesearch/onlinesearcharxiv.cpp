@@ -18,28 +18,26 @@
 #include "onlinesearcharxiv.h"
 
 #include <QNetworkReply>
-#include <QCoreApplication>
+#include <QRegularExpression>
 #ifdef HAVE_QTWIDGETS
 #include <QGridLayout>
 #include <QLabel>
 #include <QSpinBox>
+#include <QLineEdit>
 #include <QTextStream>
-#endif // HAVE_QTWIDGETS
-#include <QStandardPaths>
-
-#ifdef HAVE_QTWIDGETS
-#include <KLineEdit>
-#include <KMessageBox>
 #endif // HAVE_QTWIDGETS
 
 #ifdef HAVE_KF5
+#include <KMessageBox>
 #include <KConfigGroup>
 #include <KLocalizedString>
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
 #endif // HAVE_KF5
 
-#include "fileimporterbibtex.h"
-#include "xsltransform.h"
-#include "encoderxml.h"
+#include <FileImporterBibTeX>
+#include <XSLTransform>
+#include <EncoderXML>
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
 
@@ -58,7 +56,7 @@ private:
     }
 
 public:
-    KLineEdit *lineEditFreeText;
+    QLineEdit *lineEditFreeText;
     QSpinBox *numResultsField;
 
     OnlineSearchQueryFormArXiv(QWidget *parent)
@@ -68,12 +66,12 @@ public:
 
         QLabel *label = new QLabel(i18n("Free text:"), this);
         layout->addWidget(label, 0, 0, 1, 1);
-        lineEditFreeText = new KLineEdit(this);
+        lineEditFreeText = new QLineEdit(this);
         lineEditFreeText->setClearButtonEnabled(true);
         lineEditFreeText->setFocus(Qt::TabFocusReason);
         layout->addWidget(lineEditFreeText, 0, 1, 1, 1);
         label->setBuddy(lineEditFreeText);
-        connect(lineEditFreeText, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormArXiv::returnPressed);
+        connect(lineEditFreeText, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormArXiv::returnPressed);
 
         label = new QLabel(i18n("Number of Results:"), this);
         layout->addWidget(label, 1, 0, 1, 1);
@@ -108,6 +106,9 @@ public:
 
 class OnlineSearchArXiv::OnlineSearchArXivPrivate
 {
+private:
+    static const QString xsltFilenameBase;
+
 public:
     const XSLTransform xslt;
 #ifdef HAVE_QTWIDGETS
@@ -116,13 +117,14 @@ public:
     const QString arXivQueryBaseUrl;
 
     OnlineSearchArXivPrivate(OnlineSearchArXiv *)
-            : xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/arxiv2bibtex.xsl"))),
+            : xslt(XSLTransform::locateXSLTfile(xsltFilenameBase)),
 #ifdef HAVE_QTWIDGETS
           form(nullptr),
 #endif // HAVE_QTWIDGETS
           arXivQueryBaseUrl(QStringLiteral("https://export.arxiv.org/api/query?"))
     {
-        /// nothing
+        if (!xslt.isValid())
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "Failed to initialize XSL transformation based on file '" << xsltFilenameBase << "'";
     }
 
 #ifdef HAVE_QTWIDGETS
@@ -620,6 +622,9 @@ public:
     }
 };
 
+const QString OnlineSearchArXiv::OnlineSearchArXivPrivate::xsltFilenameBase = QStringLiteral("arxiv2bibtex.xsl");
+
+
 OnlineSearchArXiv::OnlineSearchArXiv(QObject *parent)
         : OnlineSearchAbstract(parent), d(new OnlineSearchArXiv::OnlineSearchArXivPrivate(this))
 {
@@ -663,7 +668,12 @@ void OnlineSearchArXiv::startSearch(const QMap<QString, QString> &query, int num
 
 QString OnlineSearchArXiv::label() const
 {
+#ifdef HAVE_KF5
     return i18n("arXiv.org");
+#else // HAVE_KF5
+    //= onlinesearch-arxiv-label
+    return QObject::tr("arXiv.org");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchArXiv::favIconUrl() const

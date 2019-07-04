@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -22,16 +22,12 @@
 #include <QIODevice>
 #include <QStringList>
 
-#ifdef HAVE_KF5
-#include <KSharedConfig>
-#include <KConfigGroup>
-#endif // HAVE_KF5
-
-#include "preferences.h"
+#include <Preferences>
 #include "entry.h"
 #include "element.h"
 #include "macro.h"
 #include "comment.h"
+#include "preamble.h"
 #include "logging_data.h"
 
 const QString File::Url = QStringLiteral("Url");
@@ -53,27 +49,17 @@ private:
     static const quint64 initialInternalIdCounter;
     static quint64 internalIdCounter;
 
-#ifdef HAVE_KF5
-    KSharedConfigPtr config;
-    const QString configGroupName;
-#endif // HAVE_KF5
-
 public:
     const quint64 internalId;
     QHash<QString, QVariant> properties;
 
     explicit FilePrivate(File *parent)
-            : validInvalidField(valid),
-#ifdef HAVE_KF5
-        config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), configGroupName(QStringLiteral("FileExporterBibTeX")),
-#endif // HAVE_KF5
-        internalId(++internalIdCounter) {
+            : validInvalidField(valid), internalId(++internalIdCounter)
+    {
         Q_UNUSED(parent)
         const bool isValid = checkValidity();
         if (!isValid) qCDebug(LOG_KBIBTEX_DATA) << "Creating File instance" << internalId << "  Valid?" << isValid;
-#ifdef HAVE_KF5
         loadConfiguration();
-#endif // HAVE_KF5
     }
 
     ~FilePrivate() {
@@ -104,19 +90,16 @@ public:
         return *this;
     }
 
-#ifdef HAVE_KF5
     void loadConfiguration() {
         /// Load and set configuration as stored in settings
-        KConfigGroup configGroup(config, configGroupName);
-        properties.insert(File::Encoding, configGroup.readEntry(Preferences::keyEncoding, Preferences::defaultEncoding));
-        properties.insert(File::StringDelimiter, configGroup.readEntry(Preferences::keyStringDelimiter, Preferences::defaultStringDelimiter));
-        properties.insert(File::QuoteComment, static_cast<Preferences::QuoteComment>(configGroup.readEntry(Preferences::keyQuoteComment, static_cast<int>(Preferences::defaultQuoteComment))));
-        properties.insert(File::KeywordCasing, static_cast<KBibTeX::Casing>(configGroup.readEntry(Preferences::keyKeywordCasing, static_cast<int>(Preferences::defaultKeywordCasing))));
-        properties.insert(File::NameFormatting, configGroup.readEntry(Preferences::keyPersonNameFormatting, QString()));
-        properties.insert(File::ProtectCasing, configGroup.readEntry(Preferences::keyProtectCasing, static_cast<int>(Preferences::defaultProtectCasing)));
-        properties.insert(File::ListSeparator, configGroup.readEntry(Preferences::keyListSeparator, Preferences::defaultListSeparator));
+        properties.insert(File::Encoding, Preferences::instance().bibTeXEncoding());
+        properties.insert(File::StringDelimiter, Preferences::instance().bibTeXStringDelimiter());
+        properties.insert(File::QuoteComment,  Preferences::instance().bibTeXQuoteComment());
+        properties.insert(File::KeywordCasing, Preferences::instance().bibTeXKeywordCasing());
+        properties.insert(File::NameFormatting, Preferences::instance().personNameFormat());
+        properties.insert(File::ProtectCasing, static_cast<int>(Preferences::instance().bibTeXProtectCasing() ? Qt::Checked : Qt::Unchecked));
+        properties.insert(File::ListSeparator,  Preferences::instance().bibTeXListSeparator());
     }
-#endif // HAVE_KF5
 
     bool checkValidity() const {
         if (validInvalidField != valid) {
@@ -174,6 +157,54 @@ File &File::operator= (File &&other) {
     if (this != &other)
         d->operator =(std::move(*other.d));
     return *this;
+}
+
+bool File::operator==(const File &other) const {
+    if (size() != other.size()) return false;
+
+    for (File::ConstIterator myIt = constBegin(), otherIt = other.constBegin(); myIt != constEnd() && otherIt != constEnd(); ++myIt, ++otherIt) {
+        QSharedPointer<const Entry> myEntry = myIt->dynamicCast<const Entry>();
+        QSharedPointer<const Entry> otherEntry = otherIt->dynamicCast<const Entry>();
+        if ((myEntry.isNull() && !otherEntry.isNull()) || (!myEntry.isNull() && otherEntry.isNull())) return false;
+        if (!myEntry.isNull() && !otherEntry.isNull()) {
+            if (myEntry->operator !=(*otherEntry.data()))
+                return false;
+        } else {
+            QSharedPointer<const Macro> myMacro = myIt->dynamicCast<const Macro>();
+            QSharedPointer<const Macro> otherMacro = otherIt->dynamicCast<const Macro>();
+            if ((myMacro.isNull() && !otherMacro.isNull()) || (!myMacro.isNull() && otherMacro.isNull())) return false;
+            if (!myMacro.isNull() && !otherMacro.isNull()) {
+                if (myMacro->operator !=(*otherMacro.data()))
+                    return false;
+            } else {
+                QSharedPointer<const Preamble> myPreamble = myIt->dynamicCast<const Preamble>();
+                QSharedPointer<const Preamble> otherPreamble = otherIt->dynamicCast<const Preamble>();
+                if ((myPreamble.isNull() && !otherPreamble.isNull()) || (!myPreamble.isNull() && otherPreamble.isNull())) return false;
+                if (!myPreamble.isNull() && !otherPreamble.isNull()) {
+                    if (myPreamble->operator !=(*otherPreamble.data()))
+                        return false;
+                } else {
+                    QSharedPointer<const Comment> myComment = myIt->dynamicCast<const Comment>();
+                    QSharedPointer<const Comment> otherComment = otherIt->dynamicCast<const Comment>();
+                    if ((myComment.isNull() && !otherComment.isNull()) || (!myComment.isNull() && otherComment.isNull())) return false;
+                    if (!myComment.isNull() && !otherComment.isNull()) {
+                        // TODO right now, don't care if comments are equal
+                        qCDebug(LOG_KBIBTEX_DATA) << "File objects being compared contain comments, ignoring those";
+                    } else {
+                        /// This case should never be reached
+                        qCWarning(LOG_KBIBTEX_DATA) << "Met unhandled case while comparing two File objects";
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool File::operator!=(const File &other) const {
+    return !operator ==(other);
 }
 
 const QSharedPointer<Element> File::containsKey(const QString &key, ElementTypes elementTypes) const
@@ -234,27 +265,11 @@ QSet<QString> File::uniqueEntryValuesSet(const QString &fieldName) const
                         /// Check if ValueItem to process points to a person
                         const QSharedPointer<Person> person = valueItem.dynamicCast<Person>();
                         if (!person.isNull()) {
-                            /// Assemble a list of formatting templates for a person's name
-                            static QStringList personNameFormattingList; ///< use static to do pattern assembly only once
-                            if (personNameFormattingList.isEmpty()) {
-                                /// Use the two default patterns last-name-first and first-name-first
-#ifdef HAVE_KF5
-                                personNameFormattingList << Preferences::personNameFormatLastFirst << Preferences::personNameFormatFirstLast;
-                                /// Check configuration if user-specified formatting template is different
-                                KSharedConfigPtr config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc")));
-                                KConfigGroup configGroup(config, "General");
-                                QString personNameFormatting = configGroup.readEntry(Preferences::keyPersonNameFormatting, Preferences::defaultPersonNameFormatting);
-                                /// Add user's template if it differs from the two specified above
-                                if (!personNameFormattingList.contains(personNameFormatting))
-                                    personNameFormattingList << personNameFormatting;
-#else // HAVE_KF5
-                                personNameFormattingList << QStringLiteral("<%l><, %s><, %f>") << QStringLiteral("<%f ><%l>< %s>");
-#endif // HAVE_KF5
-                            }
+                            QSet<QString> personNameFormattingSet {Preferences::personNameFormatLastFirst, Preferences::personNameFormatFirstLast};
+                            personNameFormattingSet.insert(Preferences::instance().personNameFormat());
                             /// Add person's name formatted using each of the templates assembled above
-                            for (const QString &personNameFormatting : const_cast<const QStringList &>(personNameFormattingList)) {
+                            for (const QString &personNameFormatting : const_cast<const QSet<QString> &>(personNameFormattingSet))
                                 valueSet.insert(Person::transcribePersonName(person.data(), personNameFormatting));
-                            }
                         } else {
                             /// Default case: use PlainTextValue::text to translate ValueItem
                             /// to a human-readable text
@@ -305,14 +320,12 @@ bool File::hasProperty(const QString &key) const
     return d->properties.contains(key);
 }
 
-#ifdef HAVE_KF5
 void File::setPropertiesToDefault()
 {
     if (!d->checkValidity())
         qCCritical(LOG_KBIBTEX_DATA) << "void File::setPropertiesToDefault()" << "This File object is not valid";
     d->loadConfiguration();
 }
-#endif // HAVE_KF5
 
 bool File::checkValidity() const
 {

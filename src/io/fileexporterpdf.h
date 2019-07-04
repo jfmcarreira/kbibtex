@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,12 +14,17 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
-#ifndef BIBTEXFILEEXPORTERPDF_H
-#define BIBTEXFILEEXPORTERPDF_H
+
+#ifndef KBIBTEX_IO_FILEEXPORTERPDF_H
+#define KBIBTEX_IO_FILEEXPORTERPDF_H
 
 #include <QStringList>
 
-#include "fileexportertoolchain.h"
+#include <FileExporterToolchain>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
 @author Thomas Fischer
@@ -33,8 +38,6 @@ public:
     explicit FileExporterPDF(QObject *parent);
     ~FileExporterPDF() override;
 
-    void reloadConfig() override;
-
     bool save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog = nullptr) override;
     bool save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog = nullptr) override;
 
@@ -44,10 +47,6 @@ public:
 private:
     QString m_fileBasename;
     QString m_fileStem;
-    QString m_babelLanguage;
-    QString m_paperSize;
-    QString m_font;
-    QString m_bibliographyStyle;
     FileEmbedding m_fileEmbedding;
     QStringList m_embeddedFileList;
     QStringList m_searchPaths;
@@ -58,4 +57,4 @@ private:
     void fillEmbeddedFileList(const QSharedPointer<const Element> element, const File *bibtexfile);
 };
 
-#endif
+#endif // KBIBTEX_IO_FILEEXPORTERPDF_H

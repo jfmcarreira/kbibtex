@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,6 +14,7 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
+
 #ifndef KBIBTEX_GUI_FIELDLISTEDIT_H
 #define KBIBTEX_GUI_FIELDLISTEDIT_H
 
@@ -22,8 +23,8 @@
 
 #include <KSharedConfig>
 
-#include "kbibtex.h"
-#include "value.h"
+#include <KBibTeX>
+#include <Value>
 
 class QCheckBox;
 class QDropEvent;
@@ -50,6 +51,7 @@ public:
 
     virtual bool reset(const Value &value);
     virtual bool apply(Value &value) const;
+    virtual bool validate(QWidget **widgetWithIssue, QString &message) const;
 
     void clear();
     virtual void setReadOnly(bool isReadOnly);

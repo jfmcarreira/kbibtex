@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,9 +15,8 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROGRAM_ELEMENTFORM_H
-#define KBIBTEX_PROGRAM_ELEMENTFORM_H
-
+#ifndef KBIBTEX_PROGRAM_DOCKLET_ELEMENTFORM_H
+#define KBIBTEX_PROGRAM_DOCKLET_ELEMENTFORM_H
 
 #include <QWidget>
 
@@ -49,9 +48,10 @@ private:
 private slots:
     void modified(bool);
     void apply();
+    bool validateAndOnlyThenApply();
     void reset();
     void visibilityChanged(bool);
     void autoApplyToggled(bool);
 };
 
-#endif // KBIBTEX_PROGRAM_ELEMENTFORM_H
+#endif // KBIBTEX_PROGRAM_DOCKLET_ELEMENTFORM_H

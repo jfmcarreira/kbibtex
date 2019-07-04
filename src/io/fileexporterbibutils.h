@@ -15,11 +15,15 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef IO_FILEEXPORTERBIBUTILS_H
-#define IO_FILEEXPORTERBIBUTILS_H
+#ifndef KBIBTEX_IO_FILEEXPORTERBIBUTILS_H
+#define KBIBTEX_IO_FILEEXPORTERBIBUTILS_H
 
-#include "fileexporter.h"
-#include "bibutils.h"
+#include <FileExporter>
+#include <BibUtils>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
@@ -40,4 +44,4 @@ private:
     Private *const d;
 };
 
-#endif // IO_FILEEXPORTERBIBUTILS_H
+#endif // KBIBTEX_IO_FILEEXPORTERBIBUTILS_H

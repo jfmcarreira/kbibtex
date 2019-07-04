@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,18 +15,16 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef ENCODERLATEX_H
-#define ENCODERLATEX_H
-
-#include "kbibtexio_export.h"
-
-#ifdef HAVE_ICU
-#include <unicode/translit.h>
-#endif // HAVE_ICU
+#ifndef KBIBTEX_IO_ENCODERLATEX_H
+#define KBIBTEX_IO_ENCODERLATEX_H
 
 #include <QIODevice>
 
-#include "encoder.h"
+#include <Encoder>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
  * Base class for that convert between different textual representations
@@ -34,25 +32,14 @@
  * class can "translate" between \"a and its UTF-8 representation.
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXIO_EXPORT EncoderLaTeX: public Encoder
+class KBIBTEXIO_EXPORT EncoderLaTeX : public Encoder
 {
 public:
     QString decode(const QString &text) const override;
     QString encode(const QString &text, const TargetEncoding targetEncoding) const override;
-#ifdef HAVE_ICU
-    QString convertToPlainAscii(const QString &input) const;
-#else // HAVE_ICU
-    /// Dummy implementation without ICU
-    inline QString convertToPlainAscii(const QString &input) const { return input; }
-#endif // HAVE_ICU
-    static bool containsOnlyAscii(const QString &text);
 
     static const EncoderLaTeX &instance();
     ~EncoderLaTeX() override;
-
-#ifdef BUILD_TESTING
-    static bool writeLaTeXTables(QIODevice &output);
-#endif // BUILD_TESTING
 
 protected:
     EncoderLaTeX();
@@ -98,10 +85,6 @@ private:
      * Return value may be an empty string.
      */
     QString readAlphaCharacters(const QString &base, int startFrom) const;
-
-#ifdef HAVE_ICU
-    icu::Transliterator *m_trans;
-#endif // HAVE_ICU
 };
 
-#endif // ENCODERLATEX_H
+#endif // KBIBTEX_IO_ENCODERLATEX_H

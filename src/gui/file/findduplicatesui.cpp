@@ -21,6 +21,7 @@
 #include <QWidget>
 #include <QBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QSortFilterProxyModel>
 #include <QStyle>
 #include <QRadioButton>
@@ -38,15 +39,15 @@
 #include <KLocalizedString>
 #include <kparts/part.h>
 #include <KMessageBox>
-#include <KLineEdit>
 
-#include "fileimporterbibtex.h"
-#include "bibtexentries.h"
-#include "radiobuttontreeview.h"
+#include <BibTeXEntries>
+#include <Entry>
+#include <models/FileModel>
+#include <FileImporterBibTeX>
+#include <FindDuplicates>
+#include "widgets/radiobuttontreeview.h"
 #include "fileview.h"
 #include "filedelegate.h"
-#include "models/filemodel.h"
-#include "findduplicates.h"
 #include "logging_gui.h"
 
 /**
@@ -156,7 +157,7 @@ public:
                 else if (fieldName == QStringLiteral("^type"))
                     return i18n("Type");
                 else
-                    return BibTeXEntries::self()->format(fieldName, KBibTeX::cUpperCamelCase);
+                    return BibTeXEntries::instance().format(fieldName, KBibTeX::cUpperCamelCase);
             case RadioButtonTreeView::IsRadioRole:
                 /// this is not to be a radio widget
                 return QVariant::fromValue(false);
@@ -181,10 +182,8 @@ public:
             case Qt::DisplayRole:
                 if (index.row() < values.count()) {
                     QString text = PlainTextValue::text(values.at(index.row()));
-                    if (fieldName == QStringLiteral("^type")) {
-                        const BibTeXEntries *be = BibTeXEntries::self();
-                        text = be->format(text, KBibTeX::cUpperCamelCase);
-                    }
+                    if (fieldName == QStringLiteral("^type"))
+                        text = BibTeXEntries::instance().format(text, KBibTeX::cUpperCamelCase);
 
                     /// textual representation of the alternative's value
                     return text;
@@ -362,8 +361,8 @@ public:
         if (index.parent() != QModelIndex()) {
             /// Only second-level indices in the model can be edited
             /// (those are the actual values).
-            /// Use a plain, border-less KLineEdit.
-            KLineEdit *lineEdit = new KLineEdit(parent);
+            /// Use a plain, border-less QLineEdit.
+            QLineEdit *lineEdit = new QLineEdit(parent);
             lineEdit->setStyleSheet(QStringLiteral("border: none;"));
             return lineEdit;
         }
@@ -371,14 +370,14 @@ public:
     }
 
     void setEditorData(QWidget *editor, const QModelIndex &index) const override {
-        if (KLineEdit *lineEdit = qobject_cast<KLineEdit *>(editor)) {
+        if (QLineEdit *lineEdit = qobject_cast<QLineEdit *>(editor)) {
             /// Set line edit's default value to string fetched from model
             lineEdit->setText(index.data(Qt::EditRole).toString());
         }
     }
 
     void setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const override {
-        if (KLineEdit *lineEdit = qobject_cast<KLineEdit *>(editor)) {
+        if (QLineEdit *lineEdit = qobject_cast<QLineEdit *>(editor)) {
             /// Set user-entered text to model (and underlying value)
             model->setData(index, lineEdit->text(), AlternativesItemModel::UserInputRole);
 
@@ -665,9 +664,12 @@ void FindDuplicatesUI::startDuplicatesSearch()
     //if (!ok) sensitivity = 4000;
     int sensitivity = 4000;
 
+    FileModel *model = d->view->fileModel();
+    if (model == nullptr) return;
+
     /// Full file, used to remove merged elements from
     /// Stays the same even when merging is restricted to selected elements
-    File *originalFile = d->view->fileModel()->bibliographyFile();
+    File *originalFile = model->bibliographyFile();
     /// File to be used to find duplicate in,
     /// may be only a subset of the original one if selection is used
     File *workingSetFile = originalFile;
@@ -681,7 +683,7 @@ void FindDuplicatesUI::startDuplicatesSearch()
         workingSetFile = new File();
         const QModelIndexList mil = d->view->selectionModel()->selectedRows();
         for (const QModelIndex &index : mil)
-            workingSetFile->append(d->view->fileModel()->element(d->view->sortFilterProxyModel()->mapToSource(index).row()));
+            workingSetFile->append(model->element(d->view->sortFilterProxyModel()->mapToSource(index).row()));
     }
 
     /// Actual duplicate finder, can be given a widget that will be the

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,13 +15,15 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROC_LYX_H
-#define KBIBTEX_PROC_LYX_H
-
-#include "kbibtexproc_export.h"
+#ifndef KBIBTEX_PROCESSING_LYX_H
+#define KBIBTEX_PROCESSING_LYX_H
 
 #include <QObject>
 #include <qplatformdefs.h>
+
+#ifdef HAVE_KF5
+#include "kbibtexprocessing_export.h"
+#endif // HAVE_KF5
 
 namespace KParts
 {
@@ -33,16 +35,10 @@ class QWidget;
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT LyX: public QObject
+class KBIBTEXPROCESSING_EXPORT LyX : public QObject
 {
     Q_OBJECT
 public:
-    static const QString keyUseAutomaticLyXPipeDetection;
-    static const QString keyLyXPipePath;
-    static const bool defaultUseAutomaticLyXPipeDetection;
-    static const QString defaultLyXPipePath;
-    static const QString configGroupName;
-
     LyX(KParts::ReadOnlyPart *part, QWidget *widget);
     ~LyX() override;
 
@@ -60,4 +56,4 @@ private:
     LyXPrivate *d;
 };
 
-#endif // KBIBTEX_PROC_LYX_H
+#endif // KBIBTEX_PROCESSING_LYX_H

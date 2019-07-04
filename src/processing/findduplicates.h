@@ -15,26 +15,28 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROC_FINDDUPLICATES_H
-#define KBIBTEX_PROC_FINDDUPLICATES_H
-
-#include "kbibtexproc_export.h"
+#ifndef KBIBTEX_PROCESSING_FINDDUPLICATES_H
+#define KBIBTEX_PROCESSING_FINDDUPLICATES_H
 
 #include <QObject>
 #include <QMap>
 
-#include "value.h"
+#include <Value>
+
+#ifdef HAVE_KF5
+#include "kbibtexprocessing_export.h"
+#endif // HAVE_KF5
 
 class Entry;
 class File;
 class FileModel;
 
-class KBIBTEXPROC_EXPORT FindDuplicates;
+class KBIBTEXPROCESSING_EXPORT FindDuplicates;
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT EntryClique
+class KBIBTEXPROCESSING_EXPORT EntryClique
 {
     friend class FindDuplicates;
 public:
@@ -72,7 +74,7 @@ private:
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT FindDuplicates : public QObject
+class KBIBTEXPROCESSING_EXPORT FindDuplicates : public QObject
 {
     Q_OBJECT
 
@@ -94,7 +96,7 @@ private:
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT MergeDuplicates
+class KBIBTEXPROCESSING_EXPORT MergeDuplicates
 {
 public:
     static bool mergeDuplicateEntries(const QVector<EntryClique *> &entryCliques, FileModel *fileModel);
@@ -103,4 +105,4 @@ private:
     explicit MergeDuplicates();
 };
 
-#endif // KBIBTEX_PROC_FINDDUPLICATES_H
+#endif // KBIBTEX_PROCESSING_FINDDUPLICATES_H

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,16 +15,16 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_IO_FILE_H
-#define KBIBTEX_IO_FILE_H
+#ifndef KBIBTEX_DATA_FILE_H
+#define KBIBTEX_DATA_FILE_H
 
 #include <QList>
 #include <QStringList>
 #include <QSharedPointer>
 
-#include "element.h"
-
+#ifdef HAVE_KF5
 #include "kbibtexdata_export.h"
+#endif // HAVE_KF5
 
 class Element;
 
@@ -65,6 +65,9 @@ public:
     File &operator= (const File &other);
     /// Move-assignment operator.
     File &operator= (File &&other);
+
+    bool operator== (const File &other) const;
+    bool operator!= (const File &other) const;
 
     /**
      * Check if a given key (e.g. a key for a macro or an id for an entry)
@@ -116,6 +119,8 @@ private:
     FilePrivate *d;
 };
 
+Q_DECLARE_METATYPE(File *)
+
 QDebug operator<<(QDebug dbg, const File &file);
 
-#endif // KBIBTEX_IO_FILE_H
+#endif // KBIBTEX_DATA_FILE_H

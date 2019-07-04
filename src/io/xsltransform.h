@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,12 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_XSLTRANSFORM_H
-#define KBIBTEX_XSLTRANSFORM_H
-
-#include "kbibtexio_export.h"
+#ifndef KBIBTEX_IO_XSLTRANSFORM_H
+#define KBIBTEX_IO_XSLTRANSFORM_H
 
 #include <QString>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 class QXmlQuery;
 class QByteArray;
@@ -41,6 +43,8 @@ public:
     XSLTransform(const XSLTransform &other) = delete;
     XSLTransform &operator= (const XSLTransform &other) = delete;
 
+    bool isValid() const;
+
     /**
      * Transform a given XML document using the tranformer's
      * XSL file.
@@ -49,8 +53,10 @@ public:
      */
     QString transform(const QString &xmlText) const;
 
+    static QString locateXSLTfile(const QString &stem);
+
 private:
     QByteArray *xsltData;
 };
 
-#endif // KBIBTEX_XSLTRANSFORM_H
+#endif // KBIBTEX_IO_XSLTRANSFORM_H

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,24 +32,24 @@
 #include <KAboutData>
 #include <KIconEffect>
 
-#include <onlinesearchacmportal.h>
-#include <onlinesearcharxiv.h>
-#include <onlinesearchbibsonomy.h>
-#include <onlinesearchgooglescholar.h>
-#include <onlinesearchcernds.h>
-#include <onlinesearchieeexplore.h>
-#include <onlinesearchingentaconnect.h>
-#include <onlinesearchinspirehep.h>
-#include <onlinesearchideasrepec.h>
-#include <onlinesearchisbndb.h>
-#include <onlinesearchjstor.h>
-#include <onlinesearchmathscinet.h>
-#include <onlinesearchmrlookup.h>
-#include <onlinesearchpubmed.h>
-#include <onlinesearchsciencedirect.h>
-#include <onlinesearchspringerlink.h>
-#include <onlinesearchsoanasaads.h>
-#include <onlinesearchbiorxiv.h>
+#include <onlinesearch/OnlineSearchAcmPortal>
+#include <onlinesearch/OnlineSearchArXiv>
+#include <onlinesearch/OnlineSearchBibsonomy>
+#include <onlinesearch/OnlineSearchGoogleScholar>
+#include <onlinesearch/OnlineSearchCERNDS>
+#include <onlinesearch/OnlineSearchIEEEXplore>
+#include <onlinesearch/OnlineSearchIngentaConnect>
+#include <onlinesearch/OnlineSearchInspireHep>
+#include <onlinesearch/OnlineSearchIDEASRePEc>
+#include <onlinesearch/OnlineSearchJStor>
+#include <onlinesearch/OnlineSearchMathSciNet>
+#include <onlinesearch/OnlineSearchMRLookup>
+#include <onlinesearch/OnlineSearchPubMed>
+#include <onlinesearch/OnlineSearchScienceDirect>
+#include <onlinesearch/OnlineSearchSpringerLink>
+#include <onlinesearch/OnlineSearchSOANASAADS>
+#include <onlinesearch/OnlineSearchBioRxiv>
+#include <onlinesearch/OnlineSearchSemanticScholar>
 
 int filenameCounter = 0;
 
@@ -132,7 +132,6 @@ KBibTeXTest::KBibTeXTest(QWidget *parent)
     m_onlineSearchList << new OnlineSearchIEEEXplore(this);
     m_onlineSearchList << new OnlineSearchIngentaConnect(this);
     m_onlineSearchList << new OnlineSearchInspireHep(this);
-    /// m_onlineSearchList << new OnlineSearchIsbnDB(this); /// disabled as provider switched to a paid model on 2017-12-26
     m_onlineSearchList << new OnlineSearchJStor(this);
     m_onlineSearchList << new OnlineSearchMathSciNet(this);
     m_onlineSearchList << new OnlineSearchMRLookup(this);
@@ -141,6 +140,7 @@ KBibTeXTest::KBibTeXTest(QWidget *parent)
     m_onlineSearchList << new OnlineSearchSOANASAADS(this);
     m_onlineSearchList << new OnlineSearchSpringerLink(this);
     m_onlineSearchList << new OnlineSearchBioRxiv(this);
+    m_onlineSearchList << new OnlineSearchSemanticScholar(this);
     m_currentOnlineSearch = m_onlineSearchList.constBegin();
 
     setWindowTitle(QStringLiteral("KBibTeX Test Suite"));

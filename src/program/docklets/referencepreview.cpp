@@ -26,7 +26,6 @@
 #include <QTextDocument>
 #include <QLayout>
 #include <QApplication>
-#include <QStandardPaths>
 #include <QTextStream>
 #include <QTemporaryFile>
 #include <QPalette>
@@ -35,9 +34,9 @@
 #include <QFileDialog>
 #include <QPushButton>
 #include <QFontDatabase>
+#include <QComboBox>
 
 #include <KLocalizedString>
-#include <KComboBox>
 #include <KRun>
 #include <KIO/CopyJob>
 #include <KJobWidgets>
@@ -46,14 +45,15 @@
 #include <KTextEdit>
 #include <kio_version.h>
 
-#include "fileexporterbibtex.h"
-#include "fileexporterbibtex2html.h"
-#include "fileexporterris.h"
-#include "fileexporterxslt.h"
-#include "element.h"
-#include "file.h"
-#include "entry.h"
-#include "fileview.h"
+#include <Element>
+#include <Entry>
+#include <File>
+#include <XSLTransform>
+#include <FileExporterBibTeX>
+#include <FileExporterBibTeX2HTML>
+#include <FileExporterRIS>
+#include <FileExporterXSLT>
+#include <file/FileView>
 #include "logging_program.h"
 
 static const struct PreviewStyles {
@@ -93,7 +93,7 @@ public:
     QUrl baseUrl;
     QTextDocument *htmlDocument;
     KTextEdit *htmlView;
-    KComboBox *comboBox;
+    QComboBox *comboBox;
     QSharedPointer<const Element> element;
     const File *file;
     FileView *fileView;
@@ -115,7 +115,7 @@ public:
         gridLayout->setColumnStretch(1, 0);
         gridLayout->setColumnStretch(2, 0);
 
-        comboBox = new KComboBox(p);
+        comboBox = new QComboBox(p);
         gridLayout->addWidget(comboBox, 0, 0, 1, 3);
 
         QFrame *frame = new QFrame(p);
@@ -273,7 +273,7 @@ void ReferencePreview::renderHTML()
     } else if (previewStyle.type == QStringLiteral("xml") || previewStyle.type.endsWith(QStringLiteral("_xml"))) {
         crossRefHandling = merge;
         const QString filename = previewStyle.style + QStringLiteral(".xsl");
-        exporter = new FileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("kbibtex/") + filename), this);
+        exporter = new FileExporterXSLT(XSLTransform::locateXSLTfile(filename), this);
     } else
         qCWarning(LOG_KBIBTEX_PROGRAM) << "Don't know how to handle output type " << previewStyle.type;
 
@@ -297,7 +297,7 @@ void ReferencePreview::renderHTML()
                 exporterResult = exporter->save(&buffer, d->element, d->file, &errorLog);
         } else */
         if (crossRefHandling == merge && !entry.isNull()) {
-            QSharedPointer<Entry> merged = QSharedPointer<Entry>(Entry::resolveCrossref(*entry, d->file));
+            QSharedPointer<Entry> merged = QSharedPointer<Entry>(entry->resolveCrossref(d->file));
             exporterResult = exporter->save(&buffer, merged, d->file, &errorLog);
         } else
             exporterResult = exporter->save(&buffer, d->element, d->file, &errorLog);

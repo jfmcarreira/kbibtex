@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,6 +14,7 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
+
 #ifndef KBIBTEX_GUI_ENTRYLAYOUT_H
 #define KBIBTEX_GUI_ENTRYLAYOUT_H
 
@@ -21,7 +22,7 @@
 #include <QVector>
 #include <QSharedPointer>
 
-#include "kbibtex.h"
+#include <KBibTeX>
 
 typedef struct {
     QString uiLabel;
@@ -44,13 +45,10 @@ class EntryLayout : public QVector<QSharedPointer<EntryTabLayout> >
 public:
     virtual ~EntryLayout();
 
-    static EntryLayout *self();
-    void load();
-    void save();
-    void resetToDefaults();
+    static const EntryLayout &instance();
 
 protected:
-    EntryLayout();
+    explicit EntryLayout(const QString &style);
 
 private:
     class EntryLayoutPrivate;

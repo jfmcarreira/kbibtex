@@ -20,6 +20,8 @@
 #include <QFileInfo>
 #include <QXmlQuery>
 #include <QBuffer>
+#include <QCoreApplication>
+#include <QStandardPaths>
 #include <QDebug>
 
 #include "logging_io.h"
@@ -36,31 +38,36 @@ XSLTransform::XSLTransform(const QString &xsltFilename)
             xsltData = new QByteArray(xsltFile.readAll());
             xsltFile.close();
             if (xsltData->size() == 0) {
-                qWarning() << "Read only 0 Bytes from file" << xsltFilename;
+                qCWarning(LOG_KBIBTEX_IO) << "Read only 0 Bytes from file" << xsltFilename;
                 delete xsltData;
                 xsltData = nullptr;
             }
         } else
-            qWarning() << "Opening XSLT file" << xsltFilename << "failed";
+            qCWarning(LOG_KBIBTEX_IO) << "Opening XSLT file" << xsltFilename << "failed";
     } else
-        qWarning() << "Empty filename for XSLT";
+        qCWarning(LOG_KBIBTEX_IO) << "Empty filename for XSLT";
 }
 
 XSLTransform::~XSLTransform() {
     if (xsltData != nullptr) delete xsltData;
 }
 
+bool XSLTransform::isValid() const
+{
+    return xsltData != nullptr;
+}
+
 QString XSLTransform::transform(const QString &xmlText) const
 {
     if (xsltData == nullptr) {
-        qWarning() << "Empty XSL transformation cannot transform";
+        qCWarning(LOG_KBIBTEX_IO) << "Empty XSL transformation cannot transform";
         return QString();
     }
 
     QXmlQuery query(QXmlQuery::XSLT20);
 
     if (!query.setFocus(xmlText)) {
-        qWarning() << "Invoking QXmlQuery::setFocus(" << xmlText.left(32) << "...) failed";
+        qCWarning(LOG_KBIBTEX_IO) << "Invoking QXmlQuery::setFocus(" << xmlText.left(32) << "...) failed";
         return QString();
     }
 
@@ -69,7 +76,7 @@ QString XSLTransform::transform(const QString &xmlText) const
     query.setQuery(&xsltBuffer);
 
     if (!query.isValid()) {
-        qWarning() << "QXmlQuery::isValid got negative result";
+        qCWarning(LOG_KBIBTEX_IO) << "QXmlQuery::isValid got negative result";
         return QString();
     }
 
@@ -79,7 +86,19 @@ QString XSLTransform::transform(const QString &xmlText) const
         /// the usual XML suspects with its plain counterparts
         return result;
     } else {
-        qWarning() << "Invoking QXmlQuery::evaluateTo(...) failed";
+        qCWarning(LOG_KBIBTEX_IO) << "Invoking QXmlQuery::evaluateTo(...) failed";
         return QString();
     }
+}
+
+QString XSLTransform::locateXSLTfile(const QString &stem)
+{
+    const QString xsltFilename = QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QLatin1Char('/') + stem);
+    if (xsltFilename.isEmpty())
+        qCWarning(LOG_KBIBTEX_IO) << "Generated XSLT filename is empty for stem " << stem;
+    else if (!QFileInfo::exists(xsltFilename))
+        qCWarning(LOG_KBIBTEX_IO) << "Generated XSLT filename " << xsltFilename << " refers to non-existing file";
+    else
+        qCDebug(LOG_KBIBTEX_IO) << "Generated XSLT filename is " << xsltFilename << " for stem " << stem;
+    return xsltFilename;
 }

@@ -1,6 +1,5 @@
 /*****************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
- *                                                                           *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
  *                                                                           *
  *   This program is free software; you can redistribute it and/or modify    *
  *   it under the terms of the GNU General Public License as published by    *
@@ -16,14 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
  *****************************************************************************/
 
-#ifndef DOCKLET_FILESETTINGS_H
-#define DOCKLET_FILESETTINGS_H
+#ifndef KBIBTEX_PROGRAM_DOCKLET_FILESETTINGS_H
+#define KBIBTEX_PROGRAM_DOCKLET_FILESETTINGS_H
 
-#include "filesettingswidget.h"
+#include <widgets/FileSettingsWidget>
+#include "openfileinfo.h"
 
 class FileView;
 class File;
-class OpenFileInfoManager;
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
@@ -40,9 +39,10 @@ public:
 private slots:
     void widgetsChangedSlot();
     void currentFileChangedSlot();
+    void flagsChangedSlot(const OpenFileInfo::StatusFlags statusFlags);
 
 private:
     FileView *m_fileView;
 };
 
-#endif // DOCKLET_FILESETTINGS_H
+#endif // KBIBTEX_PROGRAM_DOCKLET_FILESETTINGS_H

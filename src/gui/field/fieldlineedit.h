@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,6 +14,7 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
+
 #ifndef KBIBTEX_GUI_FIELDLINEEDIT_H
 #define KBIBTEX_GUI_FIELDLINEEDIT_H
 
@@ -21,9 +22,9 @@
 
 #include <QIcon>
 
-#include "value.h"
-#include "menulineedit.h"
-#include "kbibtex.h"
+#include <KBibTeX>
+#include <Value>
+#include <widgets/MenuLineEdit>
 
 class QMenu;
 class QSignalMapper;
@@ -43,6 +44,7 @@ public:
 
     bool reset(const Value &value);
     bool apply(Value &value) const;
+    bool validate(QWidget **widgetWithIssue, QString &message) const;
     void setReadOnly(bool) override;
 
     void setFile(const File *file);

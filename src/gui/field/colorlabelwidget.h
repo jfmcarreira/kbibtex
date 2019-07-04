@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,16 +18,16 @@
 #ifndef KBIBTEX_GUI_COLORLABELWIDGET_H
 #define KBIBTEX_GUI_COLORLABELWIDGET_H
 
-#include <KComboBox>
+#include <QComboBox>
+
+#include <Value>
 
 #include "kbibtexgui_export.h"
-
-#include "value.h"
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXGUI_EXPORT ColorLabelWidget : public KComboBox
+class KBIBTEXGUI_EXPORT ColorLabelWidget : public QComboBox
 {
     Q_OBJECT
 
@@ -38,6 +38,7 @@ public:
     void clear();
     bool reset(const Value &value);
     bool apply(Value &value) const;
+    bool validate(QWidget **widgetWithIssue, QString &message) const;
     void setReadOnly(bool);
 
     static QPixmap createSolidIcon(const QColor &color);

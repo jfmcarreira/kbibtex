@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,20 +15,22 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROC_JOURNALABBREVIATIONS_H
-#define KBIBTEX_PROC_JOURNALABBREVIATIONS_H
+#ifndef KBIBTEX_PROCESSING_JOURNALABBREVIATIONS_H
+#define KBIBTEX_PROCESSING_JOURNALABBREVIATIONS_H
 
 #include <QString>
 
-#include "kbibtexproc_export.h"
+#ifdef HAVE_KF5
+#include "kbibtexprocessing_export.h"
+#endif // HAVE_KF5
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT JournalAbbreviations
+class KBIBTEXPROCESSING_EXPORT JournalAbbreviations
 {
 public:
-    static JournalAbbreviations *self();
+    static const JournalAbbreviations &instance();
 
     QString toShortName(const QString &longName) const;
     QString toLongName(const QString &shortName) const;
@@ -40,8 +42,6 @@ protected:
 private:
     class Private;
     Private *const d;
-
-    static JournalAbbreviations *instance;
 };
 
-#endif // KBIBTEX_PROC_JOURNALABBREVIATIONS_H
+#endif // KBIBTEX_PROCESSING_JOURNALABBREVIATIONS_H

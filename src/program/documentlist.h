@@ -35,9 +35,6 @@ class DocumentListDelegate : public QStyledItemDelegate
 {
     Q_OBJECT
 
-private:
-    OpenFileInfoManager *ofim;
-
 public:
     explicit DocumentListDelegate(QObject *parent = nullptr);
 
@@ -108,9 +105,5 @@ private:
     class DocumentListPrivate;
     DocumentListPrivate *d;
 };
-
-static const int RecentlyUsedItemType = QListWidgetItem::UserType + 23;
-static const int FavoritesItemType = QListWidgetItem::UserType + 24;
-
 
 #endif // KBIBTEX_PROGRAM_DOCUMENTLIST_H

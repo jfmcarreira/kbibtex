@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2016 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,10 +15,12 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_TEXTENCODER_H
-#define KBIBTEX_TEXTENCODER_H
+#ifndef KBIBTEX_IO_TEXTENCODER_H
+#define KBIBTEX_IO_TEXTENCODER_H
 
+#ifdef HAVE_KF5
 #include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 class QString;
 class QByteArray;
@@ -42,11 +44,9 @@ public:
     static QByteArray encode(const QString &input, const QString &destinationEncoding);
     static QByteArray encode(const QString &input, const QTextCodec *destinationCodec);
 
-    static const QStringList encodings;
-
 private:
     explicit TextEncoder();
 
 };
 
-#endif // KBIBTEX_TEXTENCODER_H
+#endif // KBIBTEX_IO_TEXTENCODER_H

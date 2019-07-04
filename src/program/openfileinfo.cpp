@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -34,7 +34,7 @@
 #include <KParts/ReadOnlyPart>
 #include <KParts/ReadWritePart>
 
-#include "fileimporterpdf.h"
+#include <FileImporterPDF>
 #include "logging_program.h"
 
 class OpenFileInfo::OpenFileInfoPrivate
@@ -313,23 +313,36 @@ void OpenFileInfo::setLastAccess(const QDateTime &dateTime)
 
 KService::List OpenFileInfo::listOfServices()
 {
-    const QString mt(mimeType());
+    const QString mt = mimeType();
+    /// First, try to locate KPart that can both read and write the queried MIME type
     KService::List result = KMimeTypeTrader::self()->query(mt, QStringLiteral("KParts/ReadWritePart"));
-    if (result.isEmpty())
+    if (result.isEmpty()) {
+        /// Second, if no 'writing' KPart was found, try to locate KPart that can at least read the queried MIME type
         result = KMimeTypeTrader::self()->query(mt, QStringLiteral("KParts/ReadOnlyPart"));
+        if (result.isEmpty()) {
+            /// If not even a 'reading' KPart was found, something is off, so warn the user and stop here
+            qCWarning(LOG_KBIBTEX_PROGRAM) << "Could not find any KPart that reads or writes mimetype" << mt;
+            return result;
+        }
+    }
 
-    /// Always include KBibTeX part in list of services:
-    /// First, check if KBibTeX part is already in list as returned by
+    /// Always include KBibTeX's KPart in list of services:
+    /// First, check if KBibTeX's KPart is already in list as returned by
     /// KMimeTypeTrader::self()->query(..)
     bool listIncludesKBibTeXPart = false;
     for (KService::List::ConstIterator it = result.constBegin(); it != result.constEnd(); ++it) {
         qCDebug(LOG_KBIBTEX_PROGRAM) << "Found library for" << mt << ":" << (*it)->library();
         listIncludesKBibTeXPart |= (*it)->library() == QStringLiteral("kbibtexpart");
     }
-    /// If KBibTeX part not in list, add it manually
+    /// Then, if KBibTeX's KPart is not in the list, try to located it by desktop name
     if (!listIncludesKBibTeXPart) {
-        result << KService::serviceByDesktopName(QStringLiteral("kbibtexpart"));
-        qCDebug(LOG_KBIBTEX_PROGRAM) << "Adding library for" << mt << ":" << result.last()->library();
+        KService::Ptr kbibtexpartByDesktopName = KService::serviceByDesktopName(QStringLiteral("kbibtexpart"));
+        if (kbibtexpartByDesktopName != nullptr) {
+            result << kbibtexpartByDesktopName;
+            qCDebug(LOG_KBIBTEX_PROGRAM) << "Adding library for" << mt << ":" << kbibtexpartByDesktopName->library();
+        } else {
+            qCDebug(LOG_KBIBTEX_PROGRAM) << "Could not locate KBibTeX's KPart neither by MIME type search, nor by desktop name";
+        }
     }
 
     return result;
@@ -348,11 +361,18 @@ KService::Ptr OpenFileInfo::defaultService()
         /// This importer does not work with any other .pdf files!!!
         result = KService::serviceByDesktopName(QStringLiteral("kbibtexpart"));
     }
-    if (!result)
+    if (result == nullptr) {
+        /// First, try to locate KPart that can both read and write the queried MIME type
         result = KMimeTypeTrader::self()->preferredService(mt, QStringLiteral("KParts/ReadWritePart"));
-    if (!result)
-        result = KMimeTypeTrader::self()->preferredService(mt, QStringLiteral("KParts/ReadOnlyPart"));
-    if (result)
+        if (result == nullptr) {
+            /// Second, if no 'writing' KPart was found, try to locate KPart that can at least read the queried MIME type
+            result = KMimeTypeTrader::self()->preferredService(mt, QStringLiteral("KParts/ReadOnlyPart"));
+            if (result == nullptr && mt == QStringLiteral("text/x-bibtex"))
+                /// Third, if MIME type is for BibTeX files, try loading KBibTeX part via desktop name
+                result = KService::serviceByDesktopName(QStringLiteral("kbibtexpart"));
+        }
+    }
+    if (result != nullptr)
         qCDebug(LOG_KBIBTEX_PROGRAM) << "Using service" << result->name() << "(" << result->comment() << ") for mime type" << mt << "through library" << result->library();
     else
         qCWarning(LOG_KBIBTEX_PROGRAM) << "Could not find service for mime type" << mt;
@@ -384,9 +404,10 @@ public:
     }
 
     ~OpenFileInfoManagerPrivate() {
-        for (OpenFileInfoManager::OpenFileInfoList::Iterator it = openFileInfoList.begin(); it != openFileInfoList.end(); ++it) {
+        for (OpenFileInfoManager::OpenFileInfoList::Iterator it = openFileInfoList.begin(); it != openFileInfoList.end();) {
             OpenFileInfo *ofi = *it;
             delete ofi;
+            it = openFileInfoList.erase(it);
         }
     }
 
@@ -469,18 +490,17 @@ const int OpenFileInfoManager::OpenFileInfoManagerPrivate::maxNumFavoriteFiles =
 const int OpenFileInfoManager::OpenFileInfoManagerPrivate::maxNumRecentlyUsedFiles = 8;
 const int OpenFileInfoManager::OpenFileInfoManagerPrivate::maxNumOpenFiles = 16;
 
-OpenFileInfoManager *OpenFileInfoManager::singleton = nullptr;
-
 OpenFileInfoManager::OpenFileInfoManager(QObject *parent)
         : QObject(parent), d(new OpenFileInfoManagerPrivate(this))
 {
     QTimer::singleShot(300, this, &OpenFileInfoManager::delayedReadConfig);
 }
 
-OpenFileInfoManager *OpenFileInfoManager::instance() {
-    if (singleton == nullptr)
-        singleton = new OpenFileInfoManager(QCoreApplication::instance());
-    return singleton;
+OpenFileInfoManager &OpenFileInfoManager::instance() {
+    /// Allocate this singleton on heap not stack like most other singletons
+    /// Supposedly, QCoreApplication will clean this singleton at application's end
+    static OpenFileInfoManager *singleton = new OpenFileInfoManager(QCoreApplication::instance());
+    return *singleton;
 }
 
 OpenFileInfoManager::~OpenFileInfoManager()

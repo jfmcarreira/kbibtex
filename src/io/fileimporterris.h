@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,11 +14,16 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
+
 #ifndef KBIBTEX_IO_FILEIMPORTERRIS_H
 #define KBIBTEX_IO_FILEIMPORTERRIS_H
 
-#include "entry.h"
-#include "fileimporter.h"
+#include <Entry>
+#include <FileImporter>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
  @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
@@ -33,6 +38,8 @@ public:
 
     File *load(QIODevice *iodevice) override;
     static bool guessCanDecode(const QString &text);
+
+    void setProtectCasing(bool protectCasing);
 
 public slots:
     void cancel() override;

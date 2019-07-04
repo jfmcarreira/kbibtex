@@ -21,14 +21,14 @@
 #include <QFileInfo>
 #include <QDialogButtonBox>
 #include <QPushButton>
-
-#include <KLocalizedString>
-#include <KComboBox>
-#include <KMessageBox>
-#include <KGuiItem>
+#include <QComboBox>
 #include <QStandardPaths>
 
-#include "notificationhub.h"
+#include <KLocalizedString>
+#include <KMessageBox>
+#include <KGuiItem>
+
+#include <NotificationHub>
 #include "settingsgeneralwidget.h"
 #include "settingsglobalkeywordswidget.h"
 #include "settingsfileexporterpdfpswidget.h"

@@ -18,24 +18,27 @@
 #ifndef KBIBTEX_GUI_ELEMENTWIDGETS_H
 #define KBIBTEX_GUI_ELEMENTWIDGETS_H
 
-#include "kbibtexgui_export.h"
-
 #include <QLabel>
 #include <QWidget>
-
 #include <QUrl>
 #include <QIcon>
 
-#include "elementeditor.h"
-#include "entrylayout.h"
+#include <FileImporter>
+#include <element/ElementEditor>
+#include <config/EntryLayout>
+
+#include "kbibtexgui_export.h"
 
 class QTreeWidget;
 class QTreeWidgetItem;
 class QGridLayout;
-
-class KLineEdit;
-class KComboBox;
 class QPushButton;
+class QLineEdit;
+class QComboBox;
+
+namespace KTextEditor {
+class Document;
+}
 
 class File;
 class Entry;
@@ -50,6 +53,7 @@ public:
     explicit ElementWidget(QWidget *parent);
     virtual bool apply(QSharedPointer<Element> element) const = 0;
     virtual bool reset(QSharedPointer<const Element> element) = 0;
+    virtual bool validate(QWidget **widgetWithIssue, QString &message) const = 0;
     virtual void setReadOnly(bool isReadOnly) {
         this->isReadOnly = isReadOnly;
     }
@@ -105,6 +109,7 @@ public:
 
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool forceVisible, const QString &entryType) override;
     QString label() override;
@@ -120,8 +125,8 @@ class ReferenceWidget : public ElementWidget
     Q_OBJECT
 
 private:
-    KComboBox *entryType;
-    KLineEdit *entryId;
+    QComboBox *entryType;
+    QLineEdit *entryId;
     QPushButton *buttonSuggestId;
 
     void createGUI();
@@ -131,6 +136,7 @@ public:
 
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool, const QString &) override {}
     void setApplyElementInterface(ElementEditor::ApplyElementInterface *applyElement) {
@@ -145,6 +151,7 @@ public:
      * @return Current value of entry id/macro key if any, otherwise empty string
      */
     QString currentId() const;
+    void setCurrentId(const QString &newId);
 
     QString label() override;
     QIcon icon() override;
@@ -182,6 +189,7 @@ public:
 
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool, const QString &) override {}
 
@@ -201,7 +209,7 @@ class OtherFieldsWidget : public ElementWidget
     Q_OBJECT
 
 private:
-    KLineEdit *fieldName;
+    QLineEdit *fieldName;
     FieldInput *fieldContent;
     QTreeWidget *otherFieldsList;
     QPushButton *buttonDelete;
@@ -222,6 +230,7 @@ public:
 
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool, const QString &) override {}
     QString label() override;
@@ -253,6 +262,7 @@ public:
 
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool, const QString &) override {}
     QString label() override;
@@ -275,6 +285,7 @@ public:
 
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool, const QString &) override {}
     QString label() override;
@@ -287,10 +298,13 @@ class SourceWidget : public ElementWidget
 {
     Q_OBJECT
 
+public:
+    enum ElementClass { elementInvalid = -1, elementEntry = 0, elementMacro, elementPreamble, elementComment };
+
 private:
-    class SourceWidgetTextEdit;
-    SourceWidgetTextEdit *sourceEdit;
+    KTextEditor::Document *document;
     QString originalText;
+    ElementClass elementClass;
 
     void createGUI();
 
@@ -298,8 +312,10 @@ public:
     explicit SourceWidget(QWidget *parent);
     ~SourceWidget() override;
 
+    void setElementClass(ElementClass elementClass);
     bool apply(QSharedPointer<Element> element) const override;
     bool reset(QSharedPointer<const Element> element) override;
+    bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool, const QString &) override {}
     QString label() override;
@@ -309,6 +325,8 @@ public:
 
 private slots:
     void reset();
+    void addMessage(const FileImporter::MessageSeverity severity, const QString &messageText);
+    void updateMessage();
 
 private:
     class Private;

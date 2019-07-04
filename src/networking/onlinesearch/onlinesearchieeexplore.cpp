@@ -18,31 +18,35 @@
 #include "onlinesearchieeexplore.h"
 
 #include <QNetworkReply>
-#include <QStandardPaths>
 #include <QUrl>
 #include <QUrlQuery>
-#include <QCoreApplication>
 
 #ifdef HAVE_KF5
 #include <KLocalizedString>
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
 #endif // HAVE_KF5
 
+#include <XSLTransform>
+#include <EncoderXML>
+#include <FileImporterBibTeX>
 #include "internalnetworkaccessmanager.h"
-#include "xsltransform.h"
-#include "encoderxml.h"
-#include "fileimporterbibtex.h"
 #include "logging_networking.h"
 
 class OnlineSearchIEEEXplore::OnlineSearchIEEEXplorePrivate
 {
+private:
+    static const QString xsltFilenameBase;
+
 public:
     static const QUrl apiUrl;
     const XSLTransform xslt;
 
     OnlineSearchIEEEXplorePrivate(OnlineSearchIEEEXplore *)
-            : xslt(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QCoreApplication::instance()->applicationName().remove(QStringLiteral("test")) + QStringLiteral("/ieeexploreapiv1-to-bibtex.xsl")))
+            : xslt(XSLTransform::locateXSLTfile(xsltFilenameBase))
     {
-        /// nothing
+        if (!xslt.isValid())
+            qCWarning(LOG_KBIBTEX_NETWORKING) << "Failed to initialize XSL transformation based on file '" << xsltFilenameBase << "'";
     }
 
     QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
@@ -83,6 +87,7 @@ public:
     }
 };
 
+const QString OnlineSearchIEEEXplore::OnlineSearchIEEEXplorePrivate::xsltFilenameBase = QStringLiteral("ieeexploreapiv1-to-bibtex.xsl");
 const QUrl OnlineSearchIEEEXplore::OnlineSearchIEEEXplorePrivate::apiUrl(QStringLiteral("https://ieeexploreapi.ieee.org/api/v1/search/articles?format=xml&apikey=") + InternalNetworkAccessManager::reverseObfuscate("\x15\x65\x4b\x2a\x37\x5f\x78\x12\x44\x70\xf8\x8e\x85\xe0\xdb\xae\xb\x7a\x7e\x46\xab\x93\xbc\xc8\xdb\xa8\xa5\xd2\xee\x96\x7e\x7\x37\x54\xa3\xd4\x2b\x5e\x81\xe6\x6f\x17\xb3\xd6\x7b\x1f\x1a\x60"));
 
 OnlineSearchIEEEXplore::OnlineSearchIEEEXplore(QObject *parent)
@@ -175,7 +180,12 @@ void OnlineSearchIEEEXplore::doneFetchingXML()
 
 QString OnlineSearchIEEEXplore::label() const
 {
+#ifdef HAVE_KF5
     return i18n("IEEEXplore");
+#else // HAVE_KF5
+    //= onlinesearch-ieeexplore-label
+    return QObject::tr("IEEEXplore");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchIEEEXplore::favIconUrl() const

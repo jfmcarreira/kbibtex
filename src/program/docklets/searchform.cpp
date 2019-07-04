@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,6 +21,7 @@
 #include <QMap>
 #include <QLabel>
 #include <QListWidget>
+#include <QLineEdit>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QTabWidget>
@@ -35,7 +36,6 @@
 #include <QPushButton>
 #include <QDebug>
 
-#include <KLineEdit>
 #include <KLocalizedString>
 #include <KRun>
 #include <KMessageBox>
@@ -45,34 +45,34 @@
 #include <KSharedConfig>
 #include <kio_version.h>
 
-#include "element.h"
-#include "file.h"
-#include "comment.h"
-#include "fileexporterbibtex.h"
-#include "onlinesearchabstract.h"
-#include "onlinesearchgeneral.h"
-#include "onlinesearchbibsonomy.h"
-#include "onlinesearchgooglescholar.h"
-#include "onlinesearchpubmed.h"
-#include "onlinesearchieeexplore.h"
-#include "onlinesearchacmportal.h"
-#include "onlinesearchsciencedirect.h"
-#include "onlinesearchspringerlink.h"
-#include "onlinesearcharxiv.h"
-#include "onlinesearchjstor.h"
-#include "onlinesearchmathscinet.h"
-#include "onlinesearchmrlookup.h"
-#include "onlinesearchinspirehep.h"
-#include "onlinesearchcernds.h"
-#include "onlinesearchingentaconnect.h"
-#include "onlinesearchsoanasaads.h"
-#include "onlinesearchisbndb.h"
-#include "onlinesearchideasrepec.h"
-#include "onlinesearchdoi.h"
-#include "onlinesearchbiorxiv.h"
+#include <Element>
+#include <File>
+#include <Comment>
+#include <FileExporterBibTeX>
+#include <onlinesearch/OnlineSearchAbstract>
+#include <onlinesearch/OnlineSearchGeneral>
+#include <onlinesearch/OnlineSearchBibsonomy>
+#include <onlinesearch/onlinesearchgooglescholar.h>
+#include <onlinesearch/OnlineSearchPubMed>
+#include <onlinesearch/OnlineSearchIEEEXplore>
+#include <onlinesearch/OnlineSearchAcmPortal>
+#include <onlinesearch/OnlineSearchScienceDirect>
+#include <onlinesearch/OnlineSearchSpringerLink>
+#include <onlinesearch/OnlineSearchArXiv>
+#include <onlinesearch/OnlineSearchJStor>
+#include <onlinesearch/OnlineSearchMathSciNet>
+#include <onlinesearch/OnlineSearchMRLookup>
+#include <onlinesearch/OnlineSearchInspireHep>
+#include <onlinesearch/OnlineSearchCERNDS>
+#include <onlinesearch/OnlineSearchIngentaConnect>
+#include <onlinesearch/OnlineSearchSOANASAADS>
+#include <onlinesearch/OnlineSearchIDEASRePEc>
+#include <onlinesearch/OnlineSearchDOI>
+#include <onlinesearch/OnlineSearchBioRxiv>
+#include <onlinesearch/OnlineSearchSemanticScholar>
+#include <file/FileView>
+#include <models/FileModel>
 #include "openfileinfo.h"
-#include "fileview.h"
-#include "models/filemodel.h"
 #include "searchresults.h"
 #include "logging_program.h"
 
@@ -241,6 +241,7 @@ public:
         /// addEngine(new OnlineSearchIsbnDB(p)); /// disabled as provider switched to a paid model on 2017-12-26
         addEngine(new OnlineSearchIDEASRePEc(p));
         addEngine(new OnlineSearchDOI(p));
+        addEngine(new OnlineSearchSemanticScholar(p));
 
         p->itemCheckChanged(nullptr);
         updateGUI();
@@ -249,8 +250,12 @@ public:
     void addEngine(OnlineSearchAbstract *engine) {
         KConfigGroup configGroup(config, configGroupName);
 
+        /// Disable signals while updating the widget and its items
+        enginesList->blockSignals(true);
+
         QListWidgetItem *item = new QListWidgetItem(engine->label(), enginesList);
-        item->setCheckState(configGroup.readEntry(engine->name(), false) ? Qt::Checked : Qt::Unchecked);
+        static const QSet<QString> enginesEnabledByDefault {QStringLiteral("GoogleScholar"), QStringLiteral("Bibsonomy")};
+        item->setCheckState(configGroup.readEntry(engine->name(), enginesEnabledByDefault.contains(engine->name())) ? Qt::Checked : Qt::Unchecked);
         item->setIcon(engine->icon(item));
         item->setToolTip(engine->label());
         item->setData(HomepageRole, engine->homepage());
@@ -268,6 +273,9 @@ public:
         connect(engine, &OnlineSearchAbstract::foundEntry, p, &SearchForm::foundEntry);
         connect(engine, &OnlineSearchAbstract::stoppedSearch, p, &SearchForm::stoppedSearch);
         connect(engine, &OnlineSearchAbstract::progress, p, &SearchForm::updateProgress);
+
+        /// Re-enable signals after updating the widget and its items
+        enginesList->blockSignals(false);
     }
 
     void switchToSearch() {

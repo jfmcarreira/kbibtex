@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,13 +15,17 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_IO_MACRO_H
-#define KBIBTEX_IO_MACRO_H
+#ifndef KBIBTEX_DATA_MACRO_H
+#define KBIBTEX_DATA_MACRO_H
 
-#include "element.h"
-#include "value.h"
+#include <Element>
+#include <Value>
 
 class QString;
+
+#ifdef HAVE_KF5
+#include "kbibtexdata_export.h"
+#endif // HAVE_KF5
 
 /**
  * This class represents a macro in a BibTeX file. Macros in BibTeX
@@ -46,6 +50,9 @@ public:
     Macro(const Macro &other);
 
     ~Macro() override;
+
+    bool operator==(const Macro &other) const;
+    bool operator!=(const Macro &other) const;
 
     /**
      * Assignment operator, working similar to a copy constructor,

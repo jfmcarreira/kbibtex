@@ -1,6 +1,5 @@
 /*****************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
- *                                                                           *
+ *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
  *                                                                           *
  *   This program is free software; you can redistribute it and/or modify    *
  *   it under the terms of the GNU General Public License as published by    *
@@ -16,8 +15,8 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
  *****************************************************************************/
 
-#ifndef CONFIG_NOTIFICATIONHUB_H
-#define CONFIG_NOTIFICATIONHUB_H
+#ifndef KBIBTEX_CONFIG_NOTIFICATIONHUB_H
+#define KBIBTEX_CONFIG_NOTIFICATIONHUB_H
 
 #include "kbibtexconfig_export.h"
 
@@ -43,6 +42,7 @@ public:
 
     static const int EventAny;
     static const int EventConfigurationChanged;
+    static const int EventBibliographySystemChanged;
     static const int EventUserDefined;
 
     static void registerNotificationListener(NotificationListener *listener, int eventId = NotificationHub::EventAny);
@@ -52,11 +52,11 @@ public:
 
 private:
     class NotificationHubPrivate;
-    NotificationHubPrivate *d;
+    NotificationHubPrivate *const d;
 
-    static NotificationHub *getHub();
+    static NotificationHub &instance();
 
     NotificationHub();
 };
 
-#endif // CONFIG_NOTIFICATIONHUB_H
+#endif // KBIBTEX_CONFIG_NOTIFICATIONHUB_H

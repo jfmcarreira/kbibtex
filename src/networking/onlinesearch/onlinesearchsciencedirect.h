@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,19 +15,17 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_ONLINESEARCH_SCIENCEDIRECT_H
-#define KBIBTEX_ONLINESEARCH_SCIENCEDIRECT_H
+#ifndef KBIBTEX_NETWORKING_ONLINESEARCHSCIENCEDIRECT_H
+#define KBIBTEX_NETWORKING_ONLINESEARCHSCIENCEDIRECT_H
 
-#include "onlinesearchabstract.h"
+#include <onlinesearch/OnlineSearchAbstract>
+
+#ifdef HAVE_KF5
+#include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
- *
- * On the subject of having multiple search terms in a search,
- * SciVerse ScienceDirect's documentation states: "[...] when
- * you enter search terms in multiple fields, an AND connector
- * is automatically included in your search"
- * (source: http://help.sciencedirect.com/flare/Content/qs_multiple.htm)
  */
 class KBIBTEXNETWORKING_EXPORT OnlineSearchScienceDirect : public OnlineSearchAbstract
 {
@@ -49,7 +47,7 @@ private:
     OnlineSearchScienceDirectPrivate *d;
 
 private slots:
-    void doneFetchingXML();
+    void doneFetchingJSON();
 };
 
-#endif // KBIBTEX_ONLINESEARCH_SCIENCEDIRECT_H
+#endif // KBIBTEX_NETWORKING_ONLINESEARCHSCIENCEDIRECT_H

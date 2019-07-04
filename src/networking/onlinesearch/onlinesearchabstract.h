@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,10 +15,8 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_ONLINESEARCH_ABSTRACT_H
-#define KBIBTEX_ONLINESEARCH_ABSTRACT_H
-
-#include "kbibtexnetworking_export.h"
+#ifndef KBIBTEX_NETWORKING_ONLINESEARCHABSTRACT_H
+#define KBIBTEX_NETWORKING_ONLINESEARCHABSTRACT_H
 
 #include <QObject>
 #include <QMap>
@@ -34,7 +32,11 @@
 #include <KSharedConfig>
 #endif // HAVE_KF5
 
-#include "entry.h"
+#include <Entry>
+
+#ifdef HAVE_KF5
+#include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
 
 class QNetworkReply;
 class QNetworkRequest;
@@ -66,6 +68,7 @@ protected:
     KSharedConfigPtr config;
 
     QStringList authorLastNames(const Entry &entry);
+    QString guessFreeText(const Entry &entry) const;
 
 signals:
     void returnPressed();
@@ -223,4 +226,4 @@ signals:
     void busyChanged();
 };
 
-#endif // KBIBTEX_ONLINESEARCH_ABSTRACT_H
+#endif // KBIBTEX_NETWORKING_ONLINESEARCHABSTRACT_H

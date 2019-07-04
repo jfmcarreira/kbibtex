@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -23,31 +23,29 @@
 #include <QTextDocument>
 #include <QAbstractTextDocumentLayout>
 #include <QListView>
+#include <QLineEdit>
 #include <QGridLayout>
 #include <QStringListModel>
 #include <QPainter>
 #include <QFrame>
 #include <QLayout>
 #include <QHeaderView>
+#include <QComboBox>
 
-#include <KComboBox>
 #include <KLocalizedString>
-#include <KSharedConfig>
-#include <KConfigGroup>
 #include <KColorScheme>
-#include <KLineEdit>
 
-#include "fieldlineedit.h"
-#include "bibtexfields.h"
-#include "entry.h"
-#include "preferences.h"
-#include "models/filemodel.h"
+#include <BibTeXFields>
+#include <Preferences>
+#include <Entry>
+#include <models/FileModel>
+#include "field/fieldlineedit.h"
 #include "logging_gui.h"
 
 QWidget *ValueListDelegate::createEditor(QWidget *parent, const QStyleOptionViewItem &sovi, const QModelIndex &index) const
 {
     if (index.column() == 0) {
-        const FieldDescription &fd = BibTeXFields::self()->find(m_fieldName);
+        const FieldDescription &fd = BibTeXFields::instance().find(m_fieldName);
         FieldLineEdit *fieldLineEdit = new FieldLineEdit(fd.preferredTypeFlag, fd.typeFlags, false, parent);
         fieldLineEdit->setAutoFillBackground(true);
         return fieldLineEdit;
@@ -84,7 +82,7 @@ QSize ValueListDelegate::sizeHint(const QStyleOptionViewItem &option, const QMod
 
 void ValueListDelegate::commitAndCloseEditor()
 {
-    KLineEdit *editor = qobject_cast<KLineEdit *>(sender());
+    QLineEdit *editor = qobject_cast<QLineEdit *>(sender());
     emit commitData(editor);
     emit closeEditor(editor);
 }
@@ -128,7 +126,7 @@ void ValueListDelegate::paint(QPainter *painter, const QStyleOptionViewItem &_op
     }
 
     /// count will be empty unless only one column is shown
-    const QString count = index.column() == 0 && index.model()->columnCount() == 1 ? QString(QStringLiteral(" (%1)")).arg(index.data(ValueListModel::CountRole).toInt()) : QStringLiteral("");
+    const QString count = index.column() == 0 && index.model()->columnCount() == 1 ? QString(QStringLiteral(" (%1)")).arg(index.data(ValueListModel::CountRole).toInt()) : QString();
 
     /// squeeze the folder text if it is to big and calculate the rectangles
     /// where the folder text and the unread count will be drawn to
@@ -330,14 +328,9 @@ void ValueListModel::notificationEvent(int eventId)
 void ValueListModel::readConfiguration()
 {
     /// load mapping from color value to label
-    KSharedConfigPtr config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc")));
-    KConfigGroup configGroup(config, Preferences::groupColor);
-    QStringList colorCodes = configGroup.readEntry(Preferences::keyColorCodes, Preferences::defaultColorCodes);
-    QStringList colorLabels = configGroup.readEntry(Preferences::keyColorLabels, Preferences::defaultColorLabels);
     colorToLabel.clear();
-    for (QStringList::ConstIterator itc = colorCodes.constBegin(), itl = colorLabels.constBegin(); itc != colorCodes.constEnd() && itl != colorLabels.constEnd(); ++itc, ++itl) {
-        colorToLabel.insert(*itc, i18n((*itl).toUtf8().constData()));
-    }
+    for (QVector<QPair<QColor, QString>>::ConstIterator it = Preferences::instance().colorCodes().constBegin(); it != Preferences::instance().colorCodes().constEnd(); ++it)
+        colorToLabel.insert(it->first.name(), it->second);
 }
 
 void ValueListModel::updateValues()
@@ -392,7 +385,7 @@ int ValueListModel::indexOf(const QString &text)
 {
     QString color;
     QString cmpText = text;
-    if (fName == Entry::ftColor && !(color = colorToLabel.key(text, QStringLiteral(""))).isEmpty())
+    if (fName == Entry::ftColor && !(color = colorToLabel.key(text, QString())).isEmpty())
         cmpText = color;
     if (cmpText.isEmpty())
         qCWarning(LOG_KBIBTEX_GUI) << "Should never happen";

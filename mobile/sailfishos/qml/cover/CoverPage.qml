@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2016-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,35 +14,40 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
-#ifndef KBIBTEX_ONLINESEARCH_ISBNDB_H
-#define KBIBTEX_ONLINESEARCH_ISBNDB_H
 
-#include "onlinesearchabstract.h"
+import QtQuick 2.0
+import Sailfish.Silica 1.0
 
-/**
- * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
- */
-class KBIBTEXNETWORKING_EXPORT OnlineSearchIsbnDB : public OnlineSearchAbstract
-{
-    Q_OBJECT
+CoverBackground {
+    Column {
+        id: cover
+        anchors.centerIn: parent
 
-public:
-    explicit OnlineSearchIsbnDB(QWidget *parent);
-    ~OnlineSearchIsbnDB() override;
+        Image {
+            id: logo
+            source: 'qrc:/icons/kbibtex.svg'
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            height: sourceSize.height * width / sourceSize.width
+        }
 
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
-    QString label() const override;
-    QUrl homepage() const override;
+        Label {
+            id: label
+            //% "BibSearch"
+            text: qsTrId("bibsearch-application-title")
+        }
+    }
 
-protected:
-    QString favIconUrl() const override;
 
-private:
-    class OnlineSearchIsbnDBPrivate;
-    OnlineSearchIsbnDBPrivate *d;
-
-private slots:
-    void downloadDone();
-};
-
-#endif // KBIBTEX_ONLINESEARCH_ISBNDB_H
+    CoverActionList {
+        CoverAction {
+            iconSource: "image://theme/icon-cover-search"
+            onTriggered: {
+                pageStack.clear()
+                pageStack.push(Qt.resolvedUrl("../pages/BibliographyListView.qml"))
+                pageStack.push(Qt.resolvedUrl("../pages/SearchForm.qml"))
+                mainWindow.activate()
+            }
+        }
+    }
+}

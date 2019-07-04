@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -18,11 +18,11 @@
 #ifndef KBIBTEX_GUI_SORTFILTERFILEMODEL_H
 #define KBIBTEX_GUI_SORTFILTERFILEMODEL_H
 
-#include "kbibtexgui_export.h"
-
 #include <QSortFilterProxyModel>
 
-#include "models/filemodel.h"
+#include <models/FileModel>
+
+#include "kbibtexgui_export.h"
 
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
@@ -56,11 +56,6 @@ private:
     FileModel *m_internalModel;
     SortFilterFileModel::FilterQuery m_filterQuery;
 
-    KSharedConfigPtr config;
-    static const QString configGroupName;
-    bool m_showComments, m_showMacros;
-
-    void loadState();
     bool simpleLessThan(const QModelIndex &left, const QModelIndex &right) const;
 };
 

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -22,23 +22,19 @@
 #include <QTextCodec>
 #include <QTextStream>
 #include <QStringList>
+#include <QBuffer>
 
-#ifdef HAVE_KF5
-#include <KSharedConfig>
-#include <KConfigGroup>
-#endif // HAVE_KF5
-
-#include "preferences.h"
-#include "file.h"
-#include "element.h"
-#include "entry.h"
-#include "macro.h"
-#include "preamble.h"
-#include "value.h"
-#include "comment.h"
+#include <BibTeXEntries>
+#include <BibTeXFields>
+#include <Preferences>
+#include <File>
+#include <Element>
+#include <Entry>
+#include <Macro>
+#include <Preamble>
+#include <Value>
+#include <Comment>
 #include "encoderlatex.h"
-#include "bibtexentries.h"
-#include "bibtexfields.h"
 #include "textencoder.h"
 #include "logging_io.h"
 
@@ -60,23 +56,19 @@ public:
     QString listSeparator;
     bool cancelFlag;
     QTextCodec *destinationCodec;
-#ifdef HAVE_KF5
-    KSharedConfigPtr config;
-    const QString configGroupName, configGroupNameGeneral;
-#endif // HAVE_KF5
 
     FileExporterBibTeXPrivate(FileExporterBibTeX *parent)
-            : p(parent), keywordCasing(KBibTeX::cLowerCase), quoteComment(Preferences::qcNone), protectCasing(Qt::PartiallyChecked), cancelFlag(false), destinationCodec(nullptr), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), configGroupName(QStringLiteral("FileExporterBibTeX")), configGroupNameGeneral(QStringLiteral("General")) {
+            : p(parent), keywordCasing(KBibTeX::cLowerCase), quoteComment(Preferences::qcNone), protectCasing(Qt::PartiallyChecked), cancelFlag(false), destinationCodec(nullptr)
+    {
         /// nothing
     }
 
     void loadState() {
 #ifdef HAVE_KF5
-        KConfigGroup configGroup(config, configGroupName);
-        encoding = configGroup.readEntry(Preferences::keyEncoding, Preferences::defaultEncoding);
-        QString stringDelimiter = configGroup.readEntry(Preferences::keyStringDelimiter, Preferences::defaultStringDelimiter);
+        encoding = Preferences::instance().bibTeXEncoding();
+        QString stringDelimiter = Preferences::instance().bibTeXStringDelimiter();
         if (stringDelimiter.length() != 2)
-            stringDelimiter = Preferences::defaultStringDelimiter;
+            stringDelimiter = Preferences::defaultBibTeXStringDelimiter;
 #else // HAVE_KF5
         encoding = QStringLiteral("LaTeX");
         const QString stringDelimiter = QStringLiteral("{}");
@@ -84,24 +76,17 @@ public:
         stringOpenDelimiter = stringDelimiter[0];
         stringCloseDelimiter = stringDelimiter[1];
 #ifdef HAVE_KF5
-        keywordCasing = static_cast<KBibTeX::Casing>(configGroup.readEntry(Preferences::keyKeywordCasing, static_cast<int>(Preferences::defaultKeywordCasing)));
-        quoteComment = static_cast<Preferences::QuoteComment>(configGroup.readEntry(Preferences::keyQuoteComment, static_cast<int>(Preferences::defaultQuoteComment)));
-        protectCasing = static_cast<Qt::CheckState>(configGroup.readEntry(Preferences::keyProtectCasing, static_cast<int>(Preferences::defaultProtectCasing)));
-        personNameFormatting = configGroup.readEntry(Preferences::keyPersonNameFormatting, QString());
-        listSeparator = configGroup.readEntry(Preferences::keyListSeparator, Preferences::defaultListSeparator);
-
-        if (personNameFormatting.isEmpty()) {
-            /// no person name formatting is specified for BibTeX, fall back to general setting
-            KConfigGroup configGroupGeneral(config, configGroupNameGeneral);
-            personNameFormatting = configGroupGeneral.readEntry(Preferences::keyPersonNameFormatting, Preferences::defaultPersonNameFormatting);
-        }
+        keywordCasing = Preferences::instance().bibTeXKeywordCasing();
+        quoteComment = Preferences::instance().bibTeXQuoteComment();
+        protectCasing = Preferences::instance().bibTeXProtectCasing() ? Qt::Checked : Qt::Unchecked;
+        listSeparator =  Preferences::instance().bibTeXListSeparator();
 #else // HAVE_KF5
         keywordCasing = KBibTeX::cLowerCase;
         quoteComment = qcNone;
         protectCasing = Qt::PartiallyChecked;
-        personNameFormatting = QStringLiteral("<%l><, %s><, %f>");
         listSeparator = QStringLiteral("; ");
 #endif // HAVE_KF5
+        personNameFormatting = Preferences::instance().personNameFormat();
     }
 
     void loadStateFromFile(const File *bibtexfile) {
@@ -115,11 +100,7 @@ public:
         if (bibtexfile->hasProperty(File::StringDelimiter)) {
             QString stringDelimiter = bibtexfile->property(File::StringDelimiter).toString();
             if (stringDelimiter.length() != 2)
-#ifdef HAVE_KF5
-                stringDelimiter = Preferences::defaultStringDelimiter;
-#else // HAVE_KF5
-                stringDelimiter = QStringLiteral("{}");
-#endif // HAVE_KF5
+                stringDelimiter = Preferences::defaultBibTeXStringDelimiter;
             stringOpenDelimiter = stringDelimiter[0];
             stringCloseDelimiter = stringDelimiter[1];
         }
@@ -140,15 +121,11 @@ public:
     }
 
     bool writeEntry(QIODevice *iodevice, const Entry &entry) {
-        const BibTeXEntries *be = BibTeXEntries::self();
-        const BibTeXFields *bf = BibTeXFields::self();
-        const EncoderLaTeX &laTeXEncoder = EncoderLaTeX::instance();
-
         /// write start of a entry (entry type and id) in plain ASCII
         iodevice->putChar('@');
-        iodevice->write(be->format(entry.type(), keywordCasing).toLatin1().data());
+        iodevice->write(BibTeXEntries::instance().format(entry.type(), keywordCasing).toLatin1().data());
         iodevice->putChar('{');
-        iodevice->write(laTeXEncoder.convertToPlainAscii(entry.id()).toLatin1());
+        iodevice->write(Encoder::instance().convertToPlainAscii(entry.id()).toLatin1());
 
         for (Entry::ConstIterator it = entry.constBegin(); it != entry.constEnd(); ++it) {
             const QString key = it.key();
@@ -174,7 +151,7 @@ public:
             iodevice->putChar(',');
             iodevice->putChar('\n');
             iodevice->putChar('\t');
-            iodevice->write(laTeXEncoder.convertToPlainAscii(bf->format(key, keywordCasing)).toLatin1());
+            iodevice->write(Encoder::instance().convertToPlainAscii(BibTeXFields::instance().format(key, keywordCasing)).toLatin1());
             iodevice->putChar(' ');
             iodevice->putChar('=');
             iodevice->putChar(' ');
@@ -189,8 +166,6 @@ public:
     }
 
     bool writeMacro(QIODevice *iodevice, const Macro &macro) {
-        const BibTeXEntries *be = BibTeXEntries::self();
-
         QString text = p->internalValueToBibTeX(macro.value(), QString(), leUTF8);
         if (protectCasing == Qt::Checked)
             addProtectiveCasing(text);
@@ -198,7 +173,7 @@ public:
             removeProtectiveCasing(text);
 
         iodevice->putChar('@');
-        iodevice->write(be->format(QStringLiteral("String"), keywordCasing).toLatin1().data());
+        iodevice->write(BibTeXEntries::instance().format(QStringLiteral("String"), keywordCasing).toLatin1().data());
         iodevice->putChar('{');
         iodevice->write(TextEncoder::encode(macro.key(), destinationCodec));
         iodevice->putChar(' ');
@@ -213,13 +188,11 @@ public:
     }
 
     bool writeComment(QIODevice *iodevice, const Comment &comment) {
-        const BibTeXEntries *be = BibTeXEntries::self();
-
         QString text = comment.text() ;
 
         if (comment.useCommand() || quoteComment == Preferences::qcCommand) {
             iodevice->putChar('@');
-            iodevice->write(be->format(QStringLiteral("Comment"), keywordCasing).toLatin1().data());
+            iodevice->write(BibTeXEntries::instance().format(QStringLiteral("Comment"), keywordCasing).toLatin1().data());
             iodevice->putChar('{');
             iodevice->write(TextEncoder::encode(text, destinationCodec));
             iodevice->putChar('}');
@@ -248,10 +221,8 @@ public:
     }
 
     bool writePreamble(QIODevice *iodevice, const Preamble &preamble) {
-        const BibTeXEntries *be = BibTeXEntries::self();
-
         iodevice->putChar('@');
-        iodevice->write(be->format(QStringLiteral("Preamble"), keywordCasing).toLatin1().data());
+        iodevice->write(BibTeXEntries::instance().format(QStringLiteral("Preamble"), keywordCasing).toLatin1().data());
         iodevice->putChar('{');
         /// Remember: strings from preamble do not get encoded,
         /// may contain raw LaTeX commands and code
@@ -264,7 +235,11 @@ public:
     }
 
     QString addProtectiveCasing(QString &text) {
-        if (text.length() < 2 && (text[0] != QLatin1Char('"') || text[text.length() - 1] != QLatin1Char('"')) && (text[0] != QLatin1Char('{') || text[text.length() - 1] != QLatin1Char('}'))) {
+        /// Check if either
+        ///  - text is too short (less than two characters)  or
+        ///  - text neither starts/stops with double quotation marks
+        ///    nor starts with { and stops with }
+        if (text.length() < 2 || ((text[0] != QLatin1Char('"') || text[text.length() - 1] != QLatin1Char('"')) && (text[0] != QLatin1Char('{') || text[text.length() - 1] != QLatin1Char('}')))) {
             /// Nothing to protect, as this is no text string
             return text;
         }
@@ -272,11 +247,10 @@ public:
         bool addBrackets = true;
 
         if (text[1] == QLatin1Char('{') && text[text.length() - 2] == QLatin1Char('}')) {
-            /// If the given text looks like this:  {{...}}
+            /// If the given text looks like this:  {{...}}  or  "{...}"
             /// still check that it is not like this: {{..}..{..}}
             addBrackets = false;
-            int count = 0;
-            for (int i = text.length() - 2; !addBrackets && i > 1; --i) {
+            for (int i = text.length() - 2, count = 0; !addBrackets && i > 1; --i) {
                 if (text[i] == QLatin1Char('{')) ++count;
                 else if (text[i] == QLatin1Char('}')) --count;
                 if (count == 0) addBrackets = true;
@@ -284,13 +258,17 @@ public:
         }
 
         if (addBrackets)
-            text.insert(1, QStringLiteral("{")).insert(text.length(),  QStringLiteral("}"));
+            text.insert(1, QStringLiteral("{")).insert(text.length() - 1,  QStringLiteral("}"));
 
         return text;
     }
 
     QString removeProtectiveCasing(QString &text) {
-        if (text.length() < 2 && (text[0] != QLatin1Char('"') || text[text.length() - 1] != QLatin1Char('"')) && (text[0] != QLatin1Char('{') || text[text.length() - 1] != QLatin1Char('}'))) {
+        /// Check if either
+        ///  - text is too short (less than two characters)  or
+        ///  - text neither starts/stops with double quotation marks
+        ///    nor starts with { and stops with }
+        if (text.length() < 2 || ((text[0] != QLatin1Char('"') || text[text.length() - 1] != QLatin1Char('"')) && (text[0] != QLatin1Char('{') || text[text.length() - 1] != QLatin1Char('}')))) {
             /// Nothing to protect, as this is no text string
             return text;
         }
@@ -299,9 +277,10 @@ public:
             /// Nothing to remove
             return text;
 
+        /// If the given text looks like this:  {{...}}  or  "{...}"
+        /// still check that it is not like this: {{..}..{..}}
         bool removeBrackets = true;
-        int count = 0;
-        for (int i = text.length() - 2; removeBrackets && i > 1; --i) {
+        for (int i = text.length() - 2, count = 0; removeBrackets && i > 1; --i) {
             if (text[i] == QLatin1Char('{')) ++count;
             else if (text[i] == QLatin1Char('}')) --count;
             if (count == 0) removeBrackets = false;
@@ -389,30 +368,43 @@ bool FileExporterBibTeX::save(QIODevice *iodevice, const File *bibtexfile, QStri
     d->loadState();
     d->loadStateFromFile(bibtexfile);
 
-    if (d->encoding != QStringLiteral("latex")) {
-        Comment encodingComment(QStringLiteral("x-kbibtex-encoding=") + d->encoding, true);
-        result &= d->writeComment(iodevice, encodingComment);
-    }
+    QBuffer outputBuffer;
+    outputBuffer.open(QBuffer::WriteOnly);
 
     /// Memorize which entries are used in a crossref field
-    QStringList crossRefIdList;
+    QHash<QString, QStringList> crossRefMap;
     for (File::ConstIterator it = bibtexfile->constBegin(); it != bibtexfile->constEnd() && result && !d->cancelFlag; ++it) {
         QSharedPointer<const Entry> entry = (*it).dynamicCast<const Entry>();
         if (!entry.isNull()) {
             const QString crossRef = PlainTextValue::text(entry->value(Entry::ftCrossRef));
-            if (!crossRef.isEmpty())
-                crossRefIdList << crossRef;
+            if (!crossRef.isEmpty()) {
+                QStringList crossRefList = crossRefMap.value(crossRef, QStringList());
+                crossRefList.append(entry->id());
+                crossRefMap.insert(crossRef, crossRefList);
+            }
         }
     }
 
     bool allPreamblesAndMacrosProcessed = false;
+    QSet<QString> processedEntryIds;
     for (File::ConstIterator it = bibtexfile->constBegin(); it != bibtexfile->constEnd() && result && !d->cancelFlag; ++it) {
         QSharedPointer<const Element> element = (*it);
         QSharedPointer<const Entry> entry = element.dynamicCast<const Entry>();
 
         if (!entry.isNull()) {
+            processedEntryIds.insert(entry->id());
+
             /// Postpone entries that are crossref'ed
-            if (crossRefIdList.contains(entry->id())) continue;
+            QStringList crossRefList = crossRefMap.value(entry->id(), QStringList());
+            if (!crossRefList.isEmpty()) {
+                bool allProcessed = true;
+                for (const QString &origin : crossRefList)
+                    allProcessed &= processedEntryIds.contains(origin);
+                if (allProcessed)
+                    crossRefMap.remove(entry->id());
+                else
+                    continue;
+            }
 
             if (!allPreamblesAndMacrosProcessed) {
                 /// Guarantee that all macros and the preamble are written
@@ -420,12 +412,12 @@ bool FileExporterBibTeX::save(QIODevice *iodevice, const File *bibtexfile, QStri
                 for (File::ConstIterator msit = it + 1; msit != bibtexfile->constEnd() && result && !d->cancelFlag; ++msit) {
                     QSharedPointer<const Preamble> preamble = (*msit).dynamicCast<const Preamble>();
                     if (!preamble.isNull()) {
-                        result &= d->writePreamble(iodevice, *preamble);
+                        result &= d->writePreamble(&outputBuffer, *preamble);
                         emit progress(++currentPos, totalElements);
                     } else {
                         QSharedPointer<const Macro> macro = (*msit).dynamicCast<const Macro>();
                         if (!macro.isNull()) {
-                            result &= d->writeMacro(iodevice, *macro);
+                            result &= d->writeMacro(&outputBuffer, *macro);
                             emit progress(++currentPos, totalElements);
                         }
                     }
@@ -433,22 +425,22 @@ bool FileExporterBibTeX::save(QIODevice *iodevice, const File *bibtexfile, QStri
                 allPreamblesAndMacrosProcessed = true;
             }
 
-            result &= d->writeEntry(iodevice, *entry);
+            result &= d->writeEntry(&outputBuffer, *entry);
             emit progress(++currentPos, totalElements);
         } else {
             QSharedPointer<const Comment> comment = element.dynamicCast<const Comment>();
             if (!comment.isNull() && !comment->text().startsWith(QStringLiteral("x-kbibtex-"))) {
-                result &= d->writeComment(iodevice, *comment);
+                result &= d->writeComment(&outputBuffer, *comment);
                 emit progress(++currentPos, totalElements);
             } else if (!allPreamblesAndMacrosProcessed) {
                 QSharedPointer<const Preamble> preamble = element.dynamicCast<const Preamble>();
                 if (!preamble.isNull()) {
-                    result &= d->writePreamble(iodevice, *preamble);
+                    result &= d->writePreamble(&outputBuffer, *preamble);
                     emit progress(++currentPos, totalElements);
                 } else {
                     QSharedPointer<const Macro> macro = element.dynamicCast<const Macro>();
                     if (!macro.isNull()) {
-                        result &= d->writeMacro(iodevice, *macro);
+                        result &= d->writeMacro(&outputBuffer, *macro);
                         emit progress(++currentPos, totalElements);
                     }
                 }
@@ -457,14 +449,35 @@ bool FileExporterBibTeX::save(QIODevice *iodevice, const File *bibtexfile, QStri
     }
 
     /// Crossref'ed entries are written last
-    for (File::ConstIterator it = bibtexfile->constBegin(); it != bibtexfile->constEnd() && result && !d->cancelFlag; ++it) {
-        QSharedPointer<const Entry> entry = (*it).dynamicCast<const Entry>();
-        if (entry.isNull()) continue;
-        if (!crossRefIdList.contains(entry->id())) continue;
+    if (!crossRefMap.isEmpty())
+        for (File::ConstIterator it = bibtexfile->constBegin(); it != bibtexfile->constEnd() && result && !d->cancelFlag; ++it) {
+            QSharedPointer<const Entry> entry = (*it).dynamicCast<const Entry>();
+            if (entry.isNull()) continue;
+            if (!crossRefMap.contains(entry->id())) continue;
 
-        result &= d->writeEntry(iodevice, *entry);
-        emit progress(++currentPos, totalElements);
+            result &= d->writeEntry(&outputBuffer, *entry);
+            emit progress(++currentPos, totalElements);
+        }
+
+    outputBuffer.close(); ///< close writing operation
+
+    outputBuffer.open(QBuffer::ReadOnly);
+    const QByteArray outputData = outputBuffer.readAll();
+    outputBuffer.close();
+    bool hasNonAsciiCharacters = false;
+    for (const unsigned char c : outputData)
+        if ((c & 128) > 0) {
+            hasNonAsciiCharacters = true;
+            break;
+        }
+
+    if (hasNonAsciiCharacters) {
+        const QString encoding = d->encoding.toLower() == QStringLiteral("latex") ? QStringLiteral("utf-8") : d->encoding;
+        Comment encodingComment(QStringLiteral("x-kbibtex-encoding=") + encoding, true);
+        result &= d->writeComment(iodevice, encodingComment);
     }
+
+    iodevice->write(outputData);
 
     iodevice->close();
     return result && !d->cancelFlag;
@@ -579,7 +592,7 @@ QString FileExporterBibTeX::internalValueToBibTeX(const Value &value, const QStr
                         result.append(d->stringOpenDelimiter);
                     } else if (!prev.dynamicCast<const VerbatimText>().isNull()) {
                         const QString keyToLower(key.toLower());
-                        if (keyToLower.startsWith(Entry::ftUrl) || keyToLower.startsWith(Entry::ftLocalFile) || keyToLower.startsWith(Entry::ftDOI))
+                        if (keyToLower.startsWith(Entry::ftUrl) || keyToLower.startsWith(Entry::ftLocalFile) || keyToLower.startsWith(Entry::ftFile) || keyToLower.startsWith(Entry::ftDOI))
                             /// Filenames and alike have be separated by a semicolon,
                             /// as a plain comma may be part of the filename or URL
                             result.append(QStringLiteral("; "));

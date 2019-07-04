@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,10 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef BIBTEXENCODER_H
-#define BIBTEXENCODER_H
+#ifndef KBIBTEX_IO_ENCODER_H
+#define KBIBTEX_IO_ENCODER_H
 
 #include <QString>
+
+#ifdef HAVE_KF5
+#include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
  * Base class for that convert between different textual representations
@@ -26,14 +30,13 @@
  * are \"a in LaTeX and &auml; in XML.
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class Encoder
+class KBIBTEXIO_EXPORT Encoder
 {
 public:
     enum TargetEncoding {TargetEncodingASCII = 0, TargetEncodingUTF8 = 1};
 
-    virtual ~Encoder() {
-        /// nothing
-    }
+    static const Encoder &instance();
+    virtual ~Encoder();
 
     /**
      * Decode from external textual representation to internal (UTF-8) representation.
@@ -53,6 +56,16 @@ public:
      * @return text text in external textual representation
      */
     virtual QString encode(const QString &text, const TargetEncoding targetEncoding) const;
+
+    QString convertToPlainAscii(const QString &input) const;
+    static bool containsOnlyAscii(const QString &text);
+
+protected:
+    Encoder();
+
+private:
+    class Private;
+    Private *const d;
 };
 
-#endif
+#endif // KBIBTEX_IO_ENCODER_H

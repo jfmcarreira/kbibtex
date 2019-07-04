@@ -24,14 +24,14 @@
 #include <QTimer>
 #include <QIcon>
 #include <QPushButton>
+#include <QLineEdit>
+#include <QComboBox>
 
-#include <KComboBox>
 #include <KLocalizedString>
-#include <KLineEdit>
 #include <KConfigGroup>
 #include <KSharedConfig>
 
-#include "bibtexfields.h"
+#include <BibTeXFields>
 #include "delayedexecutiontimer.h"
 
 static bool sortStringsLocaleAware(const QString &s1, const QString &s2) {
@@ -47,10 +47,10 @@ public:
     KSharedConfigPtr config;
     const QString configGroupName;
 
-    KComboBox *comboBoxFilterText;
+    QComboBox *comboBoxFilterText;
     const int maxNumStoredFilterTexts;
-    KComboBox *comboBoxCombination;
-    KComboBox *comboBoxField;
+    QComboBox *comboBoxCombination;
+    QComboBox *comboBoxField;
     QPushButton *buttonSearchPDFfiles;
     QPushButton *buttonClearAll;
     DelayedExecutionTimer *delayedTimer;
@@ -74,33 +74,32 @@ public:
         QLabel *label = new QLabel(i18n("Filter:"), p);
         layout->addWidget(label, 0);
 
-        comboBoxFilterText = new KComboBox(true, p);
+        comboBoxFilterText = new QComboBox(p);
         label->setBuddy(comboBoxFilterText);
         layout->addWidget(comboBoxFilterText, 5);
         comboBoxFilterText->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
         comboBoxFilterText->setEditable(true);
         QFontMetrics metrics(comboBoxFilterText->font());
         comboBoxFilterText->setMinimumWidth(metrics.width(QStringLiteral("AIWaiw")) * 7);
-        KLineEdit *lineEdit = static_cast<KLineEdit *>(comboBoxFilterText->lineEdit());
+        QLineEdit *lineEdit = static_cast<QLineEdit *>(comboBoxFilterText->lineEdit());
         lineEdit->setClearButtonEnabled(true);
         lineEdit->setPlaceholderText(i18n("Filter bibliographic entries"));
 
-        comboBoxCombination = new KComboBox(false, p);
+        comboBoxCombination = new QComboBox(p);
         layout->addWidget(comboBoxCombination, 1);
         comboBoxCombination->addItem(i18n("any word")); /// AnyWord=0
         comboBoxCombination->addItem(i18n("every word")); /// EveryWord=1
         comboBoxCombination->addItem(i18n("exact phrase")); /// ExactPhrase=2
         comboBoxCombination->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
-        comboBoxField = new KComboBox(false, p);
+        comboBoxField = new QComboBox(p);
         layout->addWidget(comboBoxField, 1);
         comboBoxField->addItem(i18n("any field"), QVariant());
         comboBoxField->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
-        const BibTeXFields *bf = BibTeXFields::self();
         /// Use a hash map to get an alphabetically sorted list
         QHash<QString, QString> fielddescs;
-        for (const auto &fd : const_cast<const BibTeXFields &>(*bf))
+        for (const auto &fd : const_cast<const BibTeXFields &>(BibTeXFields::instance()))
             if (fd.upperCamelCaseAlt.isEmpty())
                 fielddescs.insert(fd.label, fd.upperCamelCase);
         /// Sort locale-aware
@@ -128,7 +127,7 @@ public:
         QStringList completionListDate = configGroup.readEntry(QStringLiteral("PreviousSearches"), QStringList());
         for (QStringList::Iterator it = completionListDate.begin(); it != completionListDate.end(); ++it)
             comboBoxFilterText->addItem((*it).mid(12));
-        comboBoxFilterText->lineEdit()->setText(QStringLiteral(""));
+        comboBoxFilterText->lineEdit()->setText(QString());
         comboBoxCombination->setCurrentIndex(configGroup.readEntry("CurrentCombination", 0));
         comboBoxField->setCurrentIndex(configGroup.readEntry("CurrentField", 0));
 
@@ -197,6 +196,13 @@ public:
         comboBoxFilterText->lineEdit()->blockSignals(false);
     }
 
+    bool modelContainsText(QAbstractItemModel *model, const QString &text) {
+        for (int row = 0; row < model->rowCount(); ++row)
+            if (model->index(row, 0, QModelIndex()).data().toString().contains(text))
+                return true;
+        return false;
+    }
+
     void addCompletionString(const QString &text) {
         KConfigGroup configGroup(config, configGroupName);
 
@@ -227,7 +233,7 @@ public:
         config->sync();
 
         /// add user-entered filter text to combobox's drop-down list
-        if (!comboBoxFilterText->contains(text))
+        if (!text.isEmpty() && !modelContainsText(comboBoxFilterText->model(), text))
             comboBoxFilterText->addItem(text);
     }
 
@@ -281,7 +287,7 @@ SortFilterFileModel::FilterQuery FilterBar::filter()
 }
 
 void FilterBar::setPlaceholderText(const QString &msg) {
-    KLineEdit *lineEdit = static_cast<KLineEdit *>(d->comboBoxFilterText->lineEdit());
+    QLineEdit *lineEdit = static_cast<QLineEdit *>(d->comboBoxFilterText->lineEdit());
     lineEdit->setPlaceholderText(msg);
 }
 

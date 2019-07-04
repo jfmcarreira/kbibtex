@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -29,10 +29,10 @@
 
 #include <poppler-qt5.h>
 
-#include "kbibtex.h"
+#include <KBibTeX>
+#include <Value>
+#include <FileInfo>
 #include "internalnetworkaccessmanager.h"
-#include "value.h"
-#include "fileinfo.h"
 #include "logging_networking.h"
 #include "findlocalpdf.h"
 
@@ -322,7 +322,7 @@ bool FindPDF::search(const Entry &entry)
             QRegularExpressionMatchIterator doiRegExpMatchIt = KBibTeX::doiRegExp.globalMatch(fieldText);
             while (doiRegExpMatchIt.hasNext()) {
                 const QRegularExpressionMatch doiRegExpMatch = doiRegExpMatchIt.next();
-                d->queueUrl(QUrl(FileInfo::doiUrlPrefix() + doiRegExpMatch.captured(0)), fieldText, Entry::ftDOI, maxDepth);
+                d->queueUrl(QUrl(KBibTeX::doiUrlPrefix + doiRegExpMatch.captured(0)), fieldText, Entry::ftDOI, maxDepth);
             }
 
             QRegularExpressionMatchIterator urlRegExpMatchIt = KBibTeX::urlRegExp.globalMatch(fieldText);

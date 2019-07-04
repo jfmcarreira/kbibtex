@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,12 +21,13 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QSpinBox>
+#include <QLineEdit>
 
-#include <KLineEdit>
 #include <KLocalizedString>
 #include <KConfigGroup>
 
-#include "entry.h"
+#include <KBibTeX>
+#include <Entry>
 
 OnlineSearchQueryFormGeneral::OnlineSearchQueryFormGeneral(QWidget *parent)
         : OnlineSearchQueryFormAbstract(parent),
@@ -36,37 +37,37 @@ OnlineSearchQueryFormGeneral::OnlineSearchQueryFormGeneral(QWidget *parent)
     layout->setMargin(0);
 
     QLabel *label = new QLabel(i18n("Free text:"), this);
-    KLineEdit *lineEdit = new KLineEdit(this);
+    QLineEdit *lineEdit = new QLineEdit(this);
     layout->addRow(label, lineEdit);
     lineEdit->setClearButtonEnabled(true);
     lineEdit->setFocus(Qt::TabFocusReason);
     queryFields.insert(OnlineSearchAbstract::queryKeyFreeText, lineEdit);
     label->setBuddy(lineEdit);
-    connect(lineEdit, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
+    connect(lineEdit, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
 
     label = new QLabel(i18n("Title:"), this);
-    lineEdit = new KLineEdit(this);
+    lineEdit = new QLineEdit(this);
     layout->addRow(label, lineEdit);
     lineEdit->setClearButtonEnabled(true);
     queryFields.insert(OnlineSearchAbstract::queryKeyTitle, lineEdit);
     label->setBuddy(lineEdit);
-    connect(lineEdit, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
+    connect(lineEdit, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
 
     label = new QLabel(i18n("Author:"), this);
-    lineEdit = new KLineEdit(this);
+    lineEdit = new QLineEdit(this);
     layout->addRow(label, lineEdit);
     lineEdit->setClearButtonEnabled(true);
     queryFields.insert(OnlineSearchAbstract::queryKeyAuthor, lineEdit);
     label->setBuddy(lineEdit);
-    connect(lineEdit, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
+    connect(lineEdit, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
 
     label = new QLabel(i18n("Year:"), this);
-    lineEdit = new KLineEdit(this);
+    lineEdit = new QLineEdit(this);
     layout->addRow(label, lineEdit);
     lineEdit->setClearButtonEnabled(true);
     queryFields.insert(OnlineSearchAbstract::queryKeyYear, lineEdit);
     label->setBuddy(lineEdit);
-    connect(lineEdit, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
+    connect(lineEdit, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormGeneral::returnPressed);
 
     label = new QLabel(i18n("Number of Results:"), this);
     numResultsField = new QSpinBox(this);
@@ -81,7 +82,7 @@ OnlineSearchQueryFormGeneral::OnlineSearchQueryFormGeneral(QWidget *parent)
 
 bool OnlineSearchQueryFormGeneral::readyToStart() const
 {
-    for (QMap<QString, KLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it)
+    for (QMap<QString, QLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it)
         if (!it.value()->text().isEmpty())
             return true;
 
@@ -90,7 +91,7 @@ bool OnlineSearchQueryFormGeneral::readyToStart() const
 
 void OnlineSearchQueryFormGeneral::copyFromEntry(const Entry &entry)
 {
-    queryFields[OnlineSearchAbstract::queryKeyFreeText]->setText(PlainTextValue::text(entry[Entry::ftDOI]));
+    queryFields[OnlineSearchAbstract::queryKeyFreeText]->setText(guessFreeText(entry));
     queryFields[OnlineSearchAbstract::queryKeyTitle]->setText(PlainTextValue::text(entry[Entry::ftTitle]));
     queryFields[OnlineSearchAbstract::queryKeyAuthor]->setText(authorLastNames(entry).join(QStringLiteral(" ")));
     queryFields[OnlineSearchAbstract::queryKeyYear]->setText(PlainTextValue::text(entry[Entry::ftYear]));
@@ -100,7 +101,7 @@ QMap<QString, QString> OnlineSearchQueryFormGeneral::getQueryTerms()
 {
     QMap<QString, QString> result;
 
-    for (QMap<QString, KLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it) {
+    for (QMap<QString, QLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it) {
         if (!it.value()->text().isEmpty())
             result.insert(it.key(), it.value()->text());
     }
@@ -117,7 +118,7 @@ int OnlineSearchQueryFormGeneral::getNumResults()
 void OnlineSearchQueryFormGeneral::loadState()
 {
     KConfigGroup configGroup(config, configGroupName);
-    for (QMap<QString, KLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it) {
+    for (QMap<QString, QLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it) {
         it.value()->setText(configGroup.readEntry(it.key(), QString()));
     }
     numResultsField->setValue(configGroup.readEntry(QStringLiteral("numResults"), 10));
@@ -126,7 +127,7 @@ void OnlineSearchQueryFormGeneral::loadState()
 void OnlineSearchQueryFormGeneral::saveState()
 {
     KConfigGroup configGroup(config, configGroupName);
-    for (QMap<QString, KLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it) {
+    for (QMap<QString, QLineEdit *>::ConstIterator it = queryFields.constBegin(); it != queryFields.constEnd(); ++it) {
         configGroup.writeEntry(it.key(), it.value()->text());
     }
     configGroup.writeEntry(QStringLiteral("numResults"), numResultsField->value());

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2016-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,21 +15,25 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PART_BROWSEREXTENSION_H
-#define KBIBTEX_PART_BROWSEREXTENSION_H
+import QtQuick 2.0
+import Sailfish.Silica 1.0
+import harbour.bibsearch 1.0
+import "pages"
 
-#include <KParts/BrowserExtension>
+ApplicationWindow {
+    id: mainWindow
 
-class BrowserExtension : public KParts::BrowserExtension
-{
-    Q_OBJECT
-public:
-    explicit BrowserExtension(KParts::ReadOnlyPart *);
-    ~BrowserExtension() override;
+    SortedBibliographyModel {
+        id: bibliographyModel
+    }
 
-private:
-    struct Private;
-    Private *const d;
-};
+    SearchEngineList {
+        id: searchEngineList
+    }
 
-#endif // KBIBTEX_PART_BROWSEREXTENSION_H
+    initialPage: Component {
+        BibliographyListView {
+        }
+    }
+    cover: Qt.resolvedUrl("cover/CoverPage.qml")
+}

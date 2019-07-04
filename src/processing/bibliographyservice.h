@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,12 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROC_BIBLIOGRAPHYSERVICE_H
-#define KBIBTEX_PROC_BIBLIOGRAPHYSERVICE_H
+#ifndef KBIBTEX_PROCESSING_BIBLIOGRAPHYSERVICE_H
+#define KBIBTEX_PROCESSING_BIBLIOGRAPHYSERVICE_H
 
-#include "kbibtexproc_export.h"
+#include <QObject>
 
-#include <QProcess>
+#ifdef HAVE_KF5
+#include "kbibtexprocessing_export.h"
+#endif // HAVE_KF5
 
 /**
  * To make (or test for) KBibTeX the default bibliography editor,
@@ -30,7 +32,7 @@
  *
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT BibliographyService : public QObject
+class KBIBTEXPROCESSING_EXPORT BibliographyService : public QObject
 {
     Q_OBJECT
 
@@ -51,12 +53,9 @@ public:
      */
     bool isKBibTeXdefault() const;
 
-private slots:
-    void kbuildsycoca5finished(int exitCode, QProcess::ExitStatus exitStatus);
-
 private:
     class Private;
     Private *const d;
 };
 
-#endif // KBIBTEX_PROC_BIBLIOGRAPHYSERVICE_H
+#endif // KBIBTEX_PROCESSING_BIBLIOGRAPHYSERVICE_H

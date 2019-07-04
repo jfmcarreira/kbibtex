@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -29,10 +29,12 @@
 #include <KSharedConfig>
 #include <KConfigGroup>
 #include <KLocalizedString>
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
 #endif // HAVE_KF5
 
+#include <Preferences>
 #include "file.h"
-#include "preferences.h"
 
 quint64 ValueItem::internalIdCounter = 0;
 
@@ -211,7 +213,7 @@ bool Person::isPerson(const ValueItem &other) {
 }
 
 QDebug operator<<(QDebug dbg, const Person &person) {
-    dbg.nospace() << "Person " << Person::transcribePersonName(&person, Preferences::defaultPersonNameFormatting);
+    dbg.nospace() << "Person " << Person::transcribePersonName(&person, Preferences::defaultPersonNameFormat);
     return dbg;
 }
 
@@ -334,11 +336,6 @@ QDebug operator<<(QDebug dbg, const PlainText &plainText) {
 }
 
 
-#ifdef HAVE_KF5
-bool VerbatimText::colorLabelPairsInitialized = false;
-QList<VerbatimText::ColorLabelPair> VerbatimText::colorLabelPairs = QList<VerbatimText::ColorLabelPair>();
-#endif // HAVE_KF5
-
 VerbatimText::VerbatimText(const VerbatimText &other)
         : m_text(other.text())
 {
@@ -373,38 +370,14 @@ bool VerbatimText::containsPattern(const QString &pattern, Qt::CaseSensitivity c
 {
     const QString text = QString(m_text).remove(ignoredInSorting);
 
-#ifdef HAVE_KF5
-    /// Initialize map of labels to color (hex string) only once
-    // FIXME if user changes colors/labels later, it will not be updated here
-    if (!colorLabelPairsInitialized) {
-        colorLabelPairsInitialized = true;
-
-        /// Read data from config file
-        KSharedConfigPtr config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc")));
-        KConfigGroup configGroup(config, Preferences::groupColor);
-        const QStringList colorCodes = configGroup.readEntry(Preferences::keyColorCodes, Preferences::defaultColorCodes);
-        const QStringList colorLabels = configGroup.readEntry(Preferences::keyColorLabels, Preferences::defaultColorLabels);
-
-        /// Translate data from config file into internal mapping
-        for (QStringList::ConstIterator itc = colorCodes.constBegin(), itl = colorLabels.constBegin(); itc != colorCodes.constEnd() && itl != colorLabels.constEnd(); ++itc, ++itl) {
-            ColorLabelPair clp;
-            clp.hexColor = *itc;
-            clp.label = i18n((*itl).toUtf8().constData());
-            colorLabelPairs << clp;
-        }
-    }
-#endif //  HAVE_KF5
-
     bool contained = text.contains(pattern, caseSensitive);
 #ifdef HAVE_KF5
     if (!contained) {
         /// Only if simple text match failed, check color labels
         /// For a match, the user's pattern has to be the start of the color label
         /// and this verbatim text has to contain the color as hex string
-        for (const auto &clp : const_cast<const QList<ColorLabelPair> &>(colorLabelPairs)) {
-            contained = text.compare(clp.hexColor, Qt::CaseInsensitive) == 0 && clp.label.contains(pattern, Qt::CaseInsensitive);
-            if (contained) break;
-        }
+        for (QVector<QPair<QColor, QString>>::ConstIterator it = Preferences::instance().colorCodes().constBegin(); !contained && it != Preferences::instance().colorCodes().constEnd(); ++it)
+            contained = text.compare(it->first.name(), Qt::CaseInsensitive) == 0 && it->second.contains(pattern, Qt::CaseInsensitive);
     }
 #endif // HAVE_KF5
 
@@ -565,31 +538,42 @@ bool Value::operator==(const Value &rhs) const
         /// Are both ValueItems PlainTexts and are both PlainTexts equal?
         const QSharedPointer<PlainText> lhsPlainText = lhsIt->dynamicCast<PlainText>();
         const QSharedPointer<PlainText> rhsPlainText = rhsIt->dynamicCast<PlainText>();
-        if (!lhsPlainText.isNull() && !rhsPlainText.isNull() && *lhsPlainText.data() != *rhsPlainText.data())
-            return false;
-        else {
+        if ((lhsPlainText.isNull() && !rhsPlainText.isNull()) || (!lhsPlainText.isNull() && rhsPlainText.isNull())) return false;
+        if (!lhsPlainText.isNull() && !rhsPlainText.isNull()) {
+            if (*lhsPlainText.data() != *rhsPlainText.data())
+                return false;
+        } else {
             /// Remainder of comparisons is like for PlainText above, just for other descendants of ValueItem
             const QSharedPointer<MacroKey> lhsMacroKey = lhsIt->dynamicCast<MacroKey>();
             const QSharedPointer<MacroKey> rhsMacroKey = rhsIt->dynamicCast<MacroKey>();
-            if (!lhsMacroKey.isNull() && !rhsMacroKey.isNull() && *lhsMacroKey.data() != *rhsMacroKey.data())
-                return false;
-            else {
+            if ((lhsMacroKey.isNull() && !rhsMacroKey.isNull()) || (!lhsMacroKey.isNull() && rhsMacroKey.isNull())) return false;
+            if (!lhsMacroKey.isNull() && !rhsMacroKey.isNull()) {
+                if (*lhsMacroKey.data() != *rhsMacroKey.data())
+                    return false;
+            } else {
                 const QSharedPointer<Person> lhsPerson = lhsIt->dynamicCast<Person>();
                 const QSharedPointer<Person> rhsPerson = rhsIt->dynamicCast<Person>();
-                if (!lhsPerson.isNull() && !rhsPerson.isNull() && *lhsPerson.data() != *rhsPerson.data())
-                    return false;
-                else {
+                if ((lhsPerson.isNull() && !rhsPerson.isNull()) || (!lhsPerson.isNull() && rhsPerson.isNull())) return false;
+                if (!lhsPerson.isNull() && !rhsPerson.isNull()) {
+                    if (*lhsPerson.data() != *rhsPerson.data())
+                        return false;
+                } else {
                     const QSharedPointer<VerbatimText> lhsVerbatimText = lhsIt->dynamicCast<VerbatimText>();
                     const QSharedPointer<VerbatimText> rhsVerbatimText = rhsIt->dynamicCast<VerbatimText>();
-                    if (!lhsVerbatimText.isNull() && !rhsVerbatimText.isNull() && *lhsVerbatimText.data() != *rhsVerbatimText.data())
-                        return false;
-                    else {
+                    if ((lhsVerbatimText.isNull() && !rhsVerbatimText.isNull()) || (!lhsVerbatimText.isNull() && rhsVerbatimText.isNull())) return false;
+                    if (!lhsVerbatimText.isNull() && !rhsVerbatimText.isNull()) {
+                        if (*lhsVerbatimText.data() != *rhsVerbatimText.data())
+                            return false;
+                    } else {
                         const QSharedPointer<Keyword> lhsKeyword = lhsIt->dynamicCast<Keyword>();
                         const QSharedPointer<Keyword> rhsKeyword = rhsIt->dynamicCast<Keyword>();
-                        if (!lhsKeyword.isNull() && !rhsKeyword.isNull() && *lhsKeyword.data() != *rhsKeyword.data())
-                            return false;
-                        else {
+                        if ((lhsKeyword.isNull() && !rhsKeyword.isNull()) || (!lhsKeyword.isNull() && rhsKeyword.isNull())) return false;
+                        if (!lhsKeyword.isNull() && !rhsKeyword.isNull()) {
+                            if (*lhsKeyword.data() != *rhsKeyword.data())
+                                return false;
+                        } else {
                             /// If there are other descendants of ValueItem, add tests here ...
+                            return false;
                         }
                     }
                 }
@@ -659,11 +643,6 @@ QString PlainTextValue::text(const ValueItem &valueItem, ValueItemType &vit)
     QString result;
     vit = VITOther;
 
-#ifdef HAVE_KF5
-    if (notificationListener == nullptr)
-        notificationListener = new PlainTextValue();
-#endif // HAVE_KF5
-
     bool isVerbatim = false;
     const PlainText *plainText = dynamic_cast<const PlainText *>(&valueItem);
     if (plainText != nullptr) {
@@ -675,7 +654,7 @@ QString PlainTextValue::text(const ValueItem &valueItem, ValueItemType &vit)
         } else {
             const Person *person = dynamic_cast<const Person *>(&valueItem);
             if (person != nullptr) {
-                result = Person::transcribePersonName(person, personNameFormatting);
+                result = Person::transcribePersonName(person, Preferences::instance().personNameFormat());
                 vit = VITPerson;
             } else {
                 const Keyword *keyword = dynamic_cast<const Keyword *>(&valueItem);
@@ -726,29 +705,3 @@ QString PlainTextValue::text(const ValueItem &valueItem, ValueItemType &vit)
 
     return result;
 }
-
-#ifdef HAVE_KF5
-PlainTextValue::PlainTextValue()
-{
-    NotificationHub::registerNotificationListener(this, NotificationHub::EventConfigurationChanged);
-    readConfiguration();
-}
-
-void PlainTextValue::notificationEvent(int eventId)
-{
-    if (eventId == NotificationHub::EventConfigurationChanged)
-        readConfiguration();
-}
-
-void PlainTextValue::readConfiguration()
-{
-    KSharedConfigPtr config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc")));
-    KConfigGroup configGroup(config, "General");
-    personNameFormatting = configGroup.readEntry(Preferences::keyPersonNameFormatting, Preferences::defaultPersonNameFormatting);
-}
-
-PlainTextValue *PlainTextValue::notificationListener = nullptr;
-QString PlainTextValue::personNameFormatting;
-#else // HAVE_KF5
-const QString PlainTextValue::personNameFormatting = QStringLiteral("<%l><, %s><, %f>");
-#endif // HAVE_KF5

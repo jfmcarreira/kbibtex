@@ -21,6 +21,8 @@
 #ifdef HAVE_QTWIDGETS
 #include <QLayout>
 #include <QSpinBox>
+#include <QComboBox>
+#include <QLineEdit>
 #include <QLabel>
 #include <QIcon>
 #endif // HAVE_QTWIDGETS
@@ -29,16 +31,14 @@
 #ifdef HAVE_KF5
 #include <KLocalizedString>
 #include <KConfigGroup>
-#endif // HAVE_KF5
-#ifdef HAVE_QTWIDGETS
-#include <KComboBox>
 #include <KMessageBox>
-#include <KLineEdit>
-#endif // HAVE_QTWIDGETS
+#else // HAVE_KF5
+#define i18n(text) QObject::tr(text)
+#endif // HAVE_KF5
 
-#include "fileimporterbibtex.h"
-#include "file.h"
-#include "entry.h"
+#include <FileImporterBibTeX>
+#include <File>
+#include <Entry>
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
 
@@ -58,8 +58,8 @@ private:
     }
 
 public:
-    KComboBox *comboBoxSearchWhere;
-    KLineEdit *lineEditSearchTerm;
+    QComboBox *comboBoxSearchWhere;
+    QLineEdit *lineEditSearchTerm;
     QSpinBox *numResultsField;
 
     OnlineSearchQueryFormBibsonomy(QWidget *widget)
@@ -67,8 +67,9 @@ public:
         QGridLayout *layout = new QGridLayout(this);
         layout->setMargin(0);
 
-        comboBoxSearchWhere = new KComboBox(false, this);
+        comboBoxSearchWhere = new QComboBox(this);
         layout->addWidget(comboBoxSearchWhere, 0, 0, 1, 1);
+        comboBoxSearchWhere->setEditable(true);
         comboBoxSearchWhere->addItem(i18n("Tag"), "tag");
         comboBoxSearchWhere->addItem(i18n("User"), "user");
         comboBoxSearchWhere->addItem(i18n("Group"), "group");
@@ -78,10 +79,10 @@ public:
         comboBoxSearchWhere->addItem(i18n("Everywhere"), "search");
         comboBoxSearchWhere->setCurrentIndex(comboBoxSearchWhere->count() - 1);
 
-        lineEditSearchTerm = new KLineEdit(this);
+        lineEditSearchTerm = new QLineEdit(this);
         layout->addWidget(lineEditSearchTerm, 0, 1, 1, 1);
         lineEditSearchTerm->setClearButtonEnabled(true);
-        connect(lineEditSearchTerm, &KLineEdit::returnPressed, this, &OnlineSearchQueryFormBibsonomy::returnPressed);
+        connect(lineEditSearchTerm, &QLineEdit::returnPressed, this, &OnlineSearchQueryFormBibsonomy::returnPressed);
 
         QLabel *label = new QLabel(i18n("Number of Results:"), this);
         layout->addWidget(label, 1, 0, 1, 1);
@@ -223,7 +224,12 @@ void OnlineSearchBibsonomy::startSearchFromForm()
 
 QString OnlineSearchBibsonomy::label() const
 {
+#ifdef HAVE_KF5
     return i18n("Bibsonomy");
+#else // HAVE_KF5
+    //= onlinesearch-bibsonomy-label
+    return QObject::tr("Bibsonomy");
+#endif // HAVE_KF5
 }
 
 QString OnlineSearchBibsonomy::favIconUrl() const

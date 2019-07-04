@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,36 +20,6 @@
 #include <QString>
 
 #include "logging_io.h"
-
-#ifdef BUILD_TESTING
-inline QByteArray toUtf8(const QChar c) {
-    char base[8];
-    const ushort u = c.unicode();
-    if (u < 0x007f) {
-        base[0] = static_cast<char>(u & 0x007f);
-        return QByteArray(base, 1);
-    } else if (u < 0x07ff) {
-        base[0] = 0xc0 | static_cast<char>(u >> 6);
-        base[1] = 0x80 | static_cast<char>(u & 0x003f);
-        return QByteArray(base, 2);
-    } else if (u < 0xffff) {
-        base[0] = 0xe0 | static_cast<char>(u >> 12);
-        base[1] = 0x80 | static_cast<char>((u >> 6) & 0x003f);
-        base[2] = 0x80 | static_cast<char>(u & 0x003f);
-        return QByteArray(base, 3);
-    } else {
-        /// Upstream issue: QChar can only hold Unicode characters up to 0xFFFF
-        /*
-        base[0] = 0xf0 | static_cast<char>(u >> 18);
-        base[1] = 0x80 | static_cast<char>((u >> 12) & 0x003f);
-        base[2] = 0x80 | static_cast<char>((u >> 6) & 0x003f);
-        base[3] = 0x80 | static_cast<char>(u & 0x003f);
-        return QByteArray(base, 4);
-        */
-        return QByteArray();
-    }
-}
-#endif // BUILD_TESTING
 
 inline bool isAsciiLetter(const QChar c) {
     return (c.unicode() >= static_cast<ushort>('A') && c.unicode() <= static_cast<ushort>('Z')) || (c.unicode() >= static_cast<ushort>('a') && c.unicode() <= static_cast<ushort>('z'));
@@ -472,7 +442,7 @@ encoderLaTeXEscapedCharacters[] = {
     {QLatin1Char('`'), QLatin1Char('y'), 0x1EF3, DirectionBoth},
     {QLatin1Char('d'), QLatin1Char('Y'), 0x1EF4, DirectionBoth},
     {QLatin1Char('d'), QLatin1Char('y'), 0x1EF5, DirectionBoth},
-    {QLatin1Char('r'), QLatin1Char('q'), 0x2019, DirectionBoth} ///< tricky: this is \rq
+    {QLatin1Char('r'), QLatin1Char('q'), 0x2019, DirectionCommandToUnicode} ///< tricky: this is \rq
 };
 
 
@@ -538,14 +508,101 @@ static const struct MathCommand {
     const EncoderLaTeXCommandDirection direction;
 }
 mathCommands[] = {
+    {QStringLiteral("pm"), 0x00B1, DirectionBoth},
+    {QStringLiteral("times"), 0x00D7, DirectionBoth},
+    {QStringLiteral("div"), 0x00F7, DirectionBoth},
+    {QStringLiteral("phi"), 0x0278, DirectionBoth}, ///< see also 0x03C6 (GREEK SMALL LETTER PHI)
+    {QStringLiteral("Alpha"), 0x0391, DirectionBoth},
+    {QStringLiteral("Beta"), 0x0392, DirectionBoth},
+    {QStringLiteral("Gamma"), 0x0393, DirectionBoth},
+    {QStringLiteral("Delta"), 0x0394, DirectionBoth},
+    {QStringLiteral("Epsilon"), 0x0395, DirectionBoth},
+    {QStringLiteral("Zeta"), 0x0396, DirectionBoth},
+    {QStringLiteral("Eta"), 0x0397, DirectionBoth},
+    {QStringLiteral("Theta"), 0x0398, DirectionBoth},
+    {QStringLiteral("Iota"), 0x0399, DirectionBoth},
+    {QStringLiteral("Kappa"), 0x039A, DirectionBoth},
+    {QStringLiteral("Lamda"), 0x039B, DirectionCommandToUnicode}, ///< \Lamda does not exist, this is mostly for spelling errors
+    {QStringLiteral("Lambda"), 0x039B, DirectionBoth},
+    {QStringLiteral("Mu"), 0x039C, DirectionBoth},
+    {QStringLiteral("Nu"), 0x039D, DirectionBoth},
+    {QStringLiteral("Xi"), 0x039E, DirectionBoth},
+    {QStringLiteral("Omicron"), 0x039F, DirectionBoth},
+    {QStringLiteral("Pi"), 0x03A0, DirectionBoth},
+    {QStringLiteral("Rho"), 0x03A1, DirectionBoth},
+    {QStringLiteral("Sigma"), 0x03A3, DirectionBoth},
+    {QStringLiteral("Tau"), 0x03A4, DirectionBoth},
+    {QStringLiteral("Upsilon"), 0x03A5, DirectionBoth},
+    {QStringLiteral("Phi"), 0x03A6, DirectionBoth},
+    {QStringLiteral("Chi"), 0x03A7, DirectionBoth},
+    {QStringLiteral("Psi"), 0x03A8, DirectionBoth},
+    {QStringLiteral("Omega"), 0x03A9, DirectionBoth},
+    {QStringLiteral("alpha"), 0x03B1, DirectionBoth},
+    {QStringLiteral("beta"), 0x03B2, DirectionBoth},
+    {QStringLiteral("gamma"), 0x03B3, DirectionBoth},
+    {QStringLiteral("delta"), 0x03B4, DirectionBoth},
+    {QStringLiteral("varepsilon"), 0x03B5, DirectionBoth},
+    {QStringLiteral("zeta"), 0x03B6, DirectionBoth},
+    {QStringLiteral("eta"), 0x03B7, DirectionBoth},
+    {QStringLiteral("theta"), 0x03B8, DirectionBoth},
+    {QStringLiteral("iota"), 0x03B9, DirectionBoth},
+    {QStringLiteral("kappa"), 0x03BA, DirectionBoth},
+    {QStringLiteral("lamda"), 0x03BB, DirectionBoth}, ///< \lamda does not exist, this is mostly for spelling errors
+    {QStringLiteral("lambda"), 0x03BB, DirectionBoth},
+    {QStringLiteral("mu"), 0x03BC, DirectionBoth},
+    {QStringLiteral("nu"), 0x03BD, DirectionBoth},
+    {QStringLiteral("xi"), 0x03BE, DirectionBoth},
+    {QStringLiteral("omicron"), 0x03BF, DirectionBoth},
+    {QStringLiteral("pi"), 0x03C0, DirectionBoth},
+    {QStringLiteral("rho"), 0x03C1, DirectionBoth},
+    {QStringLiteral("varsigma"), 0x03C2, DirectionBoth},
+    {QStringLiteral("sigma"), 0x03C3, DirectionBoth},
+    {QStringLiteral("tau"), 0x03C4, DirectionBoth},
+    {QStringLiteral("upsilon"), 0x03C5, DirectionBoth},
+    {QStringLiteral("varphi"), 0x03C6, DirectionBoth}, ///< see also 0x0278 (LATIN SMALL LETTER PHI)
+    {QStringLiteral("chi"), 0x03C7, DirectionBoth},
+    {QStringLiteral("psi"), 0x03C8, DirectionBoth},
+    {QStringLiteral("omega"), 0x03C9, DirectionBoth},
+    {QStringLiteral("vartheta"), 0x03D1, DirectionBoth},
+    {QStringLiteral("varpi"), 0x03D6, DirectionBoth},
+    {QStringLiteral("digamma"), 0x03DC, DirectionBoth},
+    {QStringLiteral("varkappa"), 0x03F0, DirectionBoth},
+    {QStringLiteral("varrho"), 0x03F1, DirectionBoth},
+    {QStringLiteral("epsilon"), 0x03F5, DirectionBoth},
+    {QStringLiteral("backepsilon"), 0x03F6, DirectionBoth},
+    {QStringLiteral("aleph"), 0x05D0, DirectionBoth},
+    {QStringLiteral("dagger"), 0x2020, DirectionBoth},
+    {QStringLiteral("ddagger"), 0x2021, DirectionBoth},
+    {QStringLiteral("mathbb{C}"), 0x2102, DirectionBoth},
     {QStringLiteral("ell"), 0x2113, DirectionBoth},
+    {QStringLiteral("mho"), 0x2127, DirectionBoth},
+    {QStringLiteral("beth"), 0x2136, DirectionBoth},
+    {QStringLiteral("gimel"), 0x2137, DirectionBoth},
+    {QStringLiteral("daleth"), 0x2138, DirectionBoth},
     {QStringLiteral("rightarrow"), 0x2192, DirectionBoth},
     {QStringLiteral("forall"), 0x2200, DirectionBoth},
+    {QStringLiteral("complement"), 0x2201, DirectionBoth},
+    {QStringLiteral("partial"), 0x2202, DirectionBoth},
     {QStringLiteral("exists"), 0x2203, DirectionBoth},
+    {QStringLiteral("nexists"), 0x2204, DirectionBoth},
+    {QStringLiteral("varnothing"), 0x2205, DirectionBoth},
+    {QStringLiteral("nabla"), 0x2207, DirectionBoth},
     {QStringLiteral("in"), 0x2208, DirectionBoth},
+    {QStringLiteral("notin"), 0x2209, DirectionBoth},
     {QStringLiteral("ni"), 0x220B, DirectionBoth},
+    {QStringLiteral("not\\ni"), 0x220C, DirectionBoth},
     {QStringLiteral("asterisk"), 0x2217, DirectionCommandToUnicode},
     {QStringLiteral("infty"), 0x221E, DirectionBoth},
+    {QStringLiteral("leq"), 0x2264, DirectionBoth},
+    {QStringLiteral("geq"), 0x2265, DirectionBoth},
+    {QStringLiteral("lneq"), 0x2268, DirectionBoth},
+    {QStringLiteral("gneq"), 0x2269, DirectionBoth},
+    {QStringLiteral("ll"), 0x226A, DirectionBoth},
+    {QStringLiteral("gg"), 0x226B, DirectionBoth},
+    {QStringLiteral("nless"), 0x226E, DirectionBoth},
+    {QStringLiteral("ngtr"), 0x226F, DirectionBoth},
+    {QStringLiteral("nleq"), 0x2270, DirectionBoth},
+    {QStringLiteral("ngeq"), 0x2271, DirectionBoth},
     {QStringLiteral("subset"), 0x2282, DirectionBoth},
     {QStringLiteral("supset"), 0x2283, DirectionBoth},
     {QStringLiteral("subseteq"), 0x2286, DirectionBoth},
@@ -556,7 +613,10 @@ mathCommands[] = {
     {QStringLiteral("supsetneq"), 0x228A, DirectionBoth},
     {QStringLiteral("Subset"), 0x22D0, DirectionBoth},
     {QStringLiteral("Supset"), 0x22D1, DirectionBoth},
+    {QStringLiteral("lll"), 0x22D8, DirectionBoth},
+    {QStringLiteral("ggg"), 0x22D9, DirectionBoth},
     {QStringLiteral("top"), 0x22A4, DirectionBoth},
+    {QStringLiteral("bot"), 0x22A5, DirectionBoth},
 };
 
 
@@ -574,7 +634,7 @@ static const struct EncoderLaTeXCharacterCommand {
     const EncoderLaTeXCommandDirection direction;
 }
 encoderLaTeXCharacterCommands[] = {
-    {QStringLiteral("textexclamdown"), 0x00A1, DirectionBoth}, // TODO /// recommended to write  !`  instead of  \textexclamdown
+    {QStringLiteral("textexclamdown"), 0x00A1, DirectionCommandToUnicode},
     {QStringLiteral("textcent"), 0x00A2, DirectionBoth},
     {QStringLiteral("pounds"), 0x00A3, DirectionBoth},
     {QStringLiteral("textsterling"), 0x00A3, DirectionBoth},
@@ -587,8 +647,9 @@ encoderLaTeXCharacterCommands[] = {
     {QStringLiteral("copyright"), 0x00A9, DirectionBoth},
     {QStringLiteral("textcopyright"), 0x00A9, DirectionBoth},
     {QStringLiteral("textordfeminine"), 0x00AA, DirectionBoth},
-    {QStringLiteral("guillemotleft"), 0x00AB, DirectionBoth},
+    {QStringLiteral("guillemotleft"), 0x00AB, DirectionCommandToUnicode},
     {QStringLiteral("textflqq"), 0x00AB, DirectionCommandToUnicode},
+    {QStringLiteral("flqq"), 0x00AB, DirectionBoth},
     /** 0x00AC */
     /** 0x00AD */
     {QStringLiteral("textregistered"), 0x00AE, DirectionBoth},
@@ -602,14 +663,15 @@ encoderLaTeXCharacterCommands[] = {
     {QStringLiteral("textmu"), 0x00B5, DirectionBoth},
     {QStringLiteral("textparagraph"), 0x00B6, DirectionBoth},
     {QStringLiteral("textpilcrow"), 0x00B6, DirectionBoth},
-    {QStringLiteral("textperiodcentered"), 0x00B7, DirectionBoth},
-    {QStringLiteral("textcdot"), 0x00B7, DirectionCommandToUnicode},
+    {QStringLiteral("textperiodcentered"), 0x00B7, DirectionCommandToUnicode},
+    {QStringLiteral("textcdot"), 0x00B7, DirectionBoth},
     {QStringLiteral("textcentereddot"), 0x00B7, DirectionCommandToUnicode},
     /** 0x00B8 */
     /** 0x00B9 */
     {QStringLiteral("textordmasculine"), 0x00BA, DirectionBoth},
-    {QStringLiteral("guillemotright"), 0x00BB, DirectionBoth},
+    {QStringLiteral("guillemotright"), 0x00BB, DirectionCommandToUnicode},
     {QStringLiteral("textfrqq"), 0x00BB, DirectionCommandToUnicode},
+    {QStringLiteral("frqq"), 0x00BB, DirectionBoth},
     {QStringLiteral("textonequarter"), 0x00BC, DirectionBoth},
     {QStringLiteral("textonehalf"), 0x00BD, DirectionBoth},
     {QStringLiteral("textthreequarters"), 0x00BE, DirectionBoth},
@@ -745,14 +807,29 @@ encoderLaTeXCharacterCommands[] = {
     {QStringLiteral("dz"), 0x01F3, DirectionCommandToUnicode},
     {QStringLiteral("HV"), 0x01F6, DirectionCommandToUnicode},
     {QStringLiteral("j"), 0x0237, DirectionBoth},
-    {QStringLiteral("ldots"), 0x2026, DirectionBoth}, /** \ldots must be before \l */ // TODO comment still true?
+    {QStringLiteral("ldots"), 0x2026, DirectionBoth},
     {QStringLiteral("grqq"), 0x201C, DirectionCommandToUnicode},
+    {QStringLiteral("textquotedblleft"), 0x201C, DirectionCommandToUnicode},
     {QStringLiteral("rqq"), 0x201D, DirectionCommandToUnicode},
+    {QStringLiteral("textquotedblright"), 0x201D, DirectionCommandToUnicode},
     {QStringLiteral("glqq"), 0x201E, DirectionCommandToUnicode},
-    {QStringLiteral("frqq"), 0x00BB, DirectionCommandToUnicode},
-    {QStringLiteral("flqq"), 0x00AB, DirectionCommandToUnicode},
+    {QStringLiteral("SS"), 0x1E9E, DirectionBoth},
+    {QStringLiteral("textendash"), 0x2013, DirectionCommandToUnicode},
+    {QStringLiteral("textemdash"), 0x2014, DirectionCommandToUnicode},
+    {QStringLiteral("textquoteleft"), 0x2018, DirectionCommandToUnicode},
+    {QStringLiteral("lq"), 0x2018, DirectionBoth},
+    {QStringLiteral("textquoteright"), 0x2019, DirectionCommandToUnicode},
     {QStringLiteral("rq"), 0x2019, DirectionBoth}, ///< tricky one: 'r' is a valid modifier
-    {QStringLiteral("lq"), 0x2018, DirectionBoth}
+    {QStringLiteral("quotesinglbase"), 0x201A, DirectionBoth},
+    {QStringLiteral("quotedblbase"), 0x201E, DirectionBoth},
+    {QStringLiteral("textbullet "), 0x2022, DirectionBoth},
+    {QStringLiteral("guilsinglleft "), 0x2039, DirectionBoth},
+    {QStringLiteral("guilsinglright "), 0x203A, DirectionBoth},
+    {QStringLiteral("textcelsius"), 0x2103, DirectionBoth},
+    {QStringLiteral("textleftarrow"), 0x2190, DirectionBoth},
+    {QStringLiteral("textuparrow"), 0x2191, DirectionBoth},
+    {QStringLiteral("textrightarrow"), 0x2192, DirectionBoth},
+    {QStringLiteral("textdownarrow"), 0x2193, DirectionBoth}
 };
 
 const QChar EncoderLaTeX::encoderLaTeXProtectedSymbols[] = {QLatin1Char('#'), QLatin1Char('&'), QLatin1Char('%')};
@@ -778,7 +855,7 @@ encoderLaTeXSymbolSequences[] = {
     {QStringLiteral("\"<"), 0x00AB, DirectionBoth},
     {QStringLiteral("\">"), 0x00BB, DirectionBoth},
     {QStringLiteral("?`"), 0x00BF, DirectionBoth},
-    {QStringLiteral("---"), 0x2014, DirectionBoth},
+    {QStringLiteral("---"), 0x2014, DirectionBoth}, ///< --- must come before --
     {QStringLiteral("--"), 0x2013, DirectionBoth},
     {QStringLiteral("``"), 0x201C, DirectionBoth},
     {QStringLiteral("''"), 0x201D, DirectionBoth},
@@ -793,19 +870,8 @@ encoderLaTeXSymbolSequences[] = {
 
 
 EncoderLaTeX::EncoderLaTeX()
+        : Encoder()
 {
-#ifdef HAVE_ICU
-    /// Create an ICU Transliterator, configured to
-    /// transliterate virtually anything into plain ASCII
-    UErrorCode uec = U_ZERO_ERROR;
-    m_trans = icu::Transliterator::createInstance("Any-Latin;Latin-ASCII", UTRANS_FORWARD, uec);
-    if (U_FAILURE(uec)) {
-        qCWarning(LOG_KBIBTEX_IO) << "Error creating an ICU Transliterator instance: " << u_errorName(uec);
-        if (m_trans != nullptr) delete m_trans;
-        m_trans = nullptr;
-    }
-#endif // HAVE_ICU
-
     /// Initialize lookup table with NULL pointers
     for (int i = 0; i < lookupTableNumModifiers; ++i) lookupTable[i] = nullptr;
 
@@ -853,11 +919,6 @@ EncoderLaTeX::~EncoderLaTeX()
     for (int i = lookupTableNumModifiers - 1; i >= 0; --i)
         if (lookupTable[i] != nullptr)
             delete lookupTable[i];
-
-#ifdef HAVE_ICU
-    if (m_trans != nullptr)
-        delete m_trans;
-#endif // HAVE_ICU
 }
 
 QString EncoderLaTeX::decode(const QString &input) const
@@ -1278,7 +1339,7 @@ QString EncoderLaTeX::encode(const QString &ninput, const TargetEncoding targetE
             /// Handle special cases of i without a dot (\i)
             for (const DotlessIJCharacter &dotlessIJCharacter : dotlessIJCharacters)
                 if (c.unicode() == dotlessIJCharacter.unicode && (dotlessIJCharacter.direction & DirectionUnicodeToCommand)) {
-                    output.append(QString(QStringLiteral("\\%1{\\%2}")).arg(dotlessIJCharacter.modifier).arg(dotlessIJCharacter.letter));
+                    output.append(QString(QStringLiteral("{\\%1\\%2}")).arg(dotlessIJCharacter.modifier, dotlessIJCharacter.letter));
                     found = true;
                     break;
                 }
@@ -1311,9 +1372,8 @@ QString EncoderLaTeX::encode(const QString &ninput, const TargetEncoding targetE
                 /// escaped characters with modifiers like \"a
                 for (const EncoderLaTeXEscapedCharacter &encoderLaTeXEscapedCharacter : encoderLaTeXEscapedCharacters)
                     if (encoderLaTeXEscapedCharacter.unicode == c.unicode() && (encoderLaTeXEscapedCharacter.direction & DirectionUnicodeToCommand)) {
-                        const QChar modifier = encoderLaTeXEscapedCharacter.modifier;
-                        const QString formatString = isAsciiLetter(modifier) ? QStringLiteral("{\\%1 %2}") : QStringLiteral("{\\%1%2}");
-                        output.append(formatString.arg(modifier).arg(encoderLaTeXEscapedCharacter.letter));
+                        const QString formatString = isAsciiLetter(encoderLaTeXEscapedCharacter.modifier) ? QStringLiteral("{\\%1 %2}") : QStringLiteral("{\\%1%2}");
+                        output.append(formatString.arg(encoderLaTeXEscapedCharacter.modifier).arg(encoderLaTeXEscapedCharacter.letter));
                         found = true;
                         break;
                     }
@@ -1379,49 +1439,6 @@ QString EncoderLaTeX::encode(const QString &ninput, const TargetEncoding targetE
     return output;
 }
 
-#ifdef HAVE_ICU
-QString EncoderLaTeX::convertToPlainAscii(const QString &ninput) const
-{
-    /// Previously, iconv's //TRANSLIT feature had been used here.
-    /// However, the transliteration is locale-specific as discussed
-    /// here:
-    /// http://taschenorakel.de/mathias/2007/11/06/iconv-transliterations/
-    /// Therefore, iconv is not an acceptable solution.
-    ///
-    /// Instead, "International Components for Unicode" (ICU) is used.
-    /// It is already a dependency for Qt, so there is no "cost" involved
-    /// in using it.
-
-    const int ninputLen = ninput.length();
-    /// Make a copy of the input string into an array of UChar
-    UChar *uChars = new UChar[ninputLen];
-    for (int i = 0; i < ninputLen; ++i)
-        uChars[i] = ninput.at(i).unicode();
-    /// Create an ICU-specific unicode string
-    icu::UnicodeString uString = icu::UnicodeString(uChars, ninputLen);
-    /// Perform the actual transliteration, modifying Unicode string
-    if (m_trans != nullptr) m_trans->transliterate(uString);
-    /// Create regular C++ string from Unicode string
-    std::string cppString;
-    uString.toUTF8String(cppString);
-    /// Clean up any mess
-    delete[] uChars;
-    /// Convert regular C++ to Qt-specific QString,
-    /// should work as cppString contains only ASCII text
-    return QString::fromStdString(cppString);
-}
-#endif // HAVE_ICU
-
-bool EncoderLaTeX::containsOnlyAscii(const QString &ntext)
-{
-    /// Perform Canonical Decomposition followed by Canonical Composition
-    const QString text = ntext.normalized(QString::NormalizationForm_C);
-
-    for (const QChar &c : text)
-        if (c.unicode() > 127) return false;
-    return true;
-}
-
 int EncoderLaTeX::modifierInLookupTable(const QChar modifier) const
 {
     for (int m = 0; m < lookupTableNumModifiers && lookupTable[m] != nullptr; ++m)
@@ -1444,184 +1461,3 @@ const EncoderLaTeX &EncoderLaTeX::instance()
     static const EncoderLaTeX self;
     return self;
 }
-
-#ifdef BUILD_TESTING
-bool EncoderLaTeX::writeLaTeXTables(QIODevice &output)
-{
-    if (!output.isOpen() || !output.isWritable()) return false;
-
-    output.write("\\documentclass{article}\n");
-    output.write("\\usepackage[utf8]{inputenc}% required for pdflatex, remove for lualatex or xelatex\n");
-    output.write("\\usepackage[T1]{fontenc}% required for pdflatex, remove for lualatex or xelatex\n");
-    output.write("\\usepackage{longtable}% tables breaking across multiple pages\n");
-    output.write("\\usepackage{booktabs}% nicer table lines\n");
-    output.write("\\usepackage{amssymb,textcomp}% more symbols\n");
-    output.write("\n");
-    output.write("\\begin{document}\n");
-
-    output.write("\\begin{longtable}{ccccc}\n");
-    output.write("\\toprule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endfirsthead\n");
-    output.write("\\toprule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endhead\n");
-    output.write("\\midrule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endfoot\n");
-    output.write("\\midrule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endlastfoot\n");
-    for (const EncoderLaTeXEscapedCharacter &encoderLaTeXEscapedCharacter : encoderLaTeXEscapedCharacters) {
-        output.write("\\verb|");
-        output.write(toUtf8(encoderLaTeXEscapedCharacter.modifier));
-        output.write("| & \\verb|");
-        output.write(toUtf8(encoderLaTeXEscapedCharacter.letter));
-        output.write("| & \\texttt{0x");
-        const QString unicodeStr = QStringLiteral("00000") + QString::number(encoderLaTeXEscapedCharacter.unicode, 16);
-        output.write(unicodeStr.right(4).toLatin1());
-        output.write("} & \\verb|\\");
-        output.write(toUtf8(encoderLaTeXEscapedCharacter.modifier));
-        output.write("|\\{\\verb|");
-        output.write(toUtf8(encoderLaTeXEscapedCharacter.letter));
-        output.write("|\\} & ");
-        if ((encoderLaTeXEscapedCharacter.direction & DirectionUnicodeToCommand) == 0)
-            output.write("\\emph{?}");
-        else {
-            output.write("{\\");
-            output.write(toUtf8(encoderLaTeXEscapedCharacter.modifier));
-            output.write("{");
-            output.write(toUtf8(encoderLaTeXEscapedCharacter.letter));
-            output.write("}}");
-        }
-        output.write(" \\\\\n");
-    }
-    output.write("\\end{longtable}\n\n");
-
-    output.write("\\begin{longtable}{ccccc}\n");
-    output.write("\\toprule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endfirsthead\n");
-    output.write("\\toprule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endhead\n");
-    output.write("\\midrule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endfoot\n");
-    output.write("\\midrule\n");
-    output.write("Modifier & Letter & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endlastfoot\n");
-    for (const DotlessIJCharacter &dotlessIJCharacter : dotlessIJCharacters) {
-        output.write("\\verb|");
-        output.write(toUtf8(dotlessIJCharacter.modifier));
-        output.write("| & \\verb|");
-        output.write(toUtf8(dotlessIJCharacter.letter));
-        output.write("| & \\texttt{0x");
-        const QString unicodeStr = QStringLiteral("00000") + QString::number(dotlessIJCharacter.unicode, 16);
-        output.write(unicodeStr.right(4).toLatin1());
-        output.write("} & \\verb|\\");
-        output.write(toUtf8(dotlessIJCharacter.modifier));
-        output.write("|\\{\\verb|\\");
-        output.write(toUtf8(dotlessIJCharacter.letter));
-        output.write("|\\} & ");
-        if ((dotlessIJCharacter.direction & DirectionUnicodeToCommand) == 0)
-            output.write("\\emph{?}");
-        else {
-            output.write("{\\");
-            output.write(toUtf8(dotlessIJCharacter.modifier));
-            output.write("{\\");
-            output.write(toUtf8(dotlessIJCharacter.letter));
-            output.write("}}");
-        }
-        output.write(" \\\\\n");
-    }
-    output.write("\\end{longtable}\n\n");
-
-    output.write("\\begin{longtable}{cccc}\n");
-    output.write("\\toprule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endfirsthead\n");
-    output.write("\\toprule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endhead\n");
-    output.write("\\midrule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endfoot\n");
-    output.write("\\midrule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endlastfoot\n");
-    for (const MathCommand &mathCommand : mathCommands) {
-        output.write("\\texttt{");
-        output.write(mathCommand.command.toUtf8());
-        output.write("} & \\texttt{0x");
-        const QString unicodeStr = QStringLiteral("00000") + QString::number(mathCommand.unicode, 16);
-        output.write(unicodeStr.right(4).toLatin1());
-        output.write("} & \\verb|$\\");
-        output.write(mathCommand.command.toUtf8());
-        output.write("$| & ");
-        if ((mathCommand.direction & DirectionUnicodeToCommand) == 0)
-            output.write("\\emph{?}");
-        else {
-            output.write("{$\\");
-            output.write(mathCommand.command.toUtf8());
-            output.write("$}");
-        }
-        output.write(" \\\\\n");
-    }
-    output.write("\\end{longtable}\n\n");
-
-
-    output.write("\\begin{longtable}{cccc}\n");
-    output.write("\\toprule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endfirsthead\n");
-    output.write("\\toprule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\midrule\n");
-    output.write("\\endhead\n");
-    output.write("\\midrule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endfoot\n");
-    output.write("\\midrule\n");
-    output.write("Text & Unicode & Command & Symbol \\\\\n");
-    output.write("\\bottomrule\n");
-    output.write("\\endlastfoot\n");
-    for (const EncoderLaTeXCharacterCommand &encoderLaTeXCharacterCommand : encoderLaTeXCharacterCommands) {
-        output.write("\\texttt{");
-        output.write(encoderLaTeXCharacterCommand.command.toUtf8());
-        output.write("} & \\texttt{0x");
-        const QString unicodeStr = QStringLiteral("00000") + QString::number(encoderLaTeXCharacterCommand.unicode, 16);
-        output.write(unicodeStr.right(4).toLatin1());
-        output.write("} & \\verb|\\");
-        output.write(encoderLaTeXCharacterCommand.command.toUtf8());
-        output.write("| & ");
-        if ((encoderLaTeXCharacterCommand.direction & DirectionUnicodeToCommand) == 0)
-            output.write("\\emph{?}");
-        else {
-            output.write("{\\");
-            output.write(encoderLaTeXCharacterCommand.command.toUtf8());
-            output.write("}");
-        }
-        output.write(" \\\\\n");
-    }
-    output.write("\\end{longtable}\n\n");
-
-    output.write("\\end{document}\n\n");
-
-    return true;
-}
-#endif // BUILD_TESTING

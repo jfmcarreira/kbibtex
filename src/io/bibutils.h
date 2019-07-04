@@ -15,12 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef IO_BIBUTILS_H
-#define IO_BIBUTILS_H
+#ifndef KBIBTEX_IO_BIBUTILS_H
+#define KBIBTEX_IO_BIBUTILS_H
 
 #include <QIODevice>
 
+#ifdef HAVE_KF5
 #include "kbibtexio_export.h"
+#endif // HAVE_KF5
 
 /**
  * This class encapsulates calling the various binary programs of the BibUtils program set.
@@ -64,4 +66,4 @@ private:
     Private *const d;
 };
 
-#endif // IO_BIBUTILS_H
+#endif // KBIBTEX_IO_BIBUTILS_H

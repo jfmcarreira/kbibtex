@@ -15,12 +15,14 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROC_CHECKBIBTEX_H
-#define KBIBTEX_PROC_CHECKBIBTEX_H
+#ifndef KBIBTEX_PROCESSING_CHECKBIBTEX_H
+#define KBIBTEX_PROCESSING_CHECKBIBTEX_H
 
 #include <QSharedPointer>
 
-#include "kbibtexproc_export.h"
+#ifdef HAVE_KF5
+#include "kbibtexprocessing_export.h"
+#endif // HAVE_KF5
 
 class Entry;
 class Element;
@@ -29,7 +31,7 @@ class File;
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  */
-class KBIBTEXPROC_EXPORT CheckBibTeX
+class KBIBTEXPROCESSING_EXPORT CheckBibTeX
 {
 public:
     enum CheckBibTeXResult { NoProblem, BibTeXWarning, BibTeXError, InvalidData, FailedToCheck };
@@ -38,4 +40,4 @@ public:
     static CheckBibTeXResult checkBibTeX(QSharedPointer<Entry> &entry, const File *file, QWidget *parent);
 };
 
-#endif // KBIBTEX_PROC_CHECKBIBTEX_H
+#endif // KBIBTEX_PROCESSING_CHECKBIBTEX_H
