@@ -41,7 +41,7 @@
 
 #include "findpdf.h"
 
-#include <onlinesearchieeexplore.h>
+//#include <onlinesearchieeexplore.h>
 
 
 class FindLocalPDF::Private
