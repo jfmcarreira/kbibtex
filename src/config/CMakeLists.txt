@@ -1,19 +1,24 @@
 set(
-    kbibtexconfig_LIB_SRCS
+    kbibtexconfig_SRCS
     notificationhub.cpp
     bibtexentries.cpp
     bibtexfields.cpp
     preferences.cpp
-    logging_config.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexconfig_SRCS
+    HEADER logging_config.h
+    IDENTIFIER LOG_KBIBTEX_CONFIG
+    CATEGORY_NAME kbibtex.config
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexconfig kbibtexconfig_LIB_SRCS)
+    enable_unity_build(kbibtexconfig kbibtexconfig_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexconfig
     SHARED
-    ${kbibtexconfig_LIB_SRCS}
+    ${kbibtexconfig_SRCS}
 )
 
 generate_export_header(kbibtexconfig)
@@ -34,10 +39,10 @@ target_include_directories(kbibtexconfig
 target_link_libraries(kbibtexconfig
     PUBLIC
         Qt5::Core
+        Qt5::Gui
         KBibTeX::Global
     PRIVATE
         KF5::ConfigCore
-        KF5::ConfigGui
         KF5::I18n
 )
 

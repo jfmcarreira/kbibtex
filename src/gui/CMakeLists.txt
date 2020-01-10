@@ -1,5 +1,5 @@
 set(
-    kbibtexgui_LIB_SRCS
+    kbibtexgui_SRCS
     element/associatedfilesui.cpp
     element/elementeditor.cpp
     element/elementwidgets.cpp
@@ -37,16 +37,21 @@ set(
     italictextitemmodel.cpp
     valuelistmodel.cpp
     delayedexecutiontimer.cpp
-    logging_gui.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexgui_SRCS
+    HEADER logging_gui.h
+    IDENTIFIER LOG_KBIBTEX_GUI
+    CATEGORY_NAME kbibtex.gui
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexgui kbibtexgui_LIB_SRCS)
+    enable_unity_build(kbibtexgui kbibtexgui_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexgui
     SHARED
-    ${kbibtexgui_LIB_SRCS}
+    ${kbibtexgui_SRCS}
 )
 generate_export_header(kbibtexgui)
 add_library(KBibTeX::GUI ALIAS kbibtexgui)
@@ -66,27 +71,25 @@ target_include_directories(kbibtexgui
 target_link_libraries(kbibtexgui
     PUBLIC
         Qt5::Core
-        Qt5::Gui
         Qt5::Widgets
-        # TODO refactor to be private
-        KF5::IconThemes
-        KBibTeX::Data
-        KBibTeX::Global
-        KBibTeX::Networking
     PRIVATE
         Poppler::Qt5
+        Qt5::Gui
         Qt5::Concurrent
         Qt5::XmlPatterns
         KF5::ConfigCore
-        KF5::ConfigGui
         KF5::I18n
+        KF5::IconThemes
         KF5::WidgetsAddons
         KF5::KIOCore
         KF5::KIOFileWidgets
         KF5::Parts
         KF5::TextEditor
         KBibTeX::Config
+        KBibTeX::Data
+        KBibTeX::Global
         KBibTeX::IO
+        KBibTeX::Networking
         KBibTeX::Processing
 )
 

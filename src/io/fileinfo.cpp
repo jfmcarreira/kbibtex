@@ -20,6 +20,7 @@
 #include <poppler-qt5.h>
 
 #include <QFileInfo>
+#include <QMimeDatabase>
 #include <QDir>
 #include <QTextStream>
 #include <QStandardPaths>
@@ -43,7 +44,7 @@ const QString FileInfo::mimetypePDF = QStringLiteral("application/pdf");
 
 QMimeType FileInfo::mimeTypeForUrl(const QUrl &url)
 {
-    if (!url.isValid() || url.isEmpty()) {
+    if (!url.isValid()) {
         qCWarning(LOG_KBIBTEX_IO) << "Cannot determine mime type for empty or invalid QUrl";
         return QMimeType(); ///< invalid input gives invalid mime type
     }
@@ -208,8 +209,9 @@ void FileInfo::urlsInText(const QString &text, const TestExistence testExistence
         while ((fileRegExpMatch = KBibTeX::fileRegExp.match(internalText, pos)).hasMatch()) {
             pos = fileRegExpMatch.capturedStart(0);
             const QString match = fileRegExpMatch.captured(0);
-            QUrl url(match);
-            if (url.isValid() && (testExistence == TestExistenceNo || !url.isLocalFile() || QFileInfo::exists(url.toLocalFile())) && !result.contains(url))
+            const QFileInfo fi(match);
+            const QUrl url = QUrl::fromLocalFile(!match.startsWith(QStringLiteral("/")) && !match.startsWith(QStringLiteral("http")) && fi.isRelative() && !baseDirectory.isEmpty() ? baseDirectory + QStringLiteral("/") + match : match);
+            if (url.isValid() && (testExistence == TestExistenceNo || QFileInfo::exists(url.toLocalFile())) && !result.contains(url))
                 result << url;
             /// remove match from internal text to avoid duplicates
             internalText = internalText.left(pos) + internalText.mid(pos + match.length());

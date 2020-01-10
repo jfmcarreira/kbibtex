@@ -23,10 +23,10 @@
 #include <QTimer>
 #include <QStandardPaths>
 #include <QRegularExpression>
-#ifdef HAVE_QTWIDGETS
-#include <QListWidgetItem>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#ifdef HAVE_QTWIDGETS
+#include <QListWidgetItem>
 #endif // HAVE_QTWIDGETS
 
 #ifdef HAVE_KF5
@@ -37,6 +37,7 @@
 #include <KBibTeX>
 #include <Encoder>
 #include "internalnetworkaccessmanager.h"
+#include "onlinesearchabstract_p.h"
 #include "logging_networking.h"
 
 const QString OnlineSearchAbstract::queryKeyFreeText = QStringLiteral("free");
@@ -55,7 +56,12 @@ const char *OnlineSearchAbstract::httpUnsafeChars = "%:/=+$?&\0";
 
 
 #ifdef HAVE_QTWIDGETS
-QStringList OnlineSearchQueryFormAbstract::authorLastNames(const Entry &entry)
+OnlineSearchAbstract::Form::Private::Private()
+        : config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))) {
+    /// nothing
+}
+
+QStringList OnlineSearchAbstract::Form::Private::authorLastNames(const Entry &entry)
 {
     const Encoder &encoder = Encoder::instance();
     const Value v = entry[Entry::ftAuthor];
@@ -70,7 +76,7 @@ QStringList OnlineSearchQueryFormAbstract::authorLastNames(const Entry &entry)
     return result;
 }
 
-QString OnlineSearchQueryFormAbstract::guessFreeText(const Entry &entry) const
+QString OnlineSearchAbstract::Form::Private::guessFreeText(const Entry &entry)
 {
     /// If there is a DOI value in this entry, use it as free text
     static const QStringList doiKeys = {Entry::ftDOI, Entry::ftUrl};
@@ -126,7 +132,7 @@ QIcon OnlineSearchAbstract::icon(QListWidgetItem *listWidgetItem)
     return QIcon::fromTheme(QStringLiteral("applications-internet"));
 }
 
-OnlineSearchQueryFormAbstract *OnlineSearchAbstract::customWidget(QWidget *) {
+OnlineSearchAbstract::Form *OnlineSearchAbstract::customWidget(QWidget *) {
     return nullptr;
 }
 
@@ -465,7 +471,7 @@ void OnlineSearchAbstract::iconDownloadFinished()
         if (iconData[1] == 'P' && iconData[2] == 'N' && iconData[3] == 'G') {
             /// PNG files have string "PNG" at second to fourth byte
             extension = QStringLiteral(".png");
-        } else if (iconData[0] == (char)0x00 && iconData[1] == (char)0x00 && iconData[2] == (char)0x01 && iconData[3] == (char)0x00) {
+        } else if (iconData[0] == static_cast<char>(0x00) && iconData[1] == static_cast<char>(0x00) && iconData[2] == static_cast<char>(0x01) && iconData[3] == static_cast<char>(0x00)) {
             /// Microsoft Icon have first two bytes always 0x0000,
             /// third and fourth byte is 0x0001 (for .ico)
             extension = QStringLiteral(".ico");
@@ -681,3 +687,16 @@ void OnlineSearchAbstract::refreshBusyProperty() {
         emit busyChanged();
     }
 }
+
+#ifdef HAVE_QTWIDGETS
+OnlineSearchAbstract::Form::Form(QWidget *parent)
+        : QWidget(parent), d(new OnlineSearchAbstract::Form::Private())
+{
+    /// nothing
+}
+
+OnlineSearchAbstract::Form::~Form()
+{
+    delete d;
+}
+#endif // HAVE_QTWIDGETS

@@ -20,7 +20,6 @@
 #include <typeinfo>
 
 #include <QMenu>
-#include <QSignalMapper>
 #include <QBuffer>
 #include <QFileInfo>
 #include <QDir>
@@ -29,7 +28,6 @@
 #include <QPushButton>
 #include <QFontDatabase>
 #include <QUrl>
-#include <QMimeDatabase>
 #include <QMimeType>
 #include <QMimeData>
 #include <QRegularExpression>
@@ -57,22 +55,19 @@ private:
     Value currentValue;
     KBibTeX::TypeFlag preferredTypeFlag;
     KBibTeX::TypeFlags typeFlags;
-    QSignalMapper *menuTypesSignalMapper;
     QPushButton *buttonOpenUrl;
 
 public:
     QMenu *menuTypes;
-    KBibTeX::TypeFlag typeFlag;
     QUrl urlToOpen;
     const File *file;
     QString fieldKey;
+    KBibTeX::TypeFlag typeFlag;
 
     FieldLineEditPrivate(KBibTeX::TypeFlag ptf, KBibTeX::TypeFlags tf, FieldLineEdit *p)
             : parent(p), preferredTypeFlag(ptf), typeFlags(tf), file(nullptr) {
         menuTypes = new QMenu(parent);
-        menuTypesSignalMapper = new QSignalMapper(parent);
         setupMenu();
-        connect(menuTypesSignalMapper, static_cast<void(QSignalMapper::*)(int)>(&QSignalMapper::mapped), parent, &FieldLineEdit::slotTypeChanged);
 
         buttonOpenUrl = new QPushButton(QIcon::fromTheme(QStringLiteral("document-open-remote")), QString(), parent);
         buttonOpenUrl->setVisible(false);
@@ -280,47 +275,61 @@ public:
         menuTypes->clear();
 
         if (typeFlags.testFlag(KBibTeX::tfPlainText)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfPlainText), i18n("Plain Text"), menuTypesSignalMapper, SLOT(map()));
-            menuTypesSignalMapper->setMapping(action, KBibTeX::tfPlainText);
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfPlainText), i18n("Plain Text"));
+            connect(action, &QAction::triggered, parent, [this]() {
+                typeChanged(KBibTeX::tfPlainText);
+            });
         }
         if (typeFlags.testFlag(KBibTeX::tfReference)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfReference), i18n("Reference"), menuTypesSignalMapper, SLOT(map()));
-            menuTypesSignalMapper->setMapping(action, KBibTeX::tfReference);
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfReference), i18n("Reference"));
+            connect(action, &QAction::triggered, parent, [this]() {
+                typeChanged(KBibTeX::tfReference);
+            });
         }
         if (typeFlags.testFlag(KBibTeX::tfPerson)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfPerson), i18n("Person"), menuTypesSignalMapper, SLOT(map()));
-            menuTypesSignalMapper->setMapping(action, KBibTeX::tfPerson);
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfPerson), i18n("Person"));
+            connect(action, &QAction::triggered, parent, [this]() {
+                typeChanged(KBibTeX::tfPerson);
+            });
         }
         if (typeFlags.testFlag(KBibTeX::tfKeyword)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfKeyword), i18n("Keyword"), menuTypesSignalMapper, SLOT(map()));
-            menuTypesSignalMapper->setMapping(action, KBibTeX::tfKeyword);
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfKeyword), i18n("Keyword"));
+            connect(action, &QAction::triggered, parent, [this]() {
+                typeChanged(KBibTeX::tfKeyword);
+            });
         }
         if (typeFlags.testFlag(KBibTeX::tfSource)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfSource), i18n("Source Code"), menuTypesSignalMapper, SLOT(map()));
-            menuTypesSignalMapper->setMapping(action, KBibTeX::tfSource);
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfSource), i18n("Source Code"));
+            connect(action, &QAction::triggered, parent, [this]() {
+                typeChanged(KBibTeX::tfSource);
+            });
         }
         if (typeFlags.testFlag(KBibTeX::tfVerbatim)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfVerbatim), i18n("Verbatim Text"), menuTypesSignalMapper, SLOT(map()));
-            menuTypesSignalMapper->setMapping(action, KBibTeX::tfVerbatim);
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfVerbatim), i18n("Verbatim Text"));
+            connect(action, &QAction::triggered, parent, [this]() {
+                typeChanged(KBibTeX::tfVerbatim);
+            });
         }
     }
 
     QIcon iconForTypeFlag(KBibTeX::TypeFlag typeFlag) {
         switch (typeFlag) {
+        case KBibTeX::tfInvalid: return QIcon();
         case KBibTeX::tfPlainText: return QIcon::fromTheme(QStringLiteral("draw-text"));
         case KBibTeX::tfReference: return QIcon::fromTheme(QStringLiteral("emblem-symbolic-link"));
         case KBibTeX::tfPerson: return QIcon::fromTheme(QStringLiteral("user-identity"));
         case KBibTeX::tfKeyword: return QIcon::fromTheme(QStringLiteral("edit-find"));
         case KBibTeX::tfSource: return QIcon::fromTheme(QStringLiteral("code-context"));
         case KBibTeX::tfVerbatim: return QIcon::fromTheme(QStringLiteral("preferences-desktop-keyboard"));
-        default: return QIcon();
-        };
+        }
+        return QIcon(); //< should never happen as switch above covers all cases
     }
 
     void updateGUI(KBibTeX::TypeFlag typeFlag) {
         parent->setFont(QFontDatabase::systemFont(QFontDatabase::GeneralFont));
         parent->setIcon(iconForTypeFlag(typeFlag));
         switch (typeFlag) {
+        case KBibTeX::tfInvalid: parent->setButtonToolTip(QString()); break;
         case KBibTeX::tfPlainText: parent->setButtonToolTip(i18n("Plain Text")); break;
         case KBibTeX::tfReference: parent->setButtonToolTip(i18n("Reference")); break;
         case KBibTeX::tfPerson: parent->setButtonToolTip(i18n("Person")); break;
@@ -330,8 +339,7 @@ public:
             parent->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
             break;
         case KBibTeX::tfVerbatim: parent->setButtonToolTip(i18n("Verbatim Text")); break;
-        default: parent->setButtonToolTip(QString()); break;
-        };
+        }
     }
 
     void openUrl() {
@@ -340,11 +348,7 @@ public:
             QMimeType mimeType = FileInfo::mimeTypeForUrl(urlToOpen);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
-#if KIO_VERSION < 0x051f00 // < 5.31.0
-            KRun::runUrl(urlToOpen, mimeTypeName, parent, false, false);
-#else // KIO_VERSION < 0x051f00 // >= 5.31.0
             KRun::runUrl(urlToOpen, mimeTypeName, parent, KRun::RunFlags());
-#endif // KIO_VERSION < 0x051f00
         }
     }
 
@@ -439,6 +443,18 @@ public:
     void textChanged(const QString &text) {
         updateURL(text);
     }
+
+    void typeChanged(const KBibTeX::TypeFlag newTypeFlag)
+    {
+        Value value;
+        apply(value);
+
+        if (convertValueType(value, newTypeFlag)) {
+            typeFlag = newTypeFlag;
+            reset(value);
+        } else
+            KMessageBox::error(parent, i18n("The current text cannot be used as value of type '%1'.\n\nSwitching back to type '%2'.", BibTeXFields::typeFlagToString(newTypeFlag), BibTeXFields::typeFlagToString(typeFlag)));
+    }
 };
 
 FieldLineEdit::FieldLineEdit(KBibTeX::TypeFlag preferredTypeFlag, KBibTeX::TypeFlags typeFlags, bool isMultiLine, QWidget *parent)
@@ -474,20 +490,6 @@ bool FieldLineEdit::validate(QWidget **widgetWithIssue, QString &message) const
 void FieldLineEdit::setReadOnly(bool isReadOnly)
 {
     MenuLineEdit::setReadOnly(isReadOnly);
-}
-
-void FieldLineEdit::slotTypeChanged(int newTypeFlagInt)
-{
-    const KBibTeX::TypeFlag newTypeFlag = static_cast<KBibTeX::TypeFlag>(newTypeFlagInt);
-
-    Value value;
-    d->apply(value);
-
-    if (d->convertValueType(value, newTypeFlag)) {
-        d->typeFlag = newTypeFlag;
-        d->reset(value);
-    } else
-        KMessageBox::error(this, i18n("The current text cannot be used as value of type '%1'.\n\nSwitching back to type '%2'.", BibTeXFields::typeFlagToString(newTypeFlag), BibTeXFields::typeFlagToString(d->typeFlag)));
 }
 
 void FieldLineEdit::setFile(const File *file)

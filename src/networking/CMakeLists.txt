@@ -1,5 +1,5 @@
 set(
-    kbibtexnetworking_LIB_SRCS
+    kbibtexnetworking_SRCS
     onlinesearch/onlinesearchabstract.cpp
     onlinesearch/onlinesearchbibsonomy.cpp
     onlinesearch/onlinesearcharxiv.cpp
@@ -34,16 +34,22 @@ set(
     findpdf.cpp
     findlocalpdf.cpp
     internalnetworkaccessmanager.cpp
-    logging_networking.cpp
+    urlchecker.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexnetworking_SRCS
+    HEADER logging_networking.h
+    IDENTIFIER LOG_KBIBTEX_NETWORKING
+    CATEGORY_NAME kbibtex.networking
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexnetworking kbibtexnetworking_LIB_SRCS)
+    enable_unity_build(kbibtexnetworking kbibtexnetworking_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexnetworking
     SHARED
-    ${kbibtexnetworking_LIB_SRCS}
+    ${kbibtexnetworking_SRCS}
 )
 generate_export_header(kbibtexnetworking)
 add_library(KBibTeX::Networking ALIAS kbibtexnetworking)
@@ -63,17 +69,14 @@ target_include_directories(kbibtexnetworking
 target_link_libraries(kbibtexnetworking
     PUBLIC
         Qt5::Core
-        Qt5::Gui
         Qt5::Network
         Qt5::Widgets
-        # TODO refactor code to not expose config interface
-        KF5::ConfigCore
-        KF5::ConfigGui
         KBibTeX::Data
     PRIVATE
         Poppler::Qt5
         Qt5::DBus
         Qt5::NetworkAuth
+        KF5::ConfigCore
         KF5::WidgetsAddons
         KF5::I18n
         KF5::KIOCore
@@ -99,6 +102,7 @@ ecm_generate_headers(kbibtexnetworking_HEADERS
         AssociatedFiles
         FindPDF
         InternalNetworkAccessManager
+        UrlChecker
         onlinesearch/OnlineSearchAbstract
         onlinesearch/OnlineSearchGeneral
         onlinesearch/OnlineSearchAcmPortal

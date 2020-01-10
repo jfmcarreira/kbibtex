@@ -22,7 +22,6 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
-#include <QDebug>
 #include <QRegularExpression>
 
 #ifdef HAVE_KF5
@@ -35,6 +34,7 @@
 
 #include <Preferences>
 #include "file.h"
+#include "logging_data.h"
 
 quint64 ValueItem::internalIdCounter = 0;
 
@@ -371,7 +371,6 @@ bool VerbatimText::containsPattern(const QString &pattern, Qt::CaseSensitivity c
     const QString text = QString(m_text).remove(ignoredInSorting);
 
     bool contained = text.contains(pattern, caseSensitive);
-#ifdef HAVE_KF5
     if (!contained) {
         /// Only if simple text match failed, check color labels
         /// For a match, the user's pattern has to be the start of the color label
@@ -379,7 +378,6 @@ bool VerbatimText::containsPattern(const QString &pattern, Qt::CaseSensitivity c
         for (QVector<QPair<QColor, QString>>::ConstIterator it = Preferences::instance().colorCodes().constBegin(); !contained && it != Preferences::instance().colorCodes().constEnd(); ++it)
             contained = text.compare(it->first.name(), Qt::CaseInsensitive) == 0 && it->second.contains(pattern, Qt::CaseInsensitive);
     }
-#endif // HAVE_KF5
 
     return contained;
 }
@@ -667,7 +665,7 @@ QString PlainTextValue::text(const ValueItem &valueItem, ValueItemType &vit)
                         result = verbatimText->text();
                         isVerbatim = true;
                     } else
-                        qWarning() << "Cannot interpret ValueItem to one of its descendants";
+                        qCWarning(LOG_KBIBTEX_DATA) << "Cannot interpret ValueItem to one of its descendants";
                 }
             }
         }

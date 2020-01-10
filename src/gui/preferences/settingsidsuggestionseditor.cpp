@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -17,6 +17,9 @@
 
 #include "settingsidsuggestionseditor.h"
 
+#include <limits>
+
+#include <QTimer>
 #include <QGridLayout>
 #include <QFormLayout>
 #include <QScrollArea>
@@ -25,7 +28,6 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QCheckBox>
-#include <QSignalMapper>
 #include <QMenu>
 #include <QPointer>
 #include <QPushButton>
@@ -98,7 +100,7 @@ private slots:
         const int upper = rangeWidgetAuthor->upperValue();
         const int max = rangeWidgetAuthor->maximum();
 
-        labelAuthorRange->setText(IdSuggestions::formatAuthorRange(lower, upper == max ? 0x00ffffff : upper, checkBoxLastAuthor->isChecked()));
+        labelAuthorRange->setText(IdSuggestions::formatAuthorRange(lower, upper == max ? std::numeric_limits<int>::max() : upper, checkBoxLastAuthor->isChecked()));
     }
 
 public:
@@ -121,7 +123,11 @@ public:
 
         labelAuthorRange = new QLabel(this);
         boxLayout->addWidget(labelAuthorRange);
+#if QT_VERSION >= 0x050b00
+        const int maxWidth = qMax(labelAuthorRange->fontMetrics().horizontalAdvance(i18n("From first author to author %1 and last author", 88)), labelAuthorRange->fontMetrics().horizontalAdvance(i18n("From author %1 to author %2 and last author", 88, 88)));
+#else // QT_VERSION >= 0x050b00
         const int maxWidth = qMax(labelAuthorRange->fontMetrics().width(i18n("From first author to author %1 and last author", 88)), labelAuthorRange->fontMetrics().width(i18n("From author %1 to author %2 and last author", 88, 88)));
+#endif // QT_VERSION >= 0x050b00
         labelAuthorRange->setMinimumWidth(maxWidth);
 
         comboBoxChangeCase = new QComboBox(this);
@@ -293,11 +299,11 @@ private slots:
 
         if (lower == 0 && upper == 0)
             labelWordsRange->setText(i18n("First word only"));
-        else if (lower == 1 && upper == max)
+        else if (lower == 1 && upper >= max)
             labelWordsRange->setText(i18n("All but first word"));
-        else if (lower == 0 && upper == max)
+        else if (lower == 0 && upper >= max)
             labelWordsRange->setText(i18n("From first to last word"));
-        else if (lower > 0 && upper == max)
+        else if (lower > 0 && upper >= max)
             labelWordsRange->setText(i18n("From word %1 to last word", lower + 1));
         else if (lower == 0 && upper < max)
             labelWordsRange->setText(i18n("From first word to word %1", upper + 1));
@@ -317,18 +323,18 @@ public:
         static const QStringList wordRange {i18n("First word"), i18n("Second word"), i18n("Third word"), i18n("Fourth word"), i18n("Fifth word"), i18n("Sixth word"), i18n("Seventh word"), i18n("Eighth word"), i18n("Ninth word"), i18n("Tenth word"), i18n("|Last word")};
         rangeWidgetAuthor = new RangeWidget(wordRange, this);
         boxLayout->addWidget(rangeWidgetAuthor);
-        if (info.startWord > 0 || info.endWord < 0xffff) {
-            rangeWidgetAuthor->setLowerValue(info.startWord);
-            rangeWidgetAuthor->setUpperValue(qMin(rangeWidgetAuthor->maximum(), info.endWord));
-        } else {
-            rangeWidgetAuthor->setLowerValue(0);
-            rangeWidgetAuthor->setUpperValue(rangeWidgetAuthor->maximum());
-        }
+        rangeWidgetAuthor->setLowerValue(info.startWord);
+        rangeWidgetAuthor->setUpperValue(qMin(rangeWidgetAuthor->maximum(), info.endWord));
 
         labelWordsRange = new QLabel(this);
         boxLayout->addWidget(labelWordsRange);
+#if QT_VERSION >= 0x050b00
+        const int a = qMax(labelWordsRange->fontMetrics().horizontalAdvance(i18n("From first to last word")), labelWordsRange->fontMetrics().horizontalAdvance(i18n("From word %1 to last word", 88)));
+        const int b = qMax(labelWordsRange->fontMetrics().horizontalAdvance(i18n("From first word to word %1", 88)), labelWordsRange->fontMetrics().horizontalAdvance(i18n("From word %1 to word %2", 88, 88)));
+#else // QT_VERSION >= 0x050b00
         const int a = qMax(labelWordsRange->fontMetrics().width(i18n("From first to last word")), labelWordsRange->fontMetrics().width(i18n("From word %1 to last word", 88)));
         const int b = qMax(labelWordsRange->fontMetrics().width(i18n("From first word to word %1", 88)), labelWordsRange->fontMetrics().width(i18n("From word %1 to word %2", 88, 88)));
+#endif // QT_VERSION >= 0x050b00
         labelWordsRange->setMinimumWidth(qMax(a, b));
 
         checkBoxRemoveSmallWords = new QCheckBox(i18n("Remove"), this);
@@ -561,6 +567,7 @@ private:
     IdSuggestionsEditWidget *p;
 public:
     enum TokenType {ttTitle, ttAuthor, ttYear, ttJournal, ttType, ttText, ttVolume, ttPageNumber};
+    enum Location {locAtTop, locAtBottom};
 
     QWidget *container;
     QBoxLayout *containerLayout;
@@ -568,7 +575,6 @@ public:
     QLabel *labelPreview;
     QPushButton *buttonAddTokenAtTop, *buttonAddTokenAtBottom;
     const Entry *previewEntry;
-    QSignalMapper *signalMapperRemove, *signalMapperMoveUp, *signalMapperMoveDown;
     QScrollArea *area;
 
     IdSuggestionsEditWidgetPrivate(const Entry *pe, IdSuggestionsEditWidget *parent)
@@ -603,54 +609,74 @@ public:
         containerLayout->addWidget(buttonAddTokenAtBottom, 0);
 
         QMenu *menuAddToken = new QMenu(p);
-        QSignalMapper *signalMapperAddMenu = new QSignalMapper(p);
         buttonAddTokenAtTop->setMenu(menuAddToken);
-        QAction *action = menuAddToken->addAction(i18n("Title"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttTitle);
-        action = menuAddToken->addAction(i18n("Author"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttAuthor);
-        action = menuAddToken->addAction(i18n("Year"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttYear);
-        action = menuAddToken->addAction(i18n("Journal"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttJournal);
-        action = menuAddToken->addAction(i18n("Type"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttType);
-        action = menuAddToken->addAction(i18n("Volume"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttVolume);
-        action = menuAddToken->addAction(i18n("Page Number"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttPageNumber);
-        action = menuAddToken->addAction(i18n("Text"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, -ttText);
-        connect(signalMapperAddMenu, static_cast<void(QSignalMapper::*)(int)>(&QSignalMapper::mapped), p, &IdSuggestionsEditWidget::addToken);
+        QAction *action = menuAddToken->addAction(i18n("Title"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttTitle, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Author"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttAuthor, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Year"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttYear, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Journal"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttJournal, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Type"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttType, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Volume"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttVolume, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Page Number"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttPageNumber, locAtTop);
+        });
+        action = menuAddToken->addAction(i18n("Text"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttText, locAtTop);
+        });
 
         menuAddToken = new QMenu(p);
-        signalMapperAddMenu = new QSignalMapper(p);
         buttonAddTokenAtBottom->setMenu(menuAddToken);
-        action = menuAddToken->addAction(i18n("Title"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttTitle);
-        action = menuAddToken->addAction(i18n("Author"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttAuthor);
-        action = menuAddToken->addAction(i18n("Year"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttYear);
-        action = menuAddToken->addAction(i18n("Journal"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttJournal);
-        action = menuAddToken->addAction(i18n("Type"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttType);
-        action = menuAddToken->addAction(i18n("Volume"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttVolume);
-        action = menuAddToken->addAction(i18n("Page Number"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttPageNumber);
-        action = menuAddToken->addAction(i18n("Text"), signalMapperAddMenu, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-        signalMapperAddMenu->setMapping(action, ttText);
-        connect(signalMapperAddMenu, static_cast<void(QSignalMapper::*)(int)>(&QSignalMapper::mapped), p, &IdSuggestionsEditWidget::addToken);
-
-        signalMapperMoveUp = new QSignalMapper(p);
-        connect(signalMapperMoveUp, static_cast<void(QSignalMapper::*)(QWidget *)>(&QSignalMapper::mapped), p, &IdSuggestionsEditWidget::moveUpToken);
-        signalMapperMoveDown = new QSignalMapper(p);
-        connect(signalMapperMoveDown, static_cast<void(QSignalMapper::*)(QWidget *)>(&QSignalMapper::mapped), p, &IdSuggestionsEditWidget::moveDownToken);
-        signalMapperRemove = new QSignalMapper(p);
-        connect(signalMapperRemove, static_cast<void(QSignalMapper::*)(QWidget *)>(&QSignalMapper::mapped), p, &IdSuggestionsEditWidget::removeToken);
-
+        action = menuAddToken->addAction(i18n("Title"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttTitle, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Author"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttAuthor, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Year"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttYear, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Journal"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttJournal, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Type"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttType, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Volume"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttVolume, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Page Number"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttPageNumber, locAtBottom);
+        });
+        action = menuAddToken->addAction(i18n("Text"));
+        connect(action, &QAction::triggered, p, [this]() {
+            addToken(ttText, locAtBottom);
+        });
     }
 
     void addManagementButtons(TokenWidget *tokenWidget) {
@@ -659,24 +685,27 @@ public:
             QPushButton *buttonDown = new QPushButton(QIcon::fromTheme(QStringLiteral("go-down")), QString(), tokenWidget);
             QPushButton *buttonRemove = new QPushButton(QIcon::fromTheme(QStringLiteral("list-remove")), QString(), tokenWidget);
             tokenWidget->addButtons(buttonUp, buttonDown, buttonRemove);
-            connect(buttonUp, &QPushButton::clicked, signalMapperMoveUp, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-            signalMapperMoveUp->setMapping(buttonUp, tokenWidget);
-            connect(buttonDown, &QPushButton::clicked, signalMapperMoveDown, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-            signalMapperMoveDown->setMapping(buttonDown, tokenWidget);
-            connect(buttonRemove, &QPushButton::clicked, signalMapperRemove, static_cast<void(QSignalMapper::*)()>(&QSignalMapper::map));
-            signalMapperRemove->setMapping(buttonRemove, tokenWidget);
+            connect(buttonUp, &QPushButton::clicked, p, [this, tokenWidget]() {
+                moveUpToken(tokenWidget);
+            });
+            connect(buttonDown, &QPushButton::clicked, p, [this, tokenWidget]() {
+                moveDownToken(tokenWidget);
+            });
+            connect(buttonRemove, &QPushButton::clicked, p, [this, tokenWidget]() {
+                removeToken(tokenWidget);
+            });
         }
     }
 
-    void add(TokenType tokenType, bool atTop) {
+    void add(const TokenType tokenType, const Location location) {
         TokenWidget *tokenWidget = nullptr;
         switch (tokenType) {
         case ttTitle: {
             struct IdSuggestions::IdSuggestionTokenInfo info;
             info.inBetween = QString();
-            info.len = -1;
+            info.len = std::numeric_limits<int>::max();
             info.startWord = 0;
-            info.endWord = 0x00ffffff;
+            info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
             info.caseChange = IdSuggestions::ccNoChange;
             tokenWidget = new TitleWidget(info, true, p, container);
@@ -685,9 +714,9 @@ public:
         case ttAuthor: {
             struct IdSuggestions::IdSuggestionTokenInfo info;
             info.inBetween = QString();
-            info.len = -1;
+            info.len = std::numeric_limits<int>::max();
             info.startWord = 0;
-            info.endWord = 0x00ffffff;
+            info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
             info.caseChange = IdSuggestions::ccNoChange;
             tokenWidget = new AuthorWidget(info, p, container);
@@ -701,7 +730,7 @@ public:
             info.inBetween = QString();
             info.len = 1;
             info.startWord = 0;
-            info.endWord = 0x00ffffff;
+            info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
             info.caseChange = IdSuggestions::ccNoChange;
             tokenWidget = new JournalWidget(info, true, p, container);
@@ -710,9 +739,9 @@ public:
         case ttType: {
             struct IdSuggestions::IdSuggestionTokenInfo info;
             info.inBetween = QString();
-            info.len = -1;
+            info.len = std::numeric_limits<int>::max();
             info.startWord = 0;
-            info.endWord = 0x00ffffff;
+            info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
             info.caseChange = IdSuggestions::ccNoChange;
             tokenWidget = new TypeWidget(info, p, container);
@@ -730,8 +759,11 @@ public:
         }
 
         if (tokenWidget != nullptr) {
-            const int pos = atTop ? 1 : containerLayout->count() - 2;
-            atTop ? widgetList.prepend(tokenWidget) : widgetList.append(tokenWidget);
+            const int pos = location == locAtTop ? 1 : containerLayout->count() - 2;
+            if (location == locAtTop)
+                widgetList.prepend(tokenWidget);
+            else if (location == locAtBottom)
+                widgetList.append(tokenWidget);
             containerLayout->insertWidget(pos, tokenWidget, 1);
             addManagementButtons(tokenWidget);
         }
@@ -752,7 +784,7 @@ public:
                     info.startWord = info.endWord = 0;
                 else if (token[0] == 'z') {
                     info.startWord = 1;
-                    info.endWord = 0x00ffffff;
+                    info.endWord = std::numeric_limits<int>::max();
                 }
                 tokenWidget = new AuthorWidget(info, p, container);
                 widgetList << tokenWidget;
@@ -809,6 +841,56 @@ public:
 
         return result.join(QStringLiteral("|"));
     }
+
+    void addToken(const IdSuggestionsEditWidgetPrivate::TokenType cmd, const IdSuggestionsEditWidgetPrivate::Location location)
+    {
+        if (location == IdSuggestionsEditWidgetPrivate::locAtTop) {
+            add(cmd, IdSuggestionsEditWidgetPrivate::locAtTop);
+            QTimer::singleShot(50, p, [this]() {
+                area->ensureWidgetVisible(buttonAddTokenAtTop);
+            });
+        } else if (location == IdSuggestionsEditWidgetPrivate::locAtBottom) {
+            add(cmd, IdSuggestionsEditWidgetPrivate::locAtBottom);
+            QTimer::singleShot(50, p, [this]() {
+                area->ensureWidgetVisible(buttonAddTokenAtBottom);
+            });
+        }
+        p->updatePreview();
+    }
+
+    void moveUpToken(TokenWidget *tokenWidget)
+    {
+        const int curPos = widgetList.indexOf(tokenWidget);
+        if (curPos > 0) {
+            widgetList.removeAt(curPos);
+            const int layoutPos = containerLayout->indexOf(tokenWidget);
+            containerLayout->removeWidget(tokenWidget);
+            widgetList.insert(curPos - 1, tokenWidget);
+            containerLayout->insertWidget(layoutPos - 1, tokenWidget, 1);
+            p->updatePreview();
+        }
+    }
+
+    void moveDownToken(TokenWidget *tokenWidget)
+    {
+        const int curPos = widgetList.indexOf(tokenWidget);
+        if (curPos < widgetList.size() - 1) {
+            widgetList.removeAt(curPos);
+            const int layoutPos = containerLayout->indexOf(tokenWidget);
+            containerLayout->removeWidget(tokenWidget);
+            widgetList.insert(curPos + 1, tokenWidget);
+            containerLayout->insertWidget(layoutPos + 1, tokenWidget, 1);
+            p->updatePreview();
+        }
+    }
+
+    void removeToken(TokenWidget *tokenWidget)
+    {
+        widgetList.removeOne(tokenWidget);
+        containerLayout->removeWidget(tokenWidget);
+        tokenWidget->deleteLater();
+        p->updatePreview();
+    }
 };
 
 
@@ -838,55 +920,6 @@ void IdSuggestionsEditWidget::updatePreview()
     const QString formatString = d->apply();
     d->labelPreview->setText(formatId(*d->previewEntry, formatString));
     d->labelPreview->setToolTip(i18n("<qt>Structure:<ul><li>%1</li></ul>Example: %2</qt>", formatStrToHuman(formatString).join(QStringLiteral("</li><li>")), formatId(*d->previewEntry, formatString)));
-}
-
-void IdSuggestionsEditWidget::moveUpToken(QWidget *widget)
-{
-    TokenWidget *tokenWidget = static_cast<TokenWidget *>(widget);
-    int curPos = d->widgetList.indexOf(tokenWidget);
-    if (curPos > 0) {
-        d->widgetList.removeAt(curPos);
-        const int layoutPos = d->containerLayout->indexOf(tokenWidget);
-        d->containerLayout->removeWidget(tokenWidget);
-        d->widgetList.insert(curPos - 1, tokenWidget);
-        d->containerLayout->insertWidget(layoutPos - 1, tokenWidget, 1);
-        updatePreview();
-    }
-}
-
-void IdSuggestionsEditWidget::moveDownToken(QWidget *widget)
-{
-    TokenWidget *tokenWidget = static_cast<TokenWidget *>(widget);
-    int curPos = d->widgetList.indexOf(tokenWidget);
-    if (curPos < d->widgetList.size() - 1) {
-        d->widgetList.removeAt(curPos);
-        const int layoutPos = d->containerLayout->indexOf(tokenWidget);
-        d->containerLayout->removeWidget(tokenWidget);
-        d->widgetList.insert(curPos + 1, tokenWidget);
-        d->containerLayout->insertWidget(layoutPos + 1, tokenWidget, 1);
-        updatePreview();
-    }
-}
-
-void IdSuggestionsEditWidget::removeToken(QWidget *widget)
-{
-    TokenWidget *tokenWidget = static_cast<TokenWidget *>(widget);
-    d->widgetList.removeOne(tokenWidget);
-    d->containerLayout->removeWidget(tokenWidget);
-    tokenWidget->deleteLater();
-    updatePreview();
-}
-
-void IdSuggestionsEditWidget::addToken(int cmd)
-{
-    if (cmd < 0) {
-        d->add(static_cast<IdSuggestionsEditWidgetPrivate::TokenType>(-cmd), true);
-        d->area->ensureWidgetVisible(d->buttonAddTokenAtTop); // FIXME does not work as intended
-    } else {
-        d->add(static_cast<IdSuggestionsEditWidgetPrivate::TokenType>(cmd), false);
-        d->area->ensureWidgetVisible(d->buttonAddTokenAtBottom); // FIXME does not work as intended
-    }
-    updatePreview();
 }
 
 IdSuggestionsEditDialog::IdSuggestionsEditDialog(QWidget *parent, Qt::WindowFlags flags)

@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -31,6 +31,7 @@
 
 class QTreeWidget;
 class QTreeWidgetItem;
+class QBoxLayout;
 class QGridLayout;
 class QPushButton;
 class QLineEdit;
@@ -95,6 +96,7 @@ private:
     } LabeledFieldInput;
     LabeledFieldInput **listOfLabeledFieldInput;
     const int fieldInputCount, numCols;
+    QBoxLayout *vboxLayout;
     QGridLayout *gridLayout;
 
     const QSharedPointer<const EntryTabLayout> etl;
@@ -112,12 +114,19 @@ public:
     bool validate(QWidget **widgetWithIssue, QString &message) const override;
     void setReadOnly(bool isReadOnly) override;
     void showReqOptWidgets(bool forceVisible, const QString &entryType) override;
+    QString identifier() const;
     QString label() override;
     QIcon icon() override;
 
     void setFile(const File *file) override;
 
     bool canEdit(const Element *element) override;
+
+signals:
+    void requestingTabChange(const QString &tabIdentifier);
+
+private slots:
+    void infoMessageLinkActivated(const QString &contents);
 };
 
 class ReferenceWidget : public ElementWidget

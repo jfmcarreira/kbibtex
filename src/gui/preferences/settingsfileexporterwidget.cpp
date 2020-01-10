@@ -74,21 +74,25 @@ public:
 #else // QT_LSTAT
         checkboxUseAutomaticLyXPipeDetection->setChecked(Preferences::instance().lyXUseAutomaticPipeDetection());
         lastUserInputLyXPipePath = Preferences::instance().lyXPipePath();
+        lineeditLyXPipePath->setText(lastUserInputLyXPipePath);
         p->automaticLyXDetectionToggled(checkboxUseAutomaticLyXPipeDetection->isChecked());
 #endif // QT_LSTAT
     }
 
-    void saveState() {
-        Preferences::instance().setCopyReferenceCommand(comboBoxCopyReferenceCmd->itemData(comboBoxCopyReferenceCmd->currentIndex(), ItalicTextItemModel::IdentifierRole).toString());
-        Preferences::instance().setBackupScope(static_cast<Preferences::BackupScope>(comboBoxBackupScope->itemData(comboBoxBackupScope->currentIndex()).toInt()));
-        Preferences::instance().setNumberOfBackups(spinboxNumberOfBackups->value());
+    bool saveState() {
+        bool settingsGotChanged = false;
+        settingsGotChanged |= Preferences::instance().setCopyReferenceCommand(comboBoxCopyReferenceCmd->itemData(comboBoxCopyReferenceCmd->currentIndex(), ItalicTextItemModel::IdentifierRole).toString());
+        settingsGotChanged |= Preferences::instance().setBackupScope(static_cast<Preferences::BackupScope>(comboBoxBackupScope->itemData(comboBoxBackupScope->currentIndex()).toInt()));
+        settingsGotChanged |= Preferences::instance().setNumberOfBackups(spinboxNumberOfBackups->value());
 
 #ifndef QT_LSTAT
-        Preferences::instance().setLyXPipePath(lineeditLyXPipePath->text());
+        settingsGotChanged |= Preferences::instance().setLyXPipePath(lineeditLyXPipePath->text());
 #else // QT_LSTAT
-        Preferences::instance().setLyXUseAutomaticPipeDetection(checkboxUseAutomaticLyXPipeDetection->isChecked());
-        Preferences::instance().setLyXPipePath(checkboxUseAutomaticLyXPipeDetection->isChecked() ? lastUserInputLyXPipePath : lineeditLyXPipePath->text());
+        settingsGotChanged |= Preferences::instance().setLyXUseAutomaticPipeDetection(checkboxUseAutomaticLyXPipeDetection->isChecked());
+        settingsGotChanged |= Preferences::instance().setLyXPipePath(checkboxUseAutomaticLyXPipeDetection->isChecked() ? lastUserInputLyXPipePath : lineeditLyXPipePath->text());
 #endif // QT_LSTAT
+
+        return settingsGotChanged;
     }
 
     void resetToDefaults() {
@@ -132,7 +136,11 @@ public:
         lineeditLyXPipePath = new KUrlRequester(p);
         layout->addRow(i18n("Manually specified LyX pipe:"), lineeditLyXPipePath);
         connect(qobject_cast<QLineEdit *>(lineeditLyXPipePath->lineEdit()), &QLineEdit::textEdited, p, &SettingsFileExporterWidget::changed);
+#if QT_VERSION >= 0x050b00
+        lineeditLyXPipePath->setMinimumWidth(lineeditLyXPipePath->fontMetrics().horizontalAdvance(QChar('W')) * 20);
+#else // QT_VERSION >= 0x050b00
         lineeditLyXPipePath->setMinimumWidth(lineeditLyXPipePath->fontMetrics().width(QChar('W')) * 20);
+#endif // QT_VERSION >= 0x050b00
         lineeditLyXPipePath->setFilter(QStringLiteral("inode/fifo"));
         lineeditLyXPipePath->setMode(KFile::ExistingOnly | KFile::LocalOnly);
 
@@ -180,9 +188,9 @@ void SettingsFileExporterWidget::loadState()
     d->loadState();
 }
 
-void SettingsFileExporterWidget::saveState()
+bool SettingsFileExporterWidget::saveState()
 {
-    d->saveState();
+    return d->saveState();
 }
 
 void SettingsFileExporterWidget::resetToDefaults()

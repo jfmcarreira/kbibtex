@@ -1,5 +1,5 @@
 set(
-    kbibtexio_LIB_SRCS
+    kbibtexio_SRCS
     encoder.cpp
     encoderlatex.cpp
     encoderxml.cpp
@@ -24,16 +24,21 @@ set(
     textencoder.cpp
     bibutils.cpp
     xsltransform.cpp
-    logging_io.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexio_SRCS
+    HEADER logging_io.h
+    IDENTIFIER LOG_KBIBTEX_IO
+    CATEGORY_NAME kbibtex.io
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexio kbibtexio_LIB_SRCS)
+    enable_unity_build(kbibtexio kbibtexio_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexio
     SHARED
-    ${kbibtexio_LIB_SRCS}
+    ${kbibtexio_SRCS}
 )
 generate_export_header(kbibtexio)
 add_library(KBibTeX::IO ALIAS kbibtexio)
@@ -53,7 +58,6 @@ target_include_directories(kbibtexio
 target_link_libraries(kbibtexio
     PUBLIC
         Qt5::Core
-        Qt5::Gui
         KBibTeX::Data
         KBibTeX::Global
     PRIVATE

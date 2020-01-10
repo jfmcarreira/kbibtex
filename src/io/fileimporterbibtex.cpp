@@ -302,6 +302,7 @@ Macro *FileImporterBibTeX::readMacroElement()
             qCWarning(LOG_KBIBTEX_IO) << "Error in parsing macro" << key << "near line" << m_lineNo << "(" << m_prevLine << endl << m_currentLine << "): Could not read macro's text";
             emit message(SeverityError, QString(QStringLiteral("Error in parsing macro '%1' near line %2: Could not read macro's text")).arg(key).arg(m_lineNo));
             delete macro;
+            return nullptr;
         }
         text = EncoderLaTeX::instance().decode(bibtexAwareSimplify(text));
         if (isStringKey)
@@ -562,7 +563,7 @@ QString FileImporterBibTeX::readString(bool &isStringKey)
 
     if (!skipWhiteChar()) {
         /// Some error occurred while reading from data stream
-        return QString::null;
+        return QString(); ///< return null QString
     }
 
     switch (m_nextChar.toLatin1()) {
@@ -592,7 +593,7 @@ QString FileImporterBibTeX::readSimpleString(const QString &until, const bool re
 
     if (!skipWhiteChar()) {
         /// Some error occurred while reading from data stream
-        return QString::null;
+        return QString(); ///< return null QString
     }
 
     QChar prevChar = QChar(0x00);
@@ -621,7 +622,7 @@ QString FileImporterBibTeX::readSimpleString(const QString &until, const bool re
                 /// Append read character to final result
                 result.append(m_nextChar);
             }
-        } else if ((nextCharUnicode >= (ushort)'a' && nextCharUnicode <= (ushort)'z') || (nextCharUnicode >= (ushort)'A' && nextCharUnicode <= (ushort)'Z') || (nextCharUnicode >= (ushort)'0' && nextCharUnicode <= (ushort)'9') || extraAlphaNumChars.contains(m_nextChar)) {
+        } else if ((nextCharUnicode >= static_cast<ushort>('a') && nextCharUnicode <= static_cast<ushort>('z')) || (nextCharUnicode >= static_cast<ushort>('A') && nextCharUnicode <= static_cast<ushort>('Z')) || (nextCharUnicode >= static_cast<ushort>('0') && nextCharUnicode <= static_cast<ushort>('9')) || extraAlphaNumChars.contains(m_nextChar)) {
             /// Accept default set of alpha-numeric characters
             result.append(m_nextChar);
         } else
@@ -638,7 +639,10 @@ QString FileImporterBibTeX::readQuotedString()
 
     Q_ASSERT_X(m_nextChar == QLatin1Char('"'), "QString FileImporterBibTeX::readQuotedString()", "m_nextChar is not '\"'");
 
-    if (!readChar()) return QString::null;
+    if (!readChar()) {
+        /// Some error occurred while reading from data stream
+        return QString(); ///< return null QString
+    }
 
     while (!m_nextChar.isNull()) {
         if (m_nextChar == QLatin1Char('"') && m_prevChar != QLatin1Char('\\') && m_prevChar != QLatin1Char('{'))
@@ -646,10 +650,16 @@ QString FileImporterBibTeX::readQuotedString()
         else
             result.append(m_nextChar);
 
-        if (!readChar()) return QString::null;
+        if (!readChar()) {
+            /// Some error occurred while reading from data stream
+            return QString(); ///< return null QString
+        }
     }
 
-    if (!readChar()) return QString::null;
+    if (!readChar()) {
+        /// Some error occurred while reading from data stream
+        return QString(); ///< return null QString
+    }
 
     /// Remove protection around quotation marks
     result.replace(QStringLiteral("{\"}"), QStringLiteral("\""));
@@ -666,7 +676,10 @@ QString FileImporterBibTeX::readBracketString()
     Q_ASSERT_X(!closingBracket.isNull(), "QString FileImporterBibTeX::readBracketString()", "openingBracket==m_nextChar is neither '{' nor '('");
     int counter = 1;
 
-    if (!readChar()) return QString::null;
+    if (!readChar()) {
+        /// Some error occurred while reading from data stream
+        return QString(); ///< return null QString
+    }
 
     while (!m_nextChar.isNull()) {
         if (m_nextChar == openingBracket && m_prevChar != backslash)
@@ -679,10 +692,16 @@ QString FileImporterBibTeX::readBracketString()
         } else
             result.append(m_nextChar);
 
-        if (!readChar()) return QString::null;
+        if (!readChar()) {
+            /// Some error occurred while reading from data stream
+            return QString(); ///< return null QString
+        }
     }
 
-    if (!readChar()) return QString::null;
+    if (!readChar()) {
+        /// Some error occurred while reading from data stream
+        return QString(); ///< return null QString
+    }
     return result;
 }
 
@@ -1065,11 +1084,13 @@ void FileImporterBibTeX::parsePersonList(const QString &text, Value &value, Comm
 
 QSharedPointer<Person> FileImporterBibTeX::personFromString(const QString &name, const int line_number, QObject *parent)
 {
+    // TODO Merge with FileImporter::splitName
     return personFromString(name, nullptr, line_number, parent);
 }
 
 QSharedPointer<Person> FileImporterBibTeX::personFromString(const QString &name, CommaContainment *comma, const int line_number, QObject *parent)
 {
+    // TODO Merge with FileImporter::splitName and FileImporterBibTeX::contextSensitiveSplit
     static QStringList tokens;
     contextSensitiveSplit(name, tokens);
     return personFromTokenList(tokens, comma, line_number, parent);
@@ -1202,6 +1223,7 @@ QSharedPointer<Person> FileImporterBibTeX::personFromTokenList(const QStringList
 
 void FileImporterBibTeX::contextSensitiveSplit(const QString &text, QStringList &segments)
 {
+    // TODO Merge with FileImporter::splitName and FileImporterBibTeX::personFromString
     int bracketCounter = 0; ///< keep track of opening and closing brackets: {...}
     QString buffer;
     int len = text.length();

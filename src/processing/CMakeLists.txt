@@ -1,21 +1,26 @@
 set(
-    kbibtexprocessing_LIB_SRCS
+    kbibtexprocessing_SRCS
     findduplicates.cpp
     idsuggestions.cpp
     lyx.cpp
     checkbibtex.cpp
     bibliographyservice.cpp
     journalabbreviations.cpp
-    logging_processing.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexprocessing_SRCS
+    HEADER logging_processing.h
+    IDENTIFIER LOG_KBIBTEX_PROCESSING
+    CATEGORY_NAME kbibtex.processing
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexproc kbibtexprocessing_LIB_SRCS)
+    enable_unity_build(kbibtexproc kbibtexprocessing_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexprocessing
     SHARED
-    ${kbibtexprocessing_LIB_SRCS}
+    ${kbibtexprocessing_SRCS}
 )
 generate_export_header(kbibtexprocessing)
 add_library(KBibTeX::Processing ALIAS kbibtexprocessing)
@@ -39,7 +44,6 @@ target_link_libraries(kbibtexprocessing
     PRIVATE
         Qt5::Widgets
         KF5::ConfigCore
-        KF5::ConfigGui
         KF5::I18n
         KF5::Parts
         KF5::WidgetsAddons

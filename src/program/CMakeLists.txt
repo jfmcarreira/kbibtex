@@ -1,5 +1,5 @@
 set(
-    kbibtex_SRCS
+    kbibtexprogram_SRCS
     program.cpp
     mainwindow.cpp
     documentlist.cpp
@@ -14,15 +14,20 @@ set(
     docklets/filesettings.cpp
     docklets/zoterobrowser.cpp
     openfileinfo.cpp
-    logging_program.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexprogram_SRCS
+    HEADER logging_program.h
+    IDENTIFIER LOG_KBIBTEX_PROGRAM
+    CATEGORY_NAME kbibtex.program
 )
 
 if(UNITY_BUILD AND NOT WIN32) # FIXME: Unity build of programs breaks on Windows
-    enable_unity_build(kbibtex kbibtex_SRCS)
+    enable_unity_build(kbibtex kbibtexprogram_SRCS)
 endif(UNITY_BUILD AND NOT WIN32)
 
 
-ecm_add_app_icon(kbibtex_SRCS
+ecm_add_app_icon(kbibtexprogram_SRCS
     ICONS
     ${CMAKE_SOURCE_DIR}/icons/16-apps-kbibtex.png
     ${CMAKE_SOURCE_DIR}/icons/22-apps-kbibtex.png
@@ -33,7 +38,7 @@ ecm_add_app_icon(kbibtex_SRCS
 )
 
 add_executable(kbibtex
-    ${kbibtex_SRCS}
+    ${kbibtexprogram_SRCS}
 )
 
 add_dependencies(kbibtex
@@ -48,10 +53,10 @@ target_include_directories(kbibtex
 target_link_libraries(kbibtex
     PRIVATE
         Qt5::Core
-        Qt5::Gui
         KF5::CoreAddons
         KF5::Crash
         KF5::I18n
+        KF5::IconThemes
         KF5::KIOCore
         KF5::KIOFileWidgets
         KF5::Parts

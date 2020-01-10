@@ -26,7 +26,6 @@
 #include <QStackedWidget>
 #include <QTabWidget>
 #include <QProgressBar>
-#include <QMimeDatabase>
 #include <QMimeType>
 #include <QTimer>
 #include <QSet>
@@ -34,7 +33,6 @@
 #include <QScrollArea>
 #include <QIcon>
 #include <QPushButton>
-#include <QDebug>
 
 #include <KLocalizedString>
 #include <KRun>
@@ -95,12 +93,12 @@ public:
     QSet<OnlineSearchAbstract *> runningSearches;
     QPushButton *searchButton;
     QPushButton *useEntryButton;
-    OnlineSearchQueryFormGeneral *generalQueryTermsForm;
+    OnlineSearchGeneral::Form *generalQueryTermsForm;
     QTabWidget *tabWidget;
     QSharedPointer<const Entry> currentEntry;
     QProgressBar *progressBar;
     QMap<OnlineSearchAbstract *, int> progressMap;
-    QMap<OnlineSearchQueryFormAbstract *, QScrollArea *> formToScrollArea;
+    QMap<OnlineSearchAbstract::Form *, QScrollArea *> formToScrollArea;
 
     enum SearchFormPrivateRole {
         /// Homepage of a search engine
@@ -117,12 +115,12 @@ public:
         createGUI();
     }
 
-    OnlineSearchQueryFormAbstract *currentQueryForm() {
+    OnlineSearchAbstract::Form *currentQueryForm() {
         QScrollArea *area = qobject_cast<QScrollArea *>(queryTermsStack->currentWidget());
         return formToScrollArea.key(area, nullptr);
     }
 
-    QScrollArea *wrapInScrollArea(OnlineSearchQueryFormAbstract *form, QWidget *parent) {
+    QScrollArea *wrapInScrollArea(OnlineSearchAbstract::Form *form, QWidget *parent) {
         QScrollArea *scrollArea = new QScrollArea(parent);
         form->setParent(scrollArea);
         scrollArea->setWidget(form);
@@ -156,8 +154,8 @@ public:
         return container;
     }
 
-    OnlineSearchQueryFormAbstract *createGeneralQueryTermsForm(QWidget *parent = nullptr) {
-        generalQueryTermsForm = new OnlineSearchQueryFormGeneral(parent);
+    OnlineSearchGeneral::Form *createGeneralQueryTermsForm(QWidget *parent = nullptr) {
+        generalQueryTermsForm = new OnlineSearchGeneral::Form(parent);
         return generalQueryTermsForm;
     }
 
@@ -214,7 +212,7 @@ public:
 
         searchButton = new QPushButton(QIcon::fromTheme(QStringLiteral("edit-find")), i18n("Search"), p);
         layout->addWidget(searchButton, 1, 2, 1, 1);
-        connect(generalQueryTermsForm, &OnlineSearchQueryFormGeneral::returnPressed, searchButton, &QPushButton::click);
+        connect(generalQueryTermsForm, &OnlineSearchAbstract::Form::returnPressed, searchButton, &QPushButton::click);
 
         updateGUI();
     }
@@ -261,10 +259,10 @@ public:
         item->setData(HomepageRole, engine->homepage());
         item->setData(NameRole, engine->name());
 
-        OnlineSearchQueryFormAbstract *widget = engine->customWidget(queryTermsStack);
-        item->setData(WidgetRole, QVariant::fromValue<OnlineSearchQueryFormAbstract *>(widget));
+        OnlineSearchAbstract::Form *widget = engine->customWidget(queryTermsStack);
+        item->setData(WidgetRole, QVariant::fromValue<OnlineSearchAbstract::Form *>(widget));
         if (widget != nullptr) {
-            connect(widget, &OnlineSearchQueryFormAbstract::returnPressed, searchButton, &QPushButton::click);
+            connect(widget, &OnlineSearchAbstract::Form::returnPressed, searchButton, &QPushButton::click);
             QScrollArea *scrollArea = wrapInScrollArea(widget, queryTermsStack);
             queryTermsStack->addWidget(scrollArea);
         }
@@ -325,9 +323,9 @@ public:
         default: whichEnginesLabel->setText(i18n("Search engines <b>%1</b>, <b>%2</b>, and more are selected (<a href=\"changeEngine\">change</a>).", checkedEngines.first(), checkedEngines.at(1))); break;
         }
 
-        OnlineSearchQueryFormAbstract *currentQueryWidget = nullptr;
+        OnlineSearchAbstract::Form *currentQueryWidget = nullptr;
         if (cursor != nullptr && checkedEngines.size() == 1)
-            currentQueryWidget = cursor->data(WidgetRole).value<OnlineSearchQueryFormAbstract *>();
+            currentQueryWidget = cursor->data(WidgetRole).value<OnlineSearchAbstract::Form *>();
         if (currentQueryWidget == nullptr)
             currentQueryWidget = generalQueryTermsForm;
         QScrollArea *area = formToScrollArea.value(currentQueryWidget, nullptr);
@@ -346,11 +344,7 @@ public:
             QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
-#if KIO_VERSION < 0x051f00 // < 5.31.0
-            KRun::runUrl(url, mimeTypeName, p, false, false);
-#else // KIO_VERSION < 0x051f00 // >= 5.31.0
             KRun::runUrl(url, mimeTypeName, p, KRun::RunFlags());
-#endif // KIO_VERSION < 0x051f00
         }
     }
 
@@ -389,7 +383,7 @@ void SearchForm::switchToEngines()
 
 void SearchForm::startSearch()
 {
-    OnlineSearchQueryFormAbstract *currentForm = d->currentQueryForm();
+    OnlineSearchAbstract::Form *currentForm = d->currentQueryForm();
     if (!currentForm->readyToStart()) {
         KMessageBox::sorry(this, i18n("Could not start searching the Internet:\nThe search terms are not complete or invalid."), i18n("Searching the Internet"));
         return;
@@ -463,7 +457,7 @@ void SearchForm::stoppedSearch(int)
 
 void SearchForm::tabSwitched(int newTab)
 {
-    Q_UNUSED(newTab);
+    Q_UNUSED(newTab)
     d->updateGUI();
 }
 

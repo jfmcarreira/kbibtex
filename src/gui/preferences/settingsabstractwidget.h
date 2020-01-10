@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -35,6 +35,7 @@ public:
     explicit SettingsAbstractWidget(QWidget *parent);
     // virtual ~SettingsAbstractWidget() { /* nothing */ };
 
+    virtual int eventId() const;
     virtual QString label() const = 0;
     virtual QIcon icon() const = 0;
 
@@ -43,7 +44,12 @@ signals:
 
 public slots:
     virtual void loadState() = 0;
-    virtual void saveState() = 0;
+    /**
+     * Save the state of this settings widget into the configuration settings,
+     * usually using the Preferences class.
+     * @return true if saved settings differed from previous values, false otherwise or under error conditions
+     */
+    virtual bool saveState() = 0;
     virtual void resetToDefaults() = 0;
 };
 

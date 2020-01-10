@@ -1,16 +1,21 @@
 set(
-    kbibtexglobal_LIB_SRCS
+    kbibtexglobal_SRCS
     kbibtex.cpp
-    logging_global.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexglobal_SRCS
+    HEADER logging_global.h
+    IDENTIFIER LOG_KBIBTEX_GLOBAL
+    CATEGORY_NAME kbibtex.global
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexglobal kbibtexglobal_LIB_SRCS)
+    enable_unity_build(kbibtexglobal kbibtexglobal_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexglobal
     SHARED
-    ${kbibtexglobal_LIB_SRCS}
+    ${kbibtexglobal_SRCS}
 )
 generate_export_header(kbibtexglobal)
 add_library(KBibTeX::Global ALIAS kbibtexglobal)
@@ -32,10 +37,8 @@ target_include_directories(kbibtexglobal
 target_link_libraries(kbibtexglobal
     PUBLIC
         Qt5::Core
-        Qt5::Gui
     PRIVATE
         KF5::ConfigCore
-        KF5::ConfigGui
         KF5::I18n
 )
 

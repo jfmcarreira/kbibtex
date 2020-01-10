@@ -15,11 +15,36 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_GLOBAL_LOGGING_GLOBAL_H
-#define KBIBTEX_GLOBAL_LOGGING_GLOBAL_H
+#ifndef URLCHECKER_H
+#define URLCHECKER_H
 
-#include <QLoggingCategory>
+#include <QObject>
 
-Q_DECLARE_LOGGING_CATEGORY(LOG_KBIBTEX_GLOBAL)
+#include <File>
 
-#endif // KBIBTEX_GLOBAL_LOGGING_GLOBAL_H
+#ifdef HAVE_KF5
+#include "kbibtexnetworking_export.h"
+#endif // HAVE_KF5
+
+class KBIBTEXNETWORKING_EXPORT UrlChecker : public QObject
+{
+    Q_OBJECT
+public:
+    enum Status {UrlValid = 0, UnexpectedFileType, Error404, NetworkError, UnknownError};
+
+    explicit UrlChecker(QObject *parent = nullptr);
+    ~UrlChecker();
+
+public slots:
+    void startChecking(const File &bibtexFile);
+
+signals:
+    void urlChecked(QUrl url, UrlChecker::Status status, QString msg);
+    void finished();
+
+private:
+    class Private;
+    Private *const d;
+};
+
+#endif // URLCHECKER_H

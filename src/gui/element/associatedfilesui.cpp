@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -146,7 +146,7 @@ public:
     }
 };
 
-bool AssociatedFilesUI::associateUrl(const QUrl &url, QSharedPointer<Entry> &entry, const File *bibTeXfile, QWidget *parent) {
+QString AssociatedFilesUI::associateUrl(const QUrl &url, QSharedPointer<Entry> &entry, const File *bibTeXfile, const bool doInsertUrl, QWidget *parent) {
     QPointer<QDialog> dlg = new QDialog(parent);
     QBoxLayout *layout = new QVBoxLayout(dlg);
     QPointer<AssociatedFilesUI> ui = new AssociatedFilesUI(entry->id(), bibTeXfile, dlg);
@@ -158,57 +158,25 @@ bool AssociatedFilesUI::associateUrl(const QUrl &url, QSharedPointer<Entry> &ent
     connect(buttonBox->button(QDialogButtonBox::Ok), &QPushButton::clicked, dlg.data(), &QDialog::accept);
     connect(buttonBox->button(QDialogButtonBox::Cancel), &QPushButton::clicked, dlg.data(), &QDialog::reject);
 
-    if (AssociatedFiles::urlIsLocal(url))
+    if (url.isLocalFile())
         ui->setupForLocalFile(url, entry->id());
     else
         ui->setupForRemoteUrl(url, entry->id());
 
     const bool accepted = dlg->exec() == QDialog::Accepted;
-    bool success = true;
-    if (accepted) {
-        const QUrl newUrl = AssociatedFiles::copyDocument(url, entry->id(), bibTeXfile, ui->renameOperation(), ui->moveCopyOperation(), dlg, ui->userDefinedFilename());
-        success &= !newUrl.isEmpty();
-        if (success) {
-            const QString referenceString = AssociatedFiles::associateDocumentURL(newUrl, entry, bibTeXfile, ui->pathType());
-            success &= !referenceString.isEmpty();
-        }
-    }
-
-    delete dlg;
-    return accepted && success;
-}
-
-QString AssociatedFilesUI::associateUrl(const QUrl &url, const QString &entryId, const File *bibTeXfile, QWidget *parent) {
-    QPointer<QDialog> dlg = new QDialog(parent);
-    QBoxLayout *layout = new QVBoxLayout(dlg);
-    QPointer<AssociatedFilesUI> ui = new AssociatedFilesUI(entryId, bibTeXfile, dlg);
-    layout->addWidget(ui);
-    QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, dlg);
-    layout->addWidget(buttonBox);
-    dlg->setLayout(layout);
-
-    connect(buttonBox->button(QDialogButtonBox::Ok), &QPushButton::clicked, dlg.data(), &QDialog::accept);
-    connect(buttonBox->button(QDialogButtonBox::Cancel), &QPushButton::clicked, dlg.data(), &QDialog::reject);
-
-    if (AssociatedFiles::urlIsLocal(url))
-        ui->setupForLocalFile(url, entryId);
-    else
-        ui->setupForRemoteUrl(url, entryId);
-
-    const bool accepted = dlg->exec() == QDialog::Accepted;
-    bool success = true;
+    bool success = false;
     QString referenceString;
     if (accepted) {
-        const QUrl newUrl = AssociatedFiles::copyDocument(url, entryId, bibTeXfile, ui->renameOperation(), ui->moveCopyOperation(), dlg, ui->userDefinedFilename());
-        success &= !newUrl.isEmpty();
+        const QUrl newUrl = AssociatedFiles::copyDocument(url, entry->id(), bibTeXfile, ui->renameOperation(), ui->moveCopyOperation(), dlg, ui->userDefinedFilename());
+        success = newUrl.isValid();
         if (success) {
-            referenceString = AssociatedFiles::associateDocumentURL(newUrl, bibTeXfile, ui->pathType());
+            referenceString = doInsertUrl ? AssociatedFiles::insertUrl(newUrl, entry, bibTeXfile, ui->pathType()) : AssociatedFiles::computeAssociateUrl(newUrl, bibTeXfile, ui->pathType());
             success &= !referenceString.isEmpty();
         }
     }
 
     delete dlg;
-    return accepted && success ? referenceString : QString();
+    return success ? referenceString : QString();
 }
 
 AssociatedFilesUI::AssociatedFilesUI(const QString &entryId, const File *bibTeXfile, QWidget *parent)
@@ -269,10 +237,10 @@ void AssociatedFilesUI::updateUIandPreview() {
         d->lineMoveCopyLocation->setText(d->bibTeXfile->property(File::Url).toUrl().path());
     }
 
-    if (d->bibTeXfile != nullptr && !d->sourceUrl.isEmpty() && !entryId.isEmpty()) {
-        const QUrl newUrl = AssociatedFiles::copyDocument(d->sourceUrl, entryId, d->bibTeXfile, renameOperation(), moveCopyOperation(), nullptr, d->lineEditUserDefinedName->text(), true);
-        if (!newUrl.isEmpty())
-            preview = AssociatedFiles::associateDocumentURL(newUrl,  d->bibTeXfile, pathType());
+    if (d->bibTeXfile != nullptr && d->sourceUrl.isValid() && !entryId.isEmpty()) {
+        const QPair<QUrl, QUrl> newURLs = AssociatedFiles::computeSourceDestinationUrls(d->sourceUrl, entryId, d->bibTeXfile, renameOperation(), d->lineEditUserDefinedName->text());
+        if (newURLs.second.isValid())
+            preview = AssociatedFiles::computeAssociateUrl(newURLs.second, d->bibTeXfile, pathType());
     }
     d->linePreview->setText(preview);
 

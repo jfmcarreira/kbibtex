@@ -99,6 +99,7 @@ public:
             const KConfigGroup configGroup(layoutConfig, groupName);
 
             QSharedPointer<EntryTabLayout> etl = QSharedPointer<EntryTabLayout>(new EntryTabLayout);
+            etl->identifier = configGroup.readEntry("identifier", QString(QStringLiteral("etl%1")).arg(tab));
             etl->uiCaption = i18n(configGroup.readEntry("uiCaption", QString()).toUtf8().constData());
             etl->iconName = configGroup.readEntry("iconName", "entry");
             etl->columns = configGroup.readEntry("columns", 1);
@@ -116,6 +117,11 @@ public:
 
                 etl->singleFieldLayouts.append(sfl);
             }
+
+            const QString infoMessagePipeSeparated = i18n(configGroup.readEntry("infoMessage", QString()).toUtf8().constData());
+            if (!infoMessagePipeSeparated.isEmpty())
+                etl->infoMessages = infoMessagePipeSeparated.split(QLatin1Char('|'));
+
             p->append(etl);
         }
 

@@ -1,7 +1,7 @@
 # KBibTeXData library
 
 set(
-    kbibtexdata_LIB_SRCS
+    kbibtexdata_SRCS
     comment.cpp
     element.cpp
     entry.cpp
@@ -10,16 +10,21 @@ set(
     preamble.cpp
     value.cpp
     models/filemodel.cpp
-    logging_data.cpp
+)
+
+ecm_qt_declare_logging_category(kbibtexdata_SRCS
+    HEADER logging_data.h
+    IDENTIFIER LOG_KBIBTEX_DATA
+    CATEGORY_NAME kbibtex.data
 )
 
 if(UNITY_BUILD)
-    enable_unity_build(kbibtexdata kbibtexdata_LIB_SRCS)
+    enable_unity_build(kbibtexdata kbibtexdata_SRCS)
 endif(UNITY_BUILD)
 
 add_library(kbibtexdata
     SHARED
-    ${kbibtexdata_LIB_SRCS}
+    ${kbibtexdata_SRCS}
 )
 generate_export_header(kbibtexdata)
 add_library(KBibTeX::Data ALIAS kbibtexdata)
@@ -42,9 +47,7 @@ target_link_libraries(kbibtexdata
         Qt5::Core
         KBibTeX::Config
     PRIVATE
-        Qt5::Gui
         KF5::ConfigCore
-        KF5::ConfigGui
         KF5::I18n
         KBibTeX::Global
 )

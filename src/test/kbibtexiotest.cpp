@@ -33,8 +33,12 @@
 #include <FileExporterBibTeX>
 #include <FileExporterRIS>
 #include <FileExporterXML>
+#include <FileExporterXSLT>
+
+#include "logging_test.h"
 
 Q_DECLARE_METATYPE(QMimeType)
+Q_DECLARE_METATYPE(QSharedPointer<Element>)
 
 class KBibTeXIOTest : public QObject
 {
@@ -61,6 +65,10 @@ private slots:
     QVector<QPair<const char *, File *> > fileImporterExporterTestCases();
     void fileExporterXMLsave_data();
     void fileExporterXMLsave();
+    void fileExporterXSLTstandardSaveFile_data();
+    void fileExporterXSLTstandardSaveFile();
+    void fileExporterXSLTstandardSaveElement_data();
+    void fileExporterXSLTstandardSaveElement();
     void fileExporterRISsave_data();
     void fileExporterRISsave();
     void fileExporterBibTeXsave_data();
@@ -82,10 +90,16 @@ private:
 void KBibTeXIOTest::encoderConvertToPlainAscii_data()
 {
     QTest::addColumn<QString>("unicodestring");
+    /// Depending on the chosen implementation for Encoder::instance().convertToPlainAscii(),
+    /// the ASCII variant may slightly differ (both alternatives are considered valid).
+    /// If both implementations produce the same ASCII output, 'asciialternative2' is
+    /// to be set to be empty.
     QTest::addColumn<QString>("asciialternative1");
     QTest::addColumn<QString>("asciialternative2");
 
+    QTest::newRow("Just 'A'") << QString(QChar(0x00c0)) + QChar(0x00c2) + QChar(0x00c5) << QStringLiteral("AAA") << QString();
     QTest::newRow("Just ASCII letters and numbers") << QStringLiteral("qwertyuiopASDFGHJKLzxcvbnm1234567890") << QStringLiteral("qwertyuiopASDFGHJKLzxcvbnm1234567890") << QString();
+    QTest::newRow("Latin text") << QStringLiteral("Gallia est omnis divisa in partes tres, quarum unam incolunt Belgae, aliam Aquitani, tertiam qui ipsorum lingua Celtae, nostra Galli appellantur.") << QStringLiteral("Gallia est omnis divisa in partes tres, quarum unam incolunt Belgae, aliam Aquitani, tertiam qui ipsorum lingua Celtae, nostra Galli appellantur.") << QString();
     QTest::newRow("ASCII low and high bytes") << QStringLiteral("\x00\x01\x09\x0a\x10\x11\x19\x1a\x1f\x20\x7e\x7f") << QStringLiteral(" ~") << QString();
     QTest::newRow("European Scripts/Latin-1 Supplement") << QString::fromUtf8("\xc3\x80\xc3\x82\xc3\x84\xc3\x92\xc3\x94\xc3\x96\xc3\xac\xc3\xad\xc3\xae\xc3\xaf") << QStringLiteral("AAAOOOiiii") << QStringLiteral("AAAEOOOEiiii");
     QTest::newRow("European Scripts/Latin Extended-A") << QString::fromUtf8("\xc4\x8a\xc4\x8b\xc4\xae\xc4\xaf\xc5\x9c\xc5\x9d\xc5\xbb\xc5\xbc") << QStringLiteral("CcIiSsZz") << QString();
@@ -95,6 +109,8 @@ void KBibTeXIOTest::encoderConvertToPlainAscii_data()
     QTest::newRow("European Scripts/Greek and Coptic") << QString::fromUtf8("\xce\xba\xce\xb1\xce\xa4\xcf\xba\xce\x9d") << QStringLiteral("kaTSN") << QStringLiteral("kappaalphaTauSanNu");
     QTest::newRow("East Asian Scripts/Katakana") << QString::fromUtf8("\xe3\x82\xb7\xe3\x83\x84") << QStringLiteral("shitsu") << QStringLiteral("situ");
     QTest::newRow("East Asian Scripts/Hangul Syllables") << QString::fromUtf8("\xea\xb9\x80\xec\xa0\x95\xec\x9d\x80") << QStringLiteral("gimjeongeun") << QStringLiteral("gimjeong-eun");
+    QTest::newRow("Non-BMP characters (stay unchanged)") << QString::fromUtf8(/* U+10437 */ "\xf0\x90\x90\xb7" /* U+10E6D */ "\xf0\x90\xb9\xad" /* U+1D11E */ "\xf0\x9d\x84\x9e" /* U+10FFFF */ "") << QString::fromUtf8("\xf0\x90\x90\xb7\xf0\x90\xb9\xad\xf0\x9d\x84\x9e") << QString();
+    QTest::newRow("Base symbols followed by combining symbols") << QString::fromUtf8("123" /* COMBINING GRAVE ACCENT */ "A\xcc\x80" /* COMBINING DIAERESIS */ "A\xcc\x88" /* COMBINING LOW LINE */ "A\xcc\xb2" "123") << QStringLiteral("123AAA123") << QString();
 }
 
 void KBibTeXIOTest::encoderConvertToPlainAscii()
@@ -104,8 +120,10 @@ void KBibTeXIOTest::encoderConvertToPlainAscii()
     QFETCH(QString, asciialternative2);
 
     const QString converted = Encoder::instance().convertToPlainAscii(unicodestring);
+    /// Depending on the chosen implementation for Encoder::instance().convertToPlainAscii(),
+    /// the ASCII variant may slightly differ (both alternatives are considered valid).
     if (converted != asciialternative1 && converted != asciialternative2)
-        qWarning() << "converted=" << converted << "  asciialternative1=" << asciialternative1 << "  asciialternative2=" << asciialternative2;
+        qCWarning(LOG_KBIBTEX_TEST) << "converted=" << converted << "  asciialternative1=" << asciialternative1 << "  asciialternative2=" << asciialternative2;
     QVERIFY(converted == asciialternative1 || converted == asciialternative2);
 }
 
@@ -266,13 +284,19 @@ void KBibTeXIOTest::fileInfoUrlsInText()
         QCOMPARE(extractedUrls.contains(expectedUrl), true);
 }
 
+static const char *fileImporterExporterTestCases_Label_Empty_file = "Empty file";
+static const char *fileImporterExporterTestCases_Label_Moby_Dick = "Moby Dick";
+
 QVector<QPair<const char *, File *> > KBibTeXIOTest::fileImporterExporterTestCases()
 {
+    /// The vector 'result' is static so that if this function is invoked multiple
+    /// times, the vector will be initialized and filled with File objects only upon
+    /// the function's first invocation.
     static QVector<QPair<const char *, File *> > result;
 
     if (result.isEmpty()) {
         /// Empty file without any entries
-        result.append(QPair<const char *, File *>("Empty file", new File()));
+        result.append(QPair<const char *, File *>(fileImporterExporterTestCases_Label_Empty_file, new File()));
 
         /// File with single entry, inspired by 'Moby Dick'
         File *f1 = new File();
@@ -281,7 +305,7 @@ QVector<QPair<const char *, File *> > KBibTeXIOTest::fileImporterExporterTestCas
         entry1->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("{Call me Ishmael}"))));
         entry1->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QStringLiteral("Herman"), QStringLiteral("Melville"))) << QSharedPointer<Person>(new Person(QStringLiteral("Moby"), QStringLiteral("Dick"))));
         entry1->insert(Entry::ftYear, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("1851"))));
-        result.append(QPair<const char *, File *>("Moby Dick", f1));
+        result.append(QPair<const char *, File *>(fileImporterExporterTestCases_Label_Moby_Dick, f1));
 
         // TODO add more file objects to result vector
 
@@ -303,8 +327,8 @@ void KBibTeXIOTest::fileExporterXMLsave_data()
     QTest::addColumn<QString>("xmlData");
 
     static const QHash<const char *, QString> keyToXmlData {
-        {"Empty file", QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>|</bibliography>|")},
-        {"Moby Dick", QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>| <entry id=\"the-whale-1851\" type=\"article\">|  <authors>|<person><firstname>Herman</firstname><lastname>Melville</lastname></person> <person><firstname>Moby</firstname><lastname>Dick</lastname></person>|  </authors>|  <title><text>Call me Ishmael</text></title>|  <year><text>1851</text></year>| </entry>|</bibliography>|")}
+        {fileImporterExporterTestCases_Label_Empty_file, QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>|</bibliography>|")},
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>| <entry id=\"the-whale-1851\" type=\"article\">|  <authors>|<person><firstname>Herman</firstname><lastname>Melville</lastname></person> <person><firstname>Moby</firstname><lastname>Dick</lastname></person>|  </authors>|  <title><text>Call me Ishmael</text></title>|  <year><text>1851</text></year>| </entry>|</bibliography>|")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -322,9 +346,70 @@ void KBibTeXIOTest::fileExporterXMLsave()
     QStringList errorLog;
     const QString generatedData = fileExporterXML.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
     for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qDebug() << logLine;
+        qCDebug(LOG_KBIBTEX_TEST) << logLine;
 
     QCOMPARE(generatedData, xmlData);
+}
+
+void KBibTeXIOTest::fileExporterXSLTstandardSaveFile_data()
+{
+    QTest::addColumn<File *>("bibTeXfile");
+    QTest::addColumn<QSet<QString>>("expectedFragments");
+
+    static const QHash<const char *, QSet<QString>> keyToXsltData {
+        {fileImporterExporterTestCases_Label_Empty_file, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral("<body/>")}},
+        {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral(">1851<"), QStringLiteral(">Call me Ishmael<"), QStringLiteral("</b>"), QStringLiteral("</body>")}}
+    };
+    static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
+
+    for (auto it = keyFileTable.constBegin(); it != keyFileTable.constEnd(); ++it)
+        if (keyToXsltData.contains(it->first))
+            QTest::newRow(it->first) << it->second << keyToXsltData.value(it->first);
+}
+
+void KBibTeXIOTest::fileExporterXSLTstandardSaveFile()
+{
+    QFETCH(File *, bibTeXfile);
+    QFETCH(QSet<QString>, expectedFragments);
+
+    FileExporterXSLT fileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("kbibtex/standard.xsl")), this);
+    QStringList errorLog;
+    const QString generatedData = fileExporterXSLT.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
+    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
+        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+
+    for (const QString &fragment : expectedFragments)
+        QVERIFY2(generatedData.contains(fragment), QString(QStringLiteral("Fragment '%1' not found in generated XML data")).arg(fragment).toLatin1().constData());
+}
+
+void KBibTeXIOTest::fileExporterXSLTstandardSaveElement_data()
+{
+    QTest::addColumn<QSharedPointer<Element>>("element");
+    QTest::addColumn<QSet<QString>>("expectedFragments");
+
+    static const QHash<const char *, QSet<QString>> keyToXsltData {
+        {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral(">1851<"), QStringLiteral(">Call me Ishmael<"), QStringLiteral("</b>"), QStringLiteral("</body>")}}
+    };
+    static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
+
+    for (auto it = keyFileTable.constBegin(); it != keyFileTable.constEnd(); ++it)
+        if (!it->second->isEmpty() && keyToXsltData.contains(it->first))
+            QTest::newRow(it->first) << it->second->first() << keyToXsltData.value(it->first);
+}
+
+void KBibTeXIOTest::fileExporterXSLTstandardSaveElement()
+{
+    QFETCH(QSharedPointer<Element>, element);
+    QFETCH(QSet<QString>, expectedFragments);
+
+    FileExporterXSLT fileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("kbibtex/standard.xsl")), this);
+    QStringList errorLog;
+    const QString generatedData = fileExporterXSLT.toString(element, nullptr, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
+    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
+        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+
+    for (const QString &fragment : expectedFragments)
+        QVERIFY2(generatedData.contains(fragment), QString(QStringLiteral("Fragment '%1' not found in generated XML data")).arg(fragment).toLatin1().constData());
 }
 
 void KBibTeXIOTest::fileExporterRISsave_data()
@@ -333,8 +418,8 @@ void KBibTeXIOTest::fileExporterRISsave_data()
     QTest::addColumn<QString>("risData");
 
     static const QHash<const char *, QString> keyToRisData {
-        {"Empty file", QString()},
-        {"Moby Dick", QStringLiteral("TY  - JOUR|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851///|ER  - ||")}
+        {fileImporterExporterTestCases_Label_Empty_file, QString()},
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("TY  - JOUR|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851///|ER  - ||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -352,7 +437,7 @@ void KBibTeXIOTest::fileExporterRISsave()
     QStringList errorLog;
     const QString generatedData = fileExporterRIS.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
     for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qDebug() << logLine;
+        qCDebug(LOG_KBIBTEX_TEST) << logLine;
 
     QCOMPARE(generatedData, risData);
 }
@@ -363,8 +448,8 @@ void KBibTeXIOTest::fileExporterBibTeXsave_data()
     QTest::addColumn<QString>("bibTeXdata");
 
     static const QHash<const char *, QString> keyToBibTeXData {
-        {"Empty file", QString()},
-        {"Moby Dick", QStringLiteral("@article{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
+        {fileImporterExporterTestCases_Label_Empty_file, QString()},
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("@article{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -382,7 +467,7 @@ void KBibTeXIOTest::fileExporterBibTeXsave()
     QStringList errorLog;
     const QString generatedData = fileExporterBibTeX.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
     for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qDebug() << logLine;
+        qCDebug(LOG_KBIBTEX_TEST) << logLine;
 
     QCOMPARE(generatedData, bibTeXdata);
 }
@@ -393,8 +478,8 @@ void KBibTeXIOTest::fileImporterRISload_data()
     QTest::addColumn<File *>("bibTeXfile");
 
     static const QHash<const char *, QString> keyToRisData {
-        {"Empty file", QString()},
-        {"Moby Dick", QStringLiteral("TY  - JOUR|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851///|ER  - ||")}
+        {fileImporterExporterTestCases_Label_Empty_file, QString()},
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("TY  - JOUR|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851///|ER  - ||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -423,8 +508,8 @@ void KBibTeXIOTest::fileImporterBibTeXload_data()
     QTest::addColumn<File *>("bibTeXfile");
 
     static const QHash<const char *, QString> keyToBibTeXData {
-        {"Empty file", QString()},
-        {"Moby Dick", QStringLiteral("@article{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
+        {fileImporterExporterTestCases_Label_Empty_file, QString()},
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("@article{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -578,8 +663,8 @@ void KBibTeXIOTest::partialBibTeXInput()
     FileImporterBibTeX importer(this);
     connect(&importer, &FileImporter::message, [&gotErrors](const FileImporter::MessageSeverity messageSeverity, const QString &messageText) {
         gotErrors |= messageSeverity >= FileImporter::SeverityError;
-        Q_UNUSED(messageText);
-        //qDebug()<<"FileImporterBibTeX issues message during 'partialBibTeXInput' test: "<<messageText;
+        Q_UNUSED(messageText)
+        //qCDebug(LOG_KBIBTEX_TEST)<<"FileImporterBibTeX issues message during 'partialBibTeXInput' test: "<<messageText;
     });
     QScopedPointer<File> bibTeXfile(importer.fromString(text));
 
@@ -619,8 +704,8 @@ void KBibTeXIOTest::partialRISInput()
     FileImporterRIS importer(this);
     connect(&importer, &FileImporter::message, [&gotErrors](const FileImporter::MessageSeverity messageSeverity, const QString &messageText) {
         gotErrors |= messageSeverity >= FileImporter::SeverityError;
-        Q_UNUSED(messageText);
-        //qDebug()<<"FileImporterRIS issues message during 'partialBibTeXInput' test: "<<messageText;
+        Q_UNUSED(messageText)
+        //qCDebug(LOG_KBIBTEX_TEST)<<"FileImporterRIS issues message during 'partialBibTeXInput' test: "<<messageText;
     });
     QScopedPointer<File> bibTeXfile(importer.fromString(text));
 

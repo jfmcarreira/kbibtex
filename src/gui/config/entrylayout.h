@@ -31,10 +31,12 @@ typedef struct {
 } SingleFieldLayout;
 
 typedef struct {
+    QString identifier;
     QString uiCaption;
     QString iconName;
     int columns;
     QList<SingleFieldLayout> singleFieldLayouts;
+    QStringList infoMessages;
 } EntryTabLayout;
 
 /**

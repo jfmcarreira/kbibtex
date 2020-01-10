@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -46,6 +46,7 @@ private:
 
 public:
     bool notifyOfChanges;
+    QSet<int> eventIdsToNotify;
 
     KBibTeXPreferencesDialogPrivate(KBibTeXPreferencesDialog *parent)
             : p(parent) {
@@ -104,23 +105,26 @@ public:
 
     void saveState() {
         for (SettingsAbstractWidget *settingsWidget : const_cast<const QSet<SettingsAbstractWidget *> &>(settingWidgets)) {
-            settingsWidget->saveState();
+            const bool settingsGotChanged = settingsWidget->saveState();
+            if (settingsGotChanged)
+                eventIdsToNotify.insert(settingsWidget->eventId());
         }
     }
 
     void restoreDefaults() {
-        notifyOfChanges = true;
         switch (KMessageBox::warningYesNoCancel(p, i18n("This will reset the settings to factory defaults. Should this affect only the current page or all settings?"), i18n("Reset to Defaults"), KGuiItem(i18n("All settings"), QStringLiteral("edit-undo")), KGuiItem(i18n("Only current page"), QStringLiteral("document-revert")))) {
         case KMessageBox::Yes: {
             for (SettingsAbstractWidget *settingsWidget : const_cast<const QSet<SettingsAbstractWidget *> &>(settingWidgets)) {
                 settingsWidget->resetToDefaults();
             }
+            notifyOfChanges = true;
             break;
         }
         case KMessageBox::No: {
             SettingsAbstractWidget *widget = qobject_cast<SettingsAbstractWidget *>(p->currentPage()->widget());
             if (widget != nullptr)
                 widget->resetToDefaults();
+            notifyOfChanges = true;
             break;
         }
         case KMessageBox::Cancel:
@@ -133,6 +137,7 @@ public:
     void apply()
     {
         p->buttonBox()->button(QDialogButtonBox::Apply)->setEnabled(false);
+        p->buttonBox()->button(QDialogButtonBox::Reset)->setEnabled(false);
         saveState();
         notifyOfChanges = true;
     }
@@ -140,6 +145,7 @@ public:
     void reset()
     {
         p->buttonBox()->button(QDialogButtonBox::Apply)->setEnabled(false);
+        p->buttonBox()->button(QDialogButtonBox::Reset)->setEnabled(false);
         loadState();
     }
 
@@ -162,6 +168,7 @@ KBibTeXPreferencesDialog::KBibTeXPreferencesDialog(QWidget *parent, Qt::WindowFl
     setWindowTitle(i18n("Preferences"));
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::RestoreDefaults | QDialogButtonBox::Reset | QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel, Qt::Horizontal, this);
     buttonBox->button(QDialogButtonBox::Apply)->setEnabled(false);
+    buttonBox->button(QDialogButtonBox::Reset)->setEnabled(false);
     connect(buttonBox, &QDialogButtonBox::clicked, this, &KBibTeXPreferencesDialog::buttonClicked);
     setButtonBox(buttonBox);
 
@@ -178,8 +185,11 @@ KBibTeXPreferencesDialog::~KBibTeXPreferencesDialog()
 void KBibTeXPreferencesDialog::hideEvent(QHideEvent *)
 {
     // TODO missing documentation: what triggers 'hideEvent' and why is 'notifyOfChanges' necessary?
-    if (d->notifyOfChanges)
-        NotificationHub::publishEvent(NotificationHub::EventConfigurationChanged);
+    if (d->notifyOfChanges) {
+        for (const int eventId : const_cast<const QSet<int> &>(d->eventIdsToNotify))
+            NotificationHub::publishEvent(eventId);
+        d->notifyOfChanges = false;
+    }
 }
 
 void KBibTeXPreferencesDialog::buttonClicked(QAbstractButton *button) {
@@ -204,4 +214,5 @@ void KBibTeXPreferencesDialog::buttonClicked(QAbstractButton *button) {
 void KBibTeXPreferencesDialog::gotChanged()
 {
     buttonBox()->button(QDialogButtonBox::Apply)->setEnabled(true);
+    buttonBox()->button(QDialogButtonBox::Reset)->setEnabled(true);
 }

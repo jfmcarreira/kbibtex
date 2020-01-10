@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2004-2015 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -15,11 +15,30 @@
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
 
-#ifndef KBIBTEX_PROCESSING_LOGGING_PROCESSING_H
-#define KBIBTEX_PROCESSING_LOGGING_PROCESSING_H
+#ifndef KBIBTEX_NETWORKING_ONLINESEARCHABSTRACT_P_H
+#define KBIBTEX_NETWORKING_ONLINESEARCHABSTRACT_P_H
 
-#include <QLoggingCategory>
+#ifdef HAVE_QTWIDGETS
+#include "onlinesearchabstract.h"
 
-Q_DECLARE_LOGGING_CATEGORY(LOG_KBIBTEX_PROCESSING)
+#include <QWidget>
 
-#endif // KBIBTEX_PROCESSING_LOGGING_PROCESSING_H
+#include <KSharedConfig>
+
+/**
+ * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ */
+class OnlineSearchAbstract::Form::Private
+{
+public:
+    explicit Private();
+
+    KSharedConfigPtr config;
+
+    static QStringList authorLastNames(const Entry &entry);
+    static QString guessFreeText(const Entry &entry);
+};
+
+#endif // HAVE_QTWIDGETS
+
+#endif // KBIBTEX_NETWORKING_ONLINESEARCHABSTRACT_P_H

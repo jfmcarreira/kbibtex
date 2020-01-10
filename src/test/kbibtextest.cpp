@@ -23,14 +23,12 @@
 #include <QMenu>
 #include <QIcon>
 #include <QPalette>
-#include <QDebug>
 #include <QPushButton>
 #include <QAction>
 #include <QListWidget>
 #include <QApplication>
 
 #include <KAboutData>
-#include <KIconEffect>
 
 #include <onlinesearch/OnlineSearchAcmPortal>
 #include <onlinesearch/OnlineSearchArXiv>
@@ -51,13 +49,11 @@
 #include <onlinesearch/OnlineSearchBioRxiv>
 #include <onlinesearch/OnlineSearchSemanticScholar>
 
-int filenameCounter = 0;
-
 static QColor blendColors(const QColor &color1, const QColor &color2, const qreal ratio)
 {
-    const int r = color1.red() * (1 - ratio) + color2.red() * ratio;
-    const int g = color1.green() * (1 - ratio) + color2.green() * ratio;
-    const int b = color1.blue() * (1 - ratio) + color2.blue() * ratio;
+    const int r = static_cast<int>(color1.red() * (1 - ratio) + color2.red() * ratio);
+    const int g = static_cast<int>(color1.green() * (1 - ratio) + color2.green() * ratio);
+    const int b = static_cast<int>(color1.blue() * (1 - ratio) + color2.blue() * ratio);
 
     return QColor(r, g, b, 255);
 }
@@ -146,7 +142,11 @@ KBibTeXTest::KBibTeXTest(QWidget *parent)
     setWindowTitle(QStringLiteral("KBibTeX Test Suite"));
 
     m_testWidget = new TestWidget(this);
+#if QT_VERSION >= 0x050b00
+    const int fontSize = m_testWidget->fontMetrics().horizontalAdvance(QLatin1Char('a'));
+#else // QT_VERSION >= 0x050b00
     const int fontSize = m_testWidget->fontMetrics().width(QLatin1Char('a'));
+#endif // QT_VERSION >= 0x050b00
     m_testWidget->setMinimumSize(fontSize * 96, fontSize * 48);
     QBoxLayout *boxLayout = new QVBoxLayout(this);
     boxLayout->addWidget(m_testWidget);
@@ -177,10 +177,10 @@ void KBibTeXTest::addMessage(const QString &message, const MessageStatus message
     const QColor originalBgColor = QGuiApplication::palette().color(QPalette::Base);
     switch (messageStatus) {
     case statusInfo: break; ///< nothing to do
-    case statusOk: item->setBackgroundColor(blendColors(originalBgColor, Qt::green, .1)); break;
-    case statusError: item->setBackgroundColor(blendColors(originalBgColor, Qt::red, .1)); break;
-    case statusAuth: item->setBackgroundColor(blendColors(originalBgColor, Qt::yellow, .1)); break;
-    case statusNetwork: item->setBackgroundColor(blendColors(originalBgColor, Qt::yellow, .1)); break;
+    case statusOk: item->setBackground(QBrush(blendColors(originalBgColor, Qt::green, .1))); break;
+    case statusError: item->setBackground(QBrush(blendColors(originalBgColor, Qt::red, .1))); break;
+    case statusAuth: item->setBackground(QBrush(blendColors(originalBgColor, Qt::yellow, .1))); break;
+    case statusNetwork: item->setBackground(QBrush(blendColors(originalBgColor, Qt::yellow, .1))); break;
     }
 
     m_testWidget->messageList->addItem(item);
