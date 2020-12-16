@@ -6,7 +6,7 @@ endif(POLICY CMP0048)
 
 project(
     kbibtex
-    VERSION 0.9.50
+    VERSION 0.10.50
     LANGUAGES CXX
 )
 
@@ -15,10 +15,6 @@ set(QT_MIN_VERSION 5.9.0)
 # Somewhat arbitrary chosen version number ...
 set(KF5_MIN_VERSION 5.51)
 find_package(ECM ${KF5_MIN_VERSION} REQUIRED NO_MODULE)
-
-add_definitions(
-    -DTRANSLATION_DOMAIN="kbibtex"
-)
 
 set(
     CMAKE_MODULE_PATH
@@ -76,7 +72,7 @@ endif()
 
 option(
     UNITY_BUILD
-    "Compile multiple C++ files in one big, merged file (\"Unity build\")\nSee also http://t-fischer.dreamwidth.org/3054.html"
+    "Compile multiple C++ files in one big, merged file (\"Unity build\")\nSee also https://t-fischer.dreamwidth.org/3054.html"
 )
 if(UNITY_BUILD)
     message(STATUS "Unity build enabled")
@@ -99,7 +95,15 @@ find_package(
     WebKitWidgets
     Test
 )
-add_definitions(-DHAVE_QTWIDGETS)
+if (Qt5Widgets_FOUND)
+    add_definitions(-DHAVE_QTWIDGETS)
+endif()
+if(Qt5WebEngineWidgets_FOUND)
+    # Once CMake 3.12.x is minimum requirement, use 'add_compile_definitions'
+    add_definitions(
+        -DHAVE_WEBENGINEWIDGETS
+    )
+endif()
 
 find_package(
     KF5 ${KF5_MIN_VERSION}
@@ -114,10 +118,13 @@ find_package(
     Service
     Wallet
     Crash
-    DocTools
     TextEditor
+    OPTIONAL_COMPONENTS
+    DocTools
 )
-add_definitions(-DHAVE_KF5)
+if (KF5_FOUND)
+    add_definitions(-DHAVE_KF5)
+endif()
 
 find_package(
     Poppler
@@ -173,7 +180,11 @@ if(BUILD_TESTING)
     )
 endif()
 
-
+if(TESTSET_DIRECTORY AND ( NOT EXISTS "${TESTSET_DIRECTORY}/bib/minix.bib" OR NOT EXISTS "${TESTSET_DIRECTORY}/bib/backslash.bib" ))
+    message("Variable TESTSET_DIRECTORY is set to '${TESTSET_DIRECTORY}' but various BibTeX files were not found. Unsetting TESTSET_DIRECTORY.")
+    unset(TESTSET_DIRECTORY)
+    unset(TESTSET_DIRECTORY CACHE)
+endif()
 
 
 add_subdirectory(

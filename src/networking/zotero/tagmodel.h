@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -40,7 +42,10 @@ class KBIBTEXNETWORKING_EXPORT TagModel : public QAbstractItemModel
     Q_OBJECT
 
 public:
-    enum Roles { TagRole = Qt::UserRole + 6685, TagCountRole = Qt::UserRole + 6686 };
+    enum TagModelRoles {
+        TagRole = Qt::UserRole + 6685,
+        TagCountRole = Qt::UserRole + 6686
+    };
 
     explicit TagModel(Zotero::Tags *tags, QObject *parent = nullptr);
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
@@ -49,9 +54,6 @@ public:
     int rowCount(const QModelIndex &) const override;
     int columnCount(const QModelIndex &) const override;
     bool hasChildren(const QModelIndex &parent = QModelIndex()) const override;
-
-private slots:
-    void fetchingDone();
 
 private:
     class Private;

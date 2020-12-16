@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2014 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -26,7 +28,7 @@
 
 /**
  * This class encapsulates calling the various binary programs of the BibUtils program set.
- * BibUtils is available at http://sourceforge.net/projects/bibutils/
+ * BibUtils is available at https://sourceforge.net/projects/bibutils/
  *
  * This class is inherited by @see FileImporterBibUtils and @see FileExporterBibUtils,
  * which make use of its protected functions.
@@ -37,11 +39,9 @@
 class KBIBTEXIO_EXPORT BibUtils
 {
 public:
-    BibUtils(const BibUtils &other) = delete;
-    BibUtils &operator= (const BibUtils &other) = delete;
     ~BibUtils();
 
-    enum Format { MODS = 0, BibTeX = 1, BibLaTeX = 2, ISI = 5, RIS = 6, EndNote = 10, EndNoteXML = 11, ADS = 15, WordBib = 16, Copac = 17, Med = 18 };
+    enum class Format { MODS = 0, BibTeX = 1, BibLaTeX = 2, ISI = 5, RIS = 6, EndNote = 10, EndNoteXML = 11, ADS = 15, WordBib = 16, Copac = 17, Med = 18 };
 
     BibUtils::Format format() const;
     void setFormat(const BibUtils::Format format);
@@ -62,8 +62,12 @@ protected:
     bool convert(QIODevice &source, const BibUtils::Format sourceFormat, QIODevice &destination, const BibUtils::Format destinationFormat) const;
 
 private:
+    Q_DISABLE_COPY(BibUtils)
+
     class Private;
     Private *const d;
 };
+
+KBIBTEXIO_EXPORT QDebug operator<<(QDebug dbg, const BibUtils::Format &format);
 
 #endif // KBIBTEX_IO_BIBUTILS_H

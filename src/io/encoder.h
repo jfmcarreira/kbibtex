@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -33,7 +35,7 @@
 class KBIBTEXIO_EXPORT Encoder
 {
 public:
-    enum TargetEncoding {TargetEncodingASCII = 0, TargetEncodingUTF8 = 1};
+    enum class TargetEncoding {RAW, ASCII, UTF8};
 
     static const Encoder &instance();
     virtual ~Encoder();
@@ -64,6 +66,8 @@ protected:
     Encoder();
 
 private:
+    Q_DISABLE_COPY(Encoder)
+
     class Private;
     Private *const d;
 };

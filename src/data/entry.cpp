@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -19,6 +21,8 @@
 
 #include <typeinfo>
 
+#include <QRegularExpression>
+
 #include "file.h"
 #include "logging_data.h"
 
@@ -33,6 +37,7 @@ const QString Entry::ftColor = QStringLiteral("x-color");
 const QString Entry::ftComment = QStringLiteral("comment");
 const QString Entry::ftCrossRef = QStringLiteral("crossref");
 const QString Entry::ftDOI = QStringLiteral("doi");
+const QString Entry::ftEdition = QStringLiteral("edition");
 const QString Entry::ftEditor = QStringLiteral("editor");
 const QString Entry::ftFile = QStringLiteral("file");
 const QString Entry::ftISSN = QStringLiteral("issn");
@@ -209,7 +214,7 @@ Entry *Entry::resolveCrossref(const File *bibTeXfile) const
         if (crossRefValue.isEmpty())
             continue;
 
-        const QSharedPointer<Entry> crossRefEntry = bibTeXfile->containsKey(crossRefField, File::etEntry).dynamicCast<Entry>();
+        const QSharedPointer<Entry> crossRefEntry = bibTeXfile->containsKey(crossRefField, File::ElementType::Entry).dynamicCast<Entry>();
         if (!crossRefEntry.isNull()) {
             /// Copy all fields from crossref'ed entry to new entry which do not (yet) exist in the new entry
             for (Entry::ConstIterator it = crossRefEntry->constBegin(); it != crossRefEntry->constEnd(); ++it)

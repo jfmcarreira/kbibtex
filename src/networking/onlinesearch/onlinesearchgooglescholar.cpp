@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -48,8 +50,8 @@ public:
             : numResults(0)
     {
         importer = new FileImporterBibTeX(parent);
-        startPageUrl = QStringLiteral("http://scholar.google.com/");
-        queryPageUrl = QStringLiteral("http://%1/scholar");
+        startPageUrl = QStringLiteral("https://scholar.google.com/");
+        queryPageUrl = QStringLiteral("https://%1/scholar");
     }
 
     ~OnlineSearchGoogleScholarPrivate() {
@@ -118,14 +120,14 @@ OnlineSearchGoogleScholar::~OnlineSearchGoogleScholar()
     delete d;
 }
 
-void OnlineSearchGoogleScholar::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchGoogleScholar::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     d->numResults = numResults;
     m_hasBeenCanceled = false;
     emit progress(curStep = 0, numSteps = numResults + 4);
 
-    const auto respectingQuotationMarksFreeText = splitRespectingQuotationMarks(query[queryKeyFreeText]);
-    const auto respectingQuotationMarksTitle = splitRespectingQuotationMarks(query[queryKeyTitle]);
+    const auto respectingQuotationMarksFreeText = splitRespectingQuotationMarks(query[QueryKey::FreeText]);
+    const auto respectingQuotationMarksTitle = splitRespectingQuotationMarks(query[QueryKey::Title]);
     QStringList queryFragments;
     queryFragments.reserve(respectingQuotationMarksFreeText.size() + respectingQuotationMarksTitle.size());
     for (const QString &queryFragment : respectingQuotationMarksFreeText) {
@@ -135,14 +137,14 @@ void OnlineSearchGoogleScholar::startSearch(const QMap<QString, QString> &query,
         queryFragments.append(encodeURL(queryFragment));
     }
     d->queryFreetext = queryFragments.join(QStringLiteral("+"));
-    const auto respectingQuotationMarksAuthor = splitRespectingQuotationMarks(query[queryKeyAuthor]);
+    const auto respectingQuotationMarksAuthor = splitRespectingQuotationMarks(query[QueryKey::Author]);
     queryFragments.clear();
     queryFragments.reserve(respectingQuotationMarksAuthor.size());
     for (const QString &queryFragment : respectingQuotationMarksAuthor) {
         queryFragments.append(encodeURL(queryFragment));
     }
     d->queryAuthor = queryFragments.join(QStringLiteral("+"));
-    d->queryYear = encodeURL(query[queryKeyYear]);
+    d->queryYear = encodeURL(query[QueryKey::Year]);
 
     QUrl url(d->startPageUrl);
     QNetworkRequest request(url);
@@ -229,18 +231,19 @@ void OnlineSearchGoogleScholar::doneFetchingConfigPage()
                 return;
             }
 
-            QMap<QString, QString> inputMap = formParameters(htmlText, formOpeningTagPos);
-            inputMap[QStringLiteral("hl")] = QStringLiteral("en");
-            inputMap[QStringLiteral("scis")] = QStringLiteral("yes");
-            inputMap[QStringLiteral("scisf")] = QStringLiteral("4");
-            inputMap[QStringLiteral("num")] = QString::number(d->numResults);
-            inputMap[QStringLiteral("submit")] = QString();
+            QMultiMap<QString, QString> inputMap = formParameters(htmlText, formOpeningTagPos);
+            inputMap.replace(QStringLiteral("hl"), QStringLiteral("en"));
+            inputMap.replace(QStringLiteral("scis"), QStringLiteral("yes"));
+            inputMap.replace(QStringLiteral("scisf"), QStringLiteral("4"));
+            inputMap.replace(QStringLiteral("num"), QString::number(d->numResults));
+            inputMap.replace(QStringLiteral("submit"), QString());
 
             QUrl url = reply->url().resolved(QUrl(decodeURL(formOpeningTagMatch.captured(1))));
             QUrlQuery query(url);
-            for (QMap<QString, QString>::ConstIterator it = inputMap.constBegin(); it != inputMap.constEnd(); ++it) {
-                query.removeQueryItem(it.key());
-                query.addQueryItem(it.key(), it.value());
+            for (const QString &key : inputMap.keys()) {
+                query.removeQueryItem(key);
+                for (const QString &value : inputMap.values(key))
+                    query.addQueryItem(key, value);
             }
             url.setQuery(query);
 
@@ -461,11 +464,6 @@ QString OnlineSearchGoogleScholar::label() const
     //= onlinesearch-googlescholar-label
     return QObject::tr("Google Scholar");
 #endif // HAVE_KF5
-}
-
-QString OnlineSearchGoogleScholar::favIconUrl() const
-{
-    return QStringLiteral("https://scholar.google.com/favicon-png.ico");
 }
 
 QUrl OnlineSearchGoogleScholar::homepage() const

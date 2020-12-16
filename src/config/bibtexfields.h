@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -52,6 +54,8 @@ typedef struct {
     QString label;
     KBibTeX::TypeFlag preferredTypeFlag;
     KBibTeX::TypeFlags typeFlags;
+    QMap<QString, int> visualIndex;
+    QMap<QString, int> width;
     int defaultWidth;
     QMap<QString, bool> visible;
     bool defaultVisible;
@@ -67,8 +71,6 @@ uint qHash(const FieldDescription &a);
 class KBIBTEXCONFIG_EXPORT BibTeXFields : public QVector<FieldDescription>
 {
 public:
-    BibTeXFields(const BibTeXFields &other) = delete;
-    BibTeXFields &operator= (const BibTeXFields &other) = delete;
     ~BibTeXFields();
 
     /**
@@ -95,6 +97,8 @@ public:
     const FieldDescription find(const QString &name) const;
 
 private:
+    Q_DISABLE_COPY(BibTeXFields)
+
     explicit BibTeXFields(const QString &style, const QVector<FieldDescription> &other);
 
     class BibTeXFieldsPrivate;

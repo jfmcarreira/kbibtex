@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -192,7 +194,7 @@ public:
         QAbstractItemModel *usedModel = model;
         if (usedModel != nullptr) {
             model->setShowCountColumn(showCountColumnAction->isChecked());
-            model->setSortBy(sortByCountAction->isChecked() ? ValueListModel::SortByCount : ValueListModel::SortByText);
+            model->setSortBy(sortByCountAction->isChecked() ? ValueListModel::SortBy::Count : ValueListModel::SortBy::Text);
 
             if (sortingModel != nullptr) delete sortingModel;
             sortingModel = new QSortFilterProxyModel(p);
@@ -230,7 +232,9 @@ public:
 ValueList::ValueList(QWidget *parent)
         : QWidget(parent), d(new ValueListPrivate(this))
 {
-    QTimer::singleShot(500, this, &ValueList::delayedResize);
+    QTimer::singleShot(500, this, [this]() {
+        resizeEvent(nullptr);
+    });
 }
 
 ValueList::~ValueList()
@@ -275,7 +279,7 @@ void ValueList::listItemActivated(const QModelIndex &index)
 
     SortFilterFileModel::FilterQuery fq;
     fq.terms << itemText;
-    fq.combination = SortFilterFileModel::EveryTerm;
+    fq.combination = SortFilterFileModel::FilterCombination::EveryTerm;
     fq.field = fieldText;
     fq.searchPDFfiles = false;
 
@@ -290,7 +294,7 @@ void ValueList::searchSelection()
     if (fieldText.isEmpty()) fieldText = d->comboboxFieldNames->currentText();
 
     SortFilterFileModel::FilterQuery fq;
-    fq.combination = SortFilterFileModel::EveryTerm;
+    fq.combination = SortFilterFileModel::FilterCombination::EveryTerm;
     fq.field = fieldText;
     const auto selectedIndexes = d->treeviewFieldValues->selectionModel()->selectedIndexes();
     for (const QModelIndex &index : selectedIndexes) {
@@ -446,16 +450,11 @@ void ValueList::showCountColumnToggled()
 void ValueList::sortByCountToggled()
 {
     if (d->model != nullptr)
-        d->model->setSortBy(d->sortByCountAction->isChecked() ? ValueListModel::SortByCount : ValueListModel::SortByText);
+        d->model->setSortBy(d->sortByCountAction->isChecked() ? ValueListModel::SortBy::Count : ValueListModel::SortBy::Text);
 
     KConfigGroup configGroup(d->config, d->configGroupName);
     configGroup.writeEntry(d->configKeySortByCountAction, d->sortByCountAction->isChecked());
     d->config->sync();
-}
-
-void ValueList::delayedResize()
-{
-    resizeEvent(nullptr);
 }
 
 void ValueList::columnsChanged()

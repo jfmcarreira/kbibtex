@@ -1,20 +1,21 @@
-/*****************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
- *                                                                           *
- *                                                                           *
- *   This program is free software; you can redistribute it and/or modify    *
- *   it under the terms of the GNU General Public License as published by    *
- *   the Free Software Foundation; either version 2 of the License, or       *
- *   (at your option) any later version.                                     *
- *                                                                           *
- *   This program is distributed in the hope that it will be useful,         *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
- *   GNU General Public License for more details.                            *
- *                                                                           *
- *   You should have received a copy of the GNU General Public License       *
- *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
- *****************************************************************************/
+/***************************************************************************
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
+ ***************************************************************************/
 
 #include "rangewidget.h"
 
@@ -84,8 +85,7 @@ public:
         Q_ASSERT_X(upperValue <= maximum, "RangeWidget::Private::adjustSpinBoxes", "upperValue<=maximum");
 
         /// Disable signals being emitted when the combo boxes get updated
-        const bool previousBlockSignalsValueLower = lowerComboBox->blockSignals(true);
-        const bool previousBlockSignalsValueUpper = upperComboBox->blockSignals(true);
+        QSignalBlocker lowerComboBoxSignalBlocker(lowerComboBox), upperComboBoxSignalBlocker(upperComboBox);
 
         /// Compute a temporary QStringList containing only values from minimum to current upper value
         const QStringList lowerValues = stringListRange(values, minimum, upperValue, LowerAlternativ);
@@ -96,10 +96,6 @@ public:
         const QStringList upperValues = stringListRange(values, lowerValue, maximum, UpperAlternative);
         qobject_cast<QStringListModel *>(upperComboBox->model())->setStringList(upperValues);
         upperComboBox->setCurrentIndex(upperValue - lowerValue);
-
-        /// Re-enable signal for the combo boxes
-        lowerComboBox->blockSignals(previousBlockSignalsValueLower);
-        upperComboBox->blockSignals(previousBlockSignalsValueUpper);
     }
 };
 

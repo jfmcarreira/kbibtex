@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,7 +34,6 @@
 #include <KSharedConfig>
 
 #include <BibTeXFields>
-#include "delayedexecutiontimer.h"
 
 static bool sortStringsLocaleAware(const QString &s1, const QString &s2) {
     return QString::localeAwareCompare(s1, s2) < 0;
@@ -53,18 +54,14 @@ public:
     QComboBox *comboBoxField;
     QPushButton *buttonSearchPDFfiles;
     QPushButton *buttonClearAll;
-    DelayedExecutionTimer *delayedTimer;
+    QTimer *delayedTimer;
 
     FilterBarPrivate(FilterBar *parent)
             : p(parent), config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))),
-          configGroupName(QStringLiteral("Filter Bar")), maxNumStoredFilterTexts(12) {
-        delayedTimer = new DelayedExecutionTimer(p);
+          configGroupName(QStringLiteral("Filter Bar")), maxNumStoredFilterTexts(12), delayedTimer(new QTimer(parent)) {
+        delayedTimer->setSingleShot(true);
         setupGUI();
-        connect(delayedTimer, &DelayedExecutionTimer::triggered, p, &FilterBar::publishFilter);
-    }
-
-    ~FilterBarPrivate() {
-        delete delayedTimer;
+        connect(delayedTimer, &QTimer::timeout, p, &FilterBar::publishFilter);
     }
 
     void setupGUI() {
@@ -135,26 +132,31 @@ public:
         comboBoxCombination->setCurrentIndex(configGroup.readEntry("CurrentCombination", 0));
         comboBoxField->setCurrentIndex(configGroup.readEntry("CurrentField", 0));
 
-        connect(comboBoxFilterText->lineEdit(), &QLineEdit::textChanged, delayedTimer, &DelayedExecutionTimer::trigger);
+#define connectStartingDelayedTimer(instance,signal) connect((instance),(signal),p,[this](){delayedTimer->start(500);})
+        connectStartingDelayedTimer(comboBoxFilterText->lineEdit(), &QLineEdit::textChanged);
         connect(comboBoxFilterText->lineEdit(), &QLineEdit::returnPressed, p, &FilterBar::userPressedEnter);
         connect(comboBoxCombination, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), p, &FilterBar::comboboxStatusChanged);
         connect(comboBoxField, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), p, &FilterBar::comboboxStatusChanged);
         connect(buttonSearchPDFfiles, &QPushButton::toggled, p, &FilterBar::comboboxStatusChanged);
-        connect(comboBoxCombination, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), delayedTimer, &DelayedExecutionTimer::trigger);
-        connect(comboBoxField, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), delayedTimer, &DelayedExecutionTimer::trigger);
-        connect(buttonSearchPDFfiles, &QPushButton::toggled, delayedTimer, &DelayedExecutionTimer::trigger);
+        connectStartingDelayedTimer(comboBoxCombination, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged));
+        connectStartingDelayedTimer(comboBoxField, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged));
+        connectStartingDelayedTimer(buttonSearchPDFfiles, &QPushButton::toggled);
         connect(buttonClearAll, &QPushButton::clicked, p, &FilterBar::resetState);
     }
 
     SortFilterFileModel::FilterQuery filter() {
         SortFilterFileModel::FilterQuery result;
-        result.combination = comboBoxCombination->currentIndex() == 0 ? SortFilterFileModel::AnyTerm : SortFilterFileModel::EveryTerm;
+        result.combination = comboBoxCombination->currentIndex() == 0 ? SortFilterFileModel::FilterCombination::AnyTerm : SortFilterFileModel::FilterCombination::EveryTerm;
         result.terms.clear();
         if (comboBoxCombination->currentIndex() == 2) /// exact phrase
             result.terms << comboBoxFilterText->lineEdit()->text();
         else { /// any or every word
             static const QRegularExpression sequenceOfSpacesRegExp(QStringLiteral("\\s+"));
+#if QT_VERSION >= 0x050e00
+            result.terms = comboBoxFilterText->lineEdit()->text().split(sequenceOfSpacesRegExp, Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
             result.terms = comboBoxFilterText->lineEdit()->text().split(sequenceOfSpacesRegExp, QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         }
         result.field = comboBoxField->currentIndex() == 0 ? QString() : comboBoxField->itemData(comboBoxField->currentIndex(), Qt::UserRole).toString();
         result.searchPDFfiles = buttonSearchPDFfiles->isChecked();
@@ -164,16 +166,14 @@ public:
 
     void setFilter(const SortFilterFileModel::FilterQuery &fq) {
         /// Avoid triggering loops of activation
-        comboBoxCombination->blockSignals(true);
+        QSignalBlocker comboBoxCombinationSignalBlocker(comboBoxCombination);
         /// Set check state for action for either "any word",
         /// "every word", or "exact phrase", respectively
-        const int combinationIndex = fq.combination == SortFilterFileModel::AnyTerm ? 0 : (fq.terms.count() < 2 ? 2 : 1);
+        const int combinationIndex = fq.combination == SortFilterFileModel::FilterCombination::AnyTerm ? 0 : (fq.terms.count() < 2 ? 2 : 1);
         comboBoxCombination->setCurrentIndex(combinationIndex);
-        /// Reset activation block
-        comboBoxCombination->blockSignals(false);
 
         /// Avoid triggering loops of activation
-        comboBoxField->blockSignals(true);
+        QSignalBlocker comboBoxFieldSignalBlocker(comboBoxField);
         /// Find and check action that corresponds to field name ("author", ...)
         const QString lower = fq.field.toLower();
         for (int idx = comboBoxField->count() - 1; idx >= 0; --idx) {
@@ -182,22 +182,16 @@ public:
                 break;
             }
         }
-        /// Reset activation block
-        comboBoxField->blockSignals(false);
 
         /// Avoid triggering loops of activation
-        buttonSearchPDFfiles->blockSignals(true);
+        QSignalBlocker buttonSearchPDFfilesSignalBlocker(buttonSearchPDFfiles);
         /// Set flag if associated PDF files have to be searched
         buttonSearchPDFfiles->setChecked(fq.searchPDFfiles);
-        /// Reset activation block
-        buttonSearchPDFfiles->blockSignals(false);
 
         /// Avoid triggering loops of activation
-        comboBoxFilterText->lineEdit()->blockSignals(true);
+        QSignalBlocker comboBoxFilterTextSignalBlocker(comboBoxFilterText);
         /// Set filter text widget's content
         comboBoxFilterText->lineEdit()->setText(fq.terms.join(QStringLiteral(" ")));
-        /// Reset activation block
-        comboBoxFilterText->lineEdit()->blockSignals(false);
     }
 
     bool modelContainsText(QAbstractItemModel *model, const QString &text) {

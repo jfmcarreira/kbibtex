@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2017 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -43,10 +45,8 @@ public:
     explicit FileExporterXML(QObject *parent);
     ~FileExporterXML() override;
 
-    bool save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog = nullptr) override;
-    bool save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog = nullptr) override;
-
-    static QString valueToXML(const Value &value, const QString &fieldType = QString());
+    bool save(QIODevice *iodevice, const File *bibtexfile) override;
+    bool save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile) override;
 
 public slots:
     void cancel() override;
@@ -59,6 +59,8 @@ private:
     bool writeMacro(QTextStream &stream, const Macro *macro);
     bool writeComment(QTextStream &stream, const Comment *comment);
 
+    static QString valueToXML(const Value &value);
+    static QString valueItemToXML(const QSharedPointer<ValueItem> &valueItem);
     static QString cleanXML(const QString &text);
 };
 

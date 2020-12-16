@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,10 +40,10 @@ public:
     static Preferences &instance();
     ~Preferences();
 
-    enum BackupScope { NoBackup, LocalOnly, BothLocalAndRemote };
-    enum BibliographySystem { BibTeX = 0, BibLaTeX = 1 };
-    enum FileViewDoubleClickAction { ActionOpenEditor = 0, ActionViewDocument = 1 };
-    enum QuoteComment { qcNone = 0, qcCommand = 1, qcPercentSign = 2 };
+    enum class BackupScope { None, LocalOnly, BothLocalAndRemote };
+    enum class BibliographySystem { BibTeX, BibLaTeX };
+    enum class FileViewDoubleClickAction { OpenEditor, ViewDocument };
+    enum class QuoteComment { None, Command, PercentSign };
 
 
     /// *** BibliographySystem of type BibliographySystem ***

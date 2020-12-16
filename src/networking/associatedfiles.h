@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -44,19 +46,19 @@ class File;
 class KBIBTEXNETWORKING_EXPORT AssociatedFiles
 {
 public:
-    enum PathType {
-        ptAbsolute = 0, ///< Use absolute filenames/paths if possible
-        ptRelative = 1 ///< Use relative filenames/paths if possible
+    enum class PathType {
+        Absolute, ///< Use absolute filenames/paths if possible
+        Relative ///< Use relative filenames/paths if possible
     };
-    enum RenameOperation {
-        roKeepName = 0, ///< Do not rename a file
-        roEntryId = 1, ///< Rename the file following the entry's id
-        roUserDefined = 2 ///< Rename after a string provided by the user
+    enum class RenameOperation {
+        KeepName, ///< Do not rename a file
+        EntryId, ///< Rename the file following the entry's id
+        UserDefined ///< Rename after a string provided by the user
     };
-    enum MoveCopyOperation {
-        mcoNoCopyMove = 0, ///< Do not move or copy a file, use a reference only
-        mcoCopy = 1, ///< Copy the file next to the bibiliograpy file
-        mcoMove = 2 /// Same as copy, but delete original
+    enum class MoveCopyOperation {
+        None, ///< Do not move or copy a file, use a reference only
+        Copy, ///< Copy the file next to the bibiliograpy file
+        Move /// Same as copy, but delete original
     };
 
     /**
@@ -65,7 +67,7 @@ public:
      *
      * @param documentUrl URL to a document like 'http://www.example.com/publication.pdf'
      * @param entry bibliography entry where the URL is to be associated with
-     * @param bibTeXFile valid bibliography, preferrably with property 'File::Url' set
+     * @param bibTeXFile valid bibliography, preferably with property 'File::Url' set
      * @param pathType request either a relative or an absolute path
      * @return the computed URL string
      */
@@ -74,13 +76,13 @@ public:
     /**
      * Compute how the URL string to be associated to a bibliographic entry may look
      * like for a given document URL, a given bibliography, and whether the URL string
-     * should be preferrably relative or absolute.
+     * should be preferably relative or absolute.
      * @param documentUrl URL to a document like 'http://www.example.com/publication.pdf'
-     * @param bibTeXFile valid bibliography, preferrably with property 'File::Url' set
+     * @param bibTeXFile valid bibliography, preferably with property 'File::Url' set
      * @param pathType request either a relative or an absolute path
      * @return the computed URL string
      */
-    static QString computeAssociateUrl(const QUrl &documentUrl, const File *bibTeXFile, PathType pathType);
+    static QString computeAssociateString(const QUrl &documentUrl, const File *bibTeXFile, PathType pathType);
 
     /**
      * For a given (remote) source URL and given various information such as which

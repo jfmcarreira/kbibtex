@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -35,15 +37,12 @@ public:
     explicit OnlineSearchPubMed(QObject *parent);
     ~OnlineSearchPubMed() override;
 
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
+    void startSearch(const QMap<QueryKey, QString> &query, int numResults) override;
     QString label() const override;
     QUrl homepage() const override;
 
     static const int maxNumResults;
     static const uint queryChokeTimeout;
-
-protected:
-    QString favIconUrl() const override;
 
 private slots:
     void eSearchDone();

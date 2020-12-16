@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,8 +40,7 @@ public:
     QUrl homepage() const override;
 
 protected:
-    QString favIconUrl() const override;
-    QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) override;
+    QUrl buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults) override;
 };
 
 #endif // KBIBTEX_NETWORKING_ONLINESEARCHCERNDS_H

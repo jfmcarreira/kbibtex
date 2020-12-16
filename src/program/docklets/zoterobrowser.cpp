@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -126,7 +128,9 @@ public:
         comboBoxGroupList->addItem(i18n("No groups available"));
         connect(radioGroupLibrary, &QRadioButton::toggled, p, &ZoteroBrowser::radioButtonsToggled);
         connect(radioPersonalLibrary, &QRadioButton::toggled, p, &ZoteroBrowser::radioButtonsToggled);
-        connect(comboBoxGroupList, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), p, &ZoteroBrowser::groupListChanged);
+        connect(comboBoxGroupList, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), p, [this]() {
+            needToApplyCredentials = true;
+        });
 
         containerLayout->addStretch(10);
 
@@ -304,7 +308,7 @@ bool ZoteroBrowser::applyCredentials()
         d->api.clear();
 
         const bool makeGroupRequest = d->radioGroupLibrary->isChecked() && groupId > 0;
-        d->api = QSharedPointer<Zotero::API>(new Zotero::API(makeGroupRequest ? Zotero::API::GroupRequest : Zotero::API::UserRequest, makeGroupRequest ? groupId : userId, d->lineEditApiKey->text(), this));
+        d->api = QSharedPointer<Zotero::API>(new Zotero::API(makeGroupRequest ? Zotero::API::RequestScope::Group : Zotero::API::RequestScope::User, makeGroupRequest ? groupId : userId, d->lineEditApiKey->text(), this));
         d->items = new Zotero::Items(d->api, this);
         d->tags = new Zotero::Tags(d->api, this);
         d->tagModel = new Zotero::TagModel(d->tags, this);
@@ -350,7 +354,7 @@ void ZoteroBrowser::retrieveGroupList() {
         d->groups->deleteLater();
         d->api.clear();
 
-        d->api = QSharedPointer<Zotero::API>(new Zotero::API(Zotero::API::UserRequest, userId, d->lineEditApiKey->text(), this));
+        d->api = QSharedPointer<Zotero::API>(new Zotero::API(Zotero::API::RequestScope::User, userId, d->lineEditApiKey->text(), this));
         d->groups = new Zotero::Groups(d->api, this);
 
         connect(d->groups, &Zotero::Groups::finishedLoading, this, &ZoteroBrowser::gotGroupList);

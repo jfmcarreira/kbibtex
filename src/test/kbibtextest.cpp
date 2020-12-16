@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -27,6 +29,7 @@
 #include <QAction>
 #include <QListWidget>
 #include <QApplication>
+#include <QRandomGenerator>
 
 #include <KAboutData>
 
@@ -39,7 +42,9 @@
 #include <onlinesearch/OnlineSearchIngentaConnect>
 #include <onlinesearch/OnlineSearchInspireHep>
 #include <onlinesearch/OnlineSearchIDEASRePEc>
+#ifdef HAVE_WEBENGINEWIDGETS
 #include <onlinesearch/OnlineSearchJStor>
+#endif // HAVE_WEBENGINEWIDGETS
 #include <onlinesearch/OnlineSearchMathSciNet>
 #include <onlinesearch/OnlineSearchMRLookup>
 #include <onlinesearch/OnlineSearchPubMed>
@@ -128,7 +133,9 @@ KBibTeXTest::KBibTeXTest(QWidget *parent)
     m_onlineSearchList << new OnlineSearchIEEEXplore(this);
     m_onlineSearchList << new OnlineSearchIngentaConnect(this);
     m_onlineSearchList << new OnlineSearchInspireHep(this);
+#ifdef HAVE_WEBENGINEWIDGETS
     m_onlineSearchList << new OnlineSearchJStor(this);
+#endif // HAVE_WEBENGINEWIDGETS
     m_onlineSearchList << new OnlineSearchMathSciNet(this);
     m_onlineSearchList << new OnlineSearchMRLookup(this);
     m_onlineSearchList << new OnlineSearchPubMed(this);
@@ -153,7 +160,7 @@ KBibTeXTest::KBibTeXTest(QWidget *parent)
 
     connect(this, &KBibTeXTest::rejected, this, &KBibTeXTest::aboutToQuit);
 
-    addMessage(QString(QStringLiteral("Compiled for %1")).arg(KAboutData::applicationData().version()), statusInfo);
+    addMessage(QString(QStringLiteral("Compiled for %1")).arg(KAboutData::applicationData().version()), MessageStatus::Info);
 }
 
 void KBibTeXTest::addMessage(const QString &message, const MessageStatus messageStatus)
@@ -165,22 +172,22 @@ void KBibTeXTest::addMessage(const QString &message, const MessageStatus message
     static const QIcon iconNETWORK = QIcon::fromTheme(QStringLiteral("dialog-cancel")); // FIXME "dialog-cancel" should be overlay on "network-wired"
     QIcon icon;
     switch (messageStatus) {
-    case statusInfo: icon = iconINFO; break;
-    case statusOk: icon = iconOK; break;
-    case statusError: icon = iconERROR; break;
-    case statusAuth: icon = iconAUTH; break;
-    case statusNetwork: icon = iconNETWORK; break;
+    case MessageStatus::Info: icon = iconINFO; break;
+    case MessageStatus::Ok: icon = iconOK; break;
+    case MessageStatus::Error: icon = iconERROR; break;
+    case MessageStatus::Auth: icon = iconAUTH; break;
+    case MessageStatus::Network: icon = iconNETWORK; break;
     }
 
     QListWidgetItem *item = icon.isNull() ? new QListWidgetItem(message) : new QListWidgetItem(icon, message);
     item->setToolTip(item->text());
     const QColor originalBgColor = QGuiApplication::palette().color(QPalette::Base);
     switch (messageStatus) {
-    case statusInfo: break; ///< nothing to do
-    case statusOk: item->setBackground(QBrush(blendColors(originalBgColor, Qt::green, .1))); break;
-    case statusError: item->setBackground(QBrush(blendColors(originalBgColor, Qt::red, .1))); break;
-    case statusAuth: item->setBackground(QBrush(blendColors(originalBgColor, Qt::yellow, .1))); break;
-    case statusNetwork: item->setBackground(QBrush(blendColors(originalBgColor, Qt::yellow, .1))); break;
+    case MessageStatus::Info: break; ///< nothing to do
+    case MessageStatus::Ok: item->setBackground(QBrush(blendColors(originalBgColor, Qt::green, .1))); break;
+    case MessageStatus::Error: item->setBackground(QBrush(blendColors(originalBgColor, Qt::red, .1))); break;
+    case MessageStatus::Auth: item->setBackground(QBrush(blendColors(originalBgColor, Qt::yellow, .1))); break;
+    case MessageStatus::Network: item->setBackground(QBrush(blendColors(originalBgColor, Qt::yellow, .1))); break;
     }
 
     m_testWidget->messageList->addItem(item);
@@ -218,17 +225,19 @@ void KBibTeXTest::startOnlineSearchTests()
 
 void KBibTeXTest::onlineSearchStoppedSearch(int searchResult)
 {
+    if (m_currentOnlineSearch != m_onlineSearchList.constEnd())
+        disconnect(*m_currentOnlineSearch, &OnlineSearchAbstract::stoppedSearch, this, &KBibTeXTest::onlineSearchStoppedSearch);
     if (searchResult == OnlineSearchAbstract::resultNoError) {
         if (m_currentOnlineSearchNumFoundEntries == 0)
-            addMessage(QString(QStringLiteral("Got no error message searching '%1', but found NO entries")).arg((*m_currentOnlineSearch)->label()), statusError);
+            addMessage(QString(QStringLiteral("Got no error message searching '%1', but found NO entries")).arg((*m_currentOnlineSearch)->label()), MessageStatus::Error);
         else
-            addMessage(QString(QStringLiteral("No error searching '%1', found %2 entries")).arg((*m_currentOnlineSearch)->label()).arg(m_currentOnlineSearchNumFoundEntries), statusOk);
+            addMessage(QString(QStringLiteral("No error searching '%1', found %2 entries")).arg((*m_currentOnlineSearch)->label()).arg(m_currentOnlineSearchNumFoundEntries), MessageStatus::Ok);
     } else if (searchResult == OnlineSearchAbstract::resultAuthorizationRequired) {
-        addMessage(QString(QStringLiteral("Authorization required for '%1'")).arg((*m_currentOnlineSearch)->label()), statusAuth);
+        addMessage(QString(QStringLiteral("Authorization required for '%1'")).arg((*m_currentOnlineSearch)->label()), MessageStatus::Auth);
     } else if (searchResult == OnlineSearchAbstract::resultNetworkError) {
-        addMessage(QString(QStringLiteral("Network error for '%1'")).arg((*m_currentOnlineSearch)->label()), statusNetwork);
+        addMessage(QString(QStringLiteral("Network error for '%1'")).arg((*m_currentOnlineSearch)->label()), MessageStatus::Network);
     } else {
-        addMessage(QString(QStringLiteral("Error searching '%1'")).arg((*m_currentOnlineSearch)->label()), statusError);
+        addMessage(QString(QStringLiteral("Error searching '%1'")).arg((*m_currentOnlineSearch)->label()), MessageStatus::Error);
     }
     m_currentOnlineSearch++;
 
@@ -236,19 +245,9 @@ void KBibTeXTest::onlineSearchStoppedSearch(int searchResult)
     processNextSearch();
 }
 
-void KBibTeXTest::onlineSearchFoundEntry()
-{
-    ++m_currentOnlineSearchNumFoundEntries;
-}
-
 void KBibTeXTest::progress(int pos, int total)
 {
     m_testWidget->setProgress(pos, total);
-}
-
-void KBibTeXTest::resetProgress()
-{
-    m_testWidget->setProgress(-1, -1);
 }
 
 void KBibTeXTest::processNextSearch()
@@ -256,19 +255,29 @@ void KBibTeXTest::processNextSearch()
     if (m_running && m_currentOnlineSearch != m_onlineSearchList.constEnd()) {
         setBusy(true);
         m_currentOnlineSearchNumFoundEntries = 0;
-        addMessage(QString(QStringLiteral("Searching '%1'")).arg((*m_currentOnlineSearch)->label()), statusInfo);
+        addMessage(QString(QStringLiteral("Searching '%1'")).arg((*m_currentOnlineSearch)->label()), MessageStatus::Info);
 
-        QMap<QString, QString> query;
-        query.insert(OnlineSearchAbstract::queryKeyAuthor, QStringLiteral("smith"));
+        QMap<OnlineSearchAbstract::QueryKey, QString> query;
+        if (qobject_cast<OnlineSearchSemanticScholar *>(*m_currentOnlineSearch) != nullptr)
+            /// Semantic Scholar cannot search for last names, but for DOIs or arXiv IDs instead
+            query.insert(OnlineSearchAbstract::QueryKey::FreeText, QStringLiteral("10.1002/smj.863"));
+        else {
+            static const QStringList lastNames{QStringLiteral("Smith"), QStringLiteral("Jones"), QStringLiteral("Andersson"), QStringLiteral("Ivanova"), QStringLiteral("Wang"), QStringLiteral("Gonzalez"), QStringLiteral("Garcia"), QStringLiteral("Lopez"), QStringLiteral("Ahmed"), QStringLiteral("Nkosi"), QStringLiteral("Kim"), QStringLiteral("Chen"), QStringLiteral("Devi"), QStringLiteral("Khan"), QStringLiteral("Johansson"), QStringLiteral("Sharipov"), QStringLiteral("Korhonen"), QStringLiteral("Muller"), QStringLiteral("Murphy"), QStringLiteral("Papadopoulos"), QStringLiteral("Rossi"), QStringLiteral("Hernandez"), QStringLiteral("Williams"), QStringLiteral("Zhang"), QStringLiteral("Singh"), QStringLiteral("Kumar")};
+            query.insert(OnlineSearchAbstract::QueryKey::Author, lastNames[QRandomGenerator::global()->bounded(lastNames.count())]);
+        }
         connect(*m_currentOnlineSearch, &OnlineSearchAbstract::stoppedSearch, this, &KBibTeXTest::onlineSearchStoppedSearch);
-        connect(*m_currentOnlineSearch, &OnlineSearchAbstract::foundEntry, this, &KBibTeXTest::onlineSearchFoundEntry);
+        connect(*m_currentOnlineSearch, &OnlineSearchAbstract::foundEntry, this, [this]() {
+            ++m_currentOnlineSearchNumFoundEntries;
+        });
         connect(*m_currentOnlineSearch, &OnlineSearchAbstract::progress, this, &KBibTeXTest::progress);
         (*m_currentOnlineSearch)->startSearch(query, 3);
     } else {
-        addMessage(QStringLiteral("Done testing"), statusInfo);
+        addMessage(QStringLiteral("Done testing"), MessageStatus::Info);
         setBusy(false);
         m_running = false;
-        QTimer::singleShot(500, this, &KBibTeXTest::resetProgress);
+        QTimer::singleShot(500, this, [this]() {
+            m_testWidget->setProgress(-1, -1);
+        });
     }
 }
 

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2016-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2016-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -88,14 +90,10 @@ void SortedBibliographyModel::setSortOrder(int _sortOrder) {
 
 QStringList SortedBibliographyModel::humanReadableSortOrder() const {
     static const QStringList result {
-                                     //% "Last name, newest first"
-                                     qtTrId("sortorder-humanreadable-lastname-newestfirst"), ///< SortAuthorNewestTitle
-                                     //% "Last name, oldest first"
-                                     qtTrId("sortorder-humanreadable-lastname-oldestfirst"), ///< SortAuthorOldestTitle
-                                     //% "Newest first, last name"
-                                     qtTrId("sortorder-humanreadable-newestfirst-lastname"), ///< SortNewestAuthorTitle
-                                     //% "Oldest first, last name"
-                                     qtTrId("sortorder-humanreadable-oldestfirst-lastname")  ///< SortOldestAuthorTitle
+                                     tr("Last name, newest first"), ///< SortAuthorNewestTitle
+                                     tr("Last name, oldest first"), ///< SortAuthorOldestTitle
+                                     tr("Newest first, last name"), ///< SortNewestAuthorTitle
+                                     tr("Newest first, last name")  ///< SortOldestAuthorTitle
                                     };
     return result;
 }
@@ -274,11 +272,9 @@ QVariant BibliographyModel::data(const QModelIndex &index, int role) const {
             if (isPhdThesis) {
                 const QString school = valueToText(curEntry->operator[](Entry::ftSchool));
                 if (school.isEmpty()) {
-                    //% "Doctoral dissertation"
-                    return qtTrId("wherepublished-doctoral-dissertation");
+                    return tr("Doctoral dissertation");
                 } else {
-                    //% "Doctoral dissertation (%1)"
-                    return qtTrId("wherepublished-doctoral-dissertation-arg").arg(school);
+                    return tr("Doctoral dissertation (%1)").arg(school);
                 }
             }
             const QString school = valueToText(curEntry->operator[](Entry::ftSchool));
@@ -292,15 +288,13 @@ QVariant BibliographyModel::data(const QModelIndex &index, int role) const {
             case 0: return QString(); ///< empty list of authors
             case 1: return authors.first(); ///< single author
             case 2:
-                //% "%1 and %2"
-                return qtTrId("shortauthors-two-author-args").arg(authors.first()).arg(authors[1]); ///< two authors
+                return tr("%1 and %2").arg(authors.first()).arg(authors[1]); ///< two authors
             default:
-                //% "%1 and %2 more"
-                return qtTrId("shortauthors-one-author-arg-and-n-others-arg").arg(authors.first()).arg(QString::number(authors.size() - 1)); ///< three or more authors
+                return tr("%1 and %2 more").arg(authors.first()).arg(QString::number(authors.size() - 1)); ///< three or more authors
             }
         } else if (role == UrlRole) {
             const QStringList doiList = valueToList(curEntry->operator[](Entry::ftDOI));
-            if (!doiList.isEmpty()) return QStringLiteral("http://dx.doi.org/") + doiList.first();
+            if (!doiList.isEmpty()) return QStringLiteral("https://dx.doi.org/") + doiList.first();
             const QStringList urlList = valueToList(curEntry->operator[](Entry::ftUrl));
             if (!urlList.isEmpty()) return urlList.first();
             const QStringList bibUrlList = valueToList(curEntry->operator[](QStringLiteral("biburl")));
@@ -323,10 +317,10 @@ const QSharedPointer<const Entry> BibliographyModel::entry(int row) const {
 }
 
 void BibliographyModel::startSearch(const QString &freeText, const QString &title, const QString &author) {
-    QMap<QString, QString> query;
-    query[OnlineSearchAbstract::queryKeyFreeText] = freeText;
-    query[OnlineSearchAbstract::queryKeyTitle] = title;
-    query[OnlineSearchAbstract::queryKeyAuthor] = author;
+    QMap<OnlineSearchAbstract::QueryKey, QString> query;
+    query[OnlineSearchAbstract::QueryKey::FreeText] = freeText;
+    query[OnlineSearchAbstract::QueryKey::Title] = title;
+    query[OnlineSearchAbstract::QueryKey::Author] = author;
 
     m_searchEngineList->resetProgress();
 

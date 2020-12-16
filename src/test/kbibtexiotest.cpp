@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -44,6 +46,13 @@ class KBibTeXIOTest : public QObject
 {
     Q_OBJECT
 
+private:
+    File *mobyDickBibliography();
+    File *latinUmlautBibliography();
+    File *koreanBibliography();
+    File *russianBibliography();
+    QVector<QPair<const char *, File *> > fileImporterExporterTestCases();
+
 private slots:
     void initTestCase();
     void encoderConvertToPlainAscii_data();
@@ -56,19 +65,20 @@ private slots:
     void encoderLaTeXdecode();
     void encoderLaTeXencode_data();
     void encoderLaTeXencode();
+    void encoderLaTeXencodeHash();
     void fileImporterSplitName_data();
     void fileImporterSplitName();
     void fileInfoMimeTypeForUrl_data();
     void fileInfoMimeTypeForUrl();
     void fileInfoUrlsInText_data();
     void fileInfoUrlsInText();
-    QVector<QPair<const char *, File *> > fileImporterExporterTestCases();
     void fileExporterXMLsave_data();
     void fileExporterXMLsave();
-    void fileExporterXSLTstandardSaveFile_data();
-    void fileExporterXSLTstandardSaveFile();
-    void fileExporterXSLTstandardSaveElement_data();
-    void fileExporterXSLTstandardSaveElement();
+    QHash<QString, QHash<const char *, QSet<QString>>> fileExporterXSLTtestCases();
+    void fileExporterXSLTsaveFile_data();
+    void fileExporterXSLTsaveFile();
+    void fileExporterXSLTsaveElement_data();
+    void fileExporterXSLTsaveElement();
     void fileExporterRISsave_data();
     void fileExporterRISsave();
     void fileExporterBibTeXsave_data();
@@ -77,6 +87,10 @@ private slots:
     void fileImporterRISload();
     void fileImporterBibTeXload_data();
     void fileImporterBibTeXload();
+    void fileExporterBibTeXEncoding_data();
+    void fileExporterBibTeXEncoding();
+    void fileImportExportBibTeXroundtrip_data();
+    void fileImportExportBibTeXroundtrip();
     void protectiveCasingEntryGeneratedOnTheFly();
     void protectiveCasingEntryFromData();
     void partialBibTeXInput_data();
@@ -166,7 +180,7 @@ void KBibTeXIOTest::encoderXMLencode()
     QFETCH(QString, xml);
     QFETCH(QString, unicode);
 
-    QCOMPARE(EncoderXML::instance().encode(unicode, Encoder::TargetEncodingASCII), xml);
+    QCOMPARE(EncoderXML::instance().encode(unicode, Encoder::TargetEncoding::ASCII), xml);
 }
 
 void KBibTeXIOTest::encoderLaTeXdecode_data()
@@ -176,8 +190,20 @@ void KBibTeXIOTest::encoderLaTeXdecode_data()
     QTest::addColumn<QString>("alternativelatex");
 
     QTest::newRow("Just ASCII") << QStringLiteral("Gallia est omnis divisa in partes tres, quarum unam incolunt Belgae, aliam Aquitani, tertiam qui ipsorum lingua Celtae, nostra Galli appellantur.") << QStringLiteral("Gallia est omnis divisa in partes tres, quarum unam incolunt Belgae, aliam Aquitani, tertiam qui ipsorum lingua Celtae, nostra Galli appellantur.") << QString();
-    QTest::newRow("Dotless i and j characters") << QStringLiteral("{\\`\\i}{\\'\\i}{\\^\\i}{\\\"\\i}{\\~\\i}{\\=\\i}{\\u\\i}{\\k\\i}{\\^\\j}{\\v\\i}{\\v\\j}") << QString(QChar(0x00EC)) + QChar(0x00ED) + QChar(0x00EE) + QChar(0x00EF) + QChar(0x0129) + QChar(0x012B) + QChar(0x012D) + QChar(0x012F) + QChar(0x0135) + QChar(0x01D0) + QChar(0x01F0) << QString();
+    QTest::newRow("Dotless i and j characters") << QStringLiteral("{\\`\\i}{\\`{\\i}}{\\'\\i}{\\^\\i}{\\\"\\i}{\\~\\i}{\\=\\i}{\\u\\i}{\\k\\i}{\\^\\j}{\\m\\i}{\\v\\i}{\\v\\j}\\m\\i") << QString(QChar(0x00EC)) + QChar(0x00EC) + QChar(0x00ED) + QChar(0x00EE) + QChar(0x00EF) + QChar(0x0129) + QChar(0x012B) + QChar(0x012D) + QChar(0x012F) + QChar(0x0135) + QStringLiteral("{\\m\\i}")  + QChar(0x01D0) + QChar(0x01F0) + QStringLiteral("\\m\\i") <<  QStringLiteral("{\\`\\i}{\\`\\i}{\\'\\i}{\\^\\i}{\\\"\\i}{\\~\\i}{\\=\\i}{\\u\\i}{\\k\\i}{\\^\\j}{\\m\\i}{\\v\\i}{\\v\\j}\\m\\i");
     QTest::newRow("\\l and \\ldots") << QStringLiteral("\\l\\ldots\\l\\ldots") << QString(QChar(0x0142)) + QChar(0x2026) + QChar(0x0142) + QChar(0x2026) << QStringLiteral("{\\l}{\\ldots}{\\l}{\\ldots}");
+    QTest::newRow("Various two-letter commands (1)") << QStringLiteral("\\AA\\textmugreek") << QString(QChar(0x00c5)) + QChar(0x03bc) << QStringLiteral("{\\AA}{\\textmugreek}");
+    QTest::newRow("Various two-letter commands (2)") << QStringLiteral("{\\AA}{\\textmugreek}") << QString(QChar(0x00c5)) + QChar(0x03bc) << QStringLiteral("{\\AA}{\\textmugreek}");
+    QTest::newRow("Various two-letter commands (3)") << QStringLiteral("\\AA \\textmugreek") << QString(QChar(0x00c5)) + QChar(0x03bc) << QStringLiteral("{\\AA}{\\textmugreek}");
+    QTest::newRow("Inside curly brackets: modifier plus letter") << QStringLiteral("aa{\\\"A}bb{\\\"T}") << QStringLiteral("aa") + QChar(0x00c4) + QStringLiteral("bb{\\\"T}") << QString();
+    QTest::newRow("Inside curly brackets: modifier plus, inside curly brackets, letter") << QStringLiteral("aa{\\\"{A}}bb{\\\"{T}}") << QStringLiteral("aa") + QChar(0x00c4) + QStringLiteral("bb{\\\"{T}}") <<  QStringLiteral("aa{\\\"A}bb{\\\"{T}}");
+    QTest::newRow("Modifier plus letter") << QStringLiteral("\\\"A aa\\\"Abb\\\"T") << QChar(0x00c4) + QStringLiteral(" aa") + QChar(0x00c4) + QStringLiteral("bb\\\"T") << QStringLiteral("{\\\"A} aa{\\\"A}bb\\\"T");
+    QTest::newRow("Modifier plus, inside curly brackets, letter") << QStringLiteral("\\\"{A} aa\\\"{A}bb\\\"{T}") << QChar(0x00c4) + QStringLiteral(" aa") + QChar(0x00c4) + QStringLiteral("bb\\\"{T}") << QStringLiteral("{\\\"A} aa{\\\"A}bb\\\"{T}");
+    QTest::newRow("Single-letter commands") << QStringLiteral("\\,\\&\\_\\#\\%") << QChar(0x2009) + QStringLiteral("&_#%") << QString();
+    QTest::newRow("\\noopsort{\\noopsort}") << QStringLiteral("\\noopsort{\\noopsort}") << QStringLiteral("\\noopsort{\\noopsort}") << QString();
+    QTest::newRow("\\ensuremath") << QStringLiteral("\\ensuremath{${\\alpha}$}${\\ensuremath{\\delta}}$-spot \\ensuremath{26^{\\mathrm{th}}} {\\ensuremath{-}}") << QStringLiteral("\\ensuremath{$") + QChar(0x03b1) + ("$}${\\ensuremath{") + QChar(0x03b4) + QStringLiteral("}}$-spot \\ensuremath{26^{\\mathrm{th}}} {\\ensuremath{-}}") << QStringLiteral("\\ensuremath{$\\alpha$}${\\ensuremath{\\delta}}$-spot \\ensuremath{26^{\\mathrm{th}}} {\\ensuremath{-}}");
+    QTest::newRow("Greek mu with 'Dollar' math") << QString(QStringLiteral("%1\\mu\\textmu$%1\\mu$")).arg(QChar(0x03bc)) << QString(QStringLiteral("%1%1%1$%1%1$")).arg(QChar(0x03bc)) << QStringLiteral("{\\textmugreek}{\\textmugreek}{\\textmugreek}$\\mu{}\\mu$");
+    QTest::newRow("Greek mu with '\\ensuremath'") << QString(QStringLiteral("%1\\mu\\textmu\\ensuremath{%1\\mu}")).arg(QChar(0x03bc)) << QString(QStringLiteral("%1%1%1\\ensuremath{%1%1}")).arg(QChar(0x03bc)) << QString(QStringLiteral("{\\textmugreek}{\\textmugreek}{\\textmugreek}\\ensuremath{\\mu{}\\mu}"));
 }
 
 void KBibTeXIOTest::encoderLaTeXdecode()
@@ -199,11 +225,66 @@ void KBibTeXIOTest::encoderLaTeXencode()
     QFETCH(QString, unicode);
     QFETCH(QString, alternativelatex);
 
-    const QString generatedLatex = EncoderLaTeX::instance().encode(unicode, Encoder::TargetEncodingASCII);
+    const QString generatedLatex = EncoderLaTeX::instance().encode(unicode, Encoder::TargetEncoding::ASCII);
     if (generatedLatex != latex && !alternativelatex.isEmpty())
         QCOMPARE(generatedLatex, alternativelatex);
     else
         QCOMPARE(generatedLatex, latex);
+}
+
+void KBibTeXIOTest::encoderLaTeXencodeHash()
+{
+    /// File with single entry, inspired by 'Moby Dick'
+    QScopedPointer<File> file(new File());
+    QSharedPointer<Entry> entry(new Entry(Entry::etBook, QStringLiteral("latex-encoder-test")));
+    file->append(entry);
+    static const QString titleText(QStringLiteral("{This is a Title with a \\#}"));
+    entry->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(titleText)));
+    static const QString authorLastNameText(QStringLiteral("{Flash the \\#}"));
+    entry->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QString(), authorLastNameText)));
+    static const QString urlText(QStringLiteral("https://127.0.0.1/#hashtag"));
+    entry->insert(Entry::ftUrl, Value() << QSharedPointer<VerbatimText>(new VerbatimText(urlText)));
+    file->setProperty(File::ProtectCasing, Qt::Checked);
+    file->setProperty(File::Encoding, QStringLiteral("latex"));
+
+    QBuffer fileBuffer;
+    fileBuffer.open(QBuffer::WriteOnly);
+    FileExporterBibTeX exporter(this);
+    exporter.save(&fileBuffer, file.data());
+    fileBuffer.close();
+
+    fileBuffer.open(QBuffer::ReadOnly);
+    FileImporterBibTeX importer(this);
+    QScopedPointer<File> importedFile(importer.load(&fileBuffer));
+    fileBuffer.close();
+
+    QVERIFY(!importedFile.isNull());
+    QVERIFY(importedFile->count() == 1);
+    QSharedPointer<Entry> importedEntry = importedFile->first().dynamicCast<Entry>();
+    QVERIFY(!importedEntry.isNull());
+    QVERIFY(importedEntry->count() == 3);
+    QVERIFY(importedEntry->contains(Entry::ftTitle));
+    QVERIFY(importedEntry->value(Entry::ftTitle).count() == 1);
+    const QSharedPointer<PlainText> titlePlainText = importedEntry->value(Entry::ftTitle).first().dynamicCast<PlainText>();
+    QVERIFY(!titlePlainText.isNull());
+    const QString importedTitleText = titlePlainText->text();
+    QVERIFY(!importedTitleText.isEmpty());
+    QVERIFY(importedEntry->contains(Entry::ftAuthor));
+    QVERIFY(importedEntry->value(Entry::ftAuthor).count() == 1);
+    const QSharedPointer<Person> authorPerson = importedEntry->value(Entry::ftAuthor).first().dynamicCast<Person>();
+    QVERIFY(!authorPerson.isNull());
+    const QString importedAuthorLastNameText = authorPerson->lastName();
+    QVERIFY(!importedAuthorLastNameText.isEmpty());
+    QVERIFY(importedEntry->contains(Entry::ftUrl));
+    QVERIFY(importedEntry->value(Entry::ftUrl).count() == 1);
+    const QSharedPointer<VerbatimText> urlVerbatimText = importedEntry->value(Entry::ftUrl).first().dynamicCast<VerbatimText>();
+    QVERIFY(!urlVerbatimText.isNull());
+    const QString importedUrlText = urlVerbatimText->text();
+    QVERIFY(!importedUrlText.isEmpty());
+
+    QVERIFY(importedTitleText == titleText);
+    QVERIFY(importedAuthorLastNameText == authorLastNameText);
+    QVERIFY(importedUrlText == urlText);
 }
 
 void KBibTeXIOTest::fileImporterSplitName_data()
@@ -264,7 +345,8 @@ void KBibTeXIOTest::fileInfoUrlsInText_data()
 
     QTest::newRow("Empty text") << QString() << QSet<QUrl>();
     QTest::newRow("Lore ipsum with DOI (without URL)") << QStringLiteral("Lore ipsum 10.1000/38-abc Lore ipsum") << QSet<QUrl> {QUrl(KBibTeX::doiUrlPrefix + QStringLiteral("10.1000/38-abc"))};
-    QTest::newRow("Lore ipsum with DOI (with URL)") << QStringLiteral("Lore ipsum http://doi.example.org/10.1000/38-abc Lore ipsum") << QSet<QUrl> {QUrl(KBibTeX::doiUrlPrefix + QStringLiteral("10.1000/38-abc"))};
+    QTest::newRow("Lore ipsum with DOI (with HTTP URL)") << QStringLiteral("Lore ipsum http://doi.example.org/10.1000/38-abc Lore ipsum") << QSet<QUrl> {QUrl(KBibTeX::doiUrlPrefix + QStringLiteral("10.1000/38-abc"))};
+    QTest::newRow("Lore ipsum with DOI (with HTTPS URL)") << QStringLiteral("Lore ipsum https://doi.example.org/10.1000/42-XYZ Lore ipsum") << QSet<QUrl> {QUrl(KBibTeX::doiUrlPrefix + QStringLiteral("10.1000/42-XYZ"))};
     QTest::newRow("URLs and DOI (without URL), all semicolon-separated") << QStringLiteral("http://www.example.com;10.1000/38-abc   ;\nhttps://www.example.com") << QSet<QUrl> {QUrl(QStringLiteral("http://www.example.com")), QUrl(KBibTeX::doiUrlPrefix + QStringLiteral("10.1000/38-abc")), QUrl(QStringLiteral("https://www.example.com"))};
     QTest::newRow("URLs and DOI (with URL), all semicolon-separated") << QStringLiteral("http://www.example.com\n;   10.1000/38-abc;https://www.example.com") << QSet<QUrl> {QUrl(QStringLiteral("http://www.example.com")), QUrl(KBibTeX::doiUrlPrefix + QStringLiteral("10.1000/38-abc")), QUrl(QStringLiteral("https://www.example.com"))};
     QTest::newRow("URLs with various separators") << QStringLiteral("http://www.example.com/def.pdf https://www.example.com\nhttp://download.example.com/abc") << QSet<QUrl> {QUrl(QStringLiteral("http://www.example.com/def.pdf")), QUrl(QStringLiteral("https://www.example.com")), QUrl(QStringLiteral("http://download.example.com/abc"))};
@@ -277,7 +359,7 @@ void KBibTeXIOTest::fileInfoUrlsInText()
     QFETCH(QSet<QUrl>, expectedUrls);
 
     QSet<QUrl> extractedUrls;
-    FileInfo::urlsInText(text, FileInfo::TestExistenceNo, QString(), extractedUrls);
+    FileInfo::urlsInText(text, FileInfo::TestExistence::No, QString(), extractedUrls);
 
     QCOMPARE(extractedUrls.count(), expectedUrls.count());
     for (const QUrl &expectedUrl : const_cast<const QSet<QUrl> &>(expectedUrls))
@@ -286,6 +368,71 @@ void KBibTeXIOTest::fileInfoUrlsInText()
 
 static const char *fileImporterExporterTestCases_Label_Empty_file = "Empty file";
 static const char *fileImporterExporterTestCases_Label_Moby_Dick = "Moby Dick";
+
+File *KBibTeXIOTest::mobyDickBibliography()
+{
+    static File *mobyDickFile = nullptr;
+    if (mobyDickFile == nullptr) {
+        /// File with single entry, inspired by 'Moby Dick'
+        mobyDickFile = new File();
+        QSharedPointer<Entry> entry(new Entry(Entry::etBook, QStringLiteral("the-whale-1851")));
+        mobyDickFile->append(entry);
+        entry->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("{Call me Ishmael}"))));
+        entry->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QStringLiteral("Herman"), QStringLiteral("Melville"))) << QSharedPointer<Person>(new Person(QStringLiteral("Moby"), QStringLiteral("Dick"))));
+        entry->insert(Entry::ftMonth, Value() << QSharedPointer<MacroKey>(new MacroKey(QStringLiteral("jun"))));
+        entry->insert(Entry::ftYear, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("1851"))));
+        mobyDickFile->setProperty(File::ProtectCasing, Qt::Checked);
+    }
+    return mobyDickFile;
+}
+
+File *KBibTeXIOTest::latinUmlautBibliography()
+{
+    static File *latinUmlautFile = nullptr;
+    if (latinUmlautFile == nullptr) {
+        latinUmlautFile = new File();
+        QSharedPointer<Entry> entry(new Entry(Entry::etArticle, QStringLiteral("einstein1907relativitaetsprinzip")));
+        latinUmlautFile->append(entry);
+        entry->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(QString(QStringLiteral("{%1ber das Relativit%2tsprinzip und die aus demselben gezogenen Folgerungen}")).arg(QChar(0x00DC)).arg(QChar(0x00E4)))));
+        entry->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QStringLiteral("Albert"), QStringLiteral("Einstein"))));
+        entry->insert(Entry::ftYear, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("1907/08"))));
+        entry->insert(Entry::ftPages, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("23") + QChar(0x2013) + QStringLiteral("42"))));
+        latinUmlautFile->setProperty(File::ProtectCasing, Qt::Checked);
+    }
+    return latinUmlautFile;
+}
+
+File *KBibTeXIOTest::koreanBibliography()
+{
+    static File *koreanFile = nullptr;
+    if (koreanFile == nullptr) {
+        koreanFile = new File();
+        QSharedPointer<Entry> entry(new Entry(Entry::etMastersThesis, QStringLiteral("korean-text-copied-from-dailynk")));
+        koreanFile->append(entry);
+        entry->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(QString::fromUtf8("\xeb\xb3\xb4\xec\x9c\x84\xea\xb5\xad \xec\x88\x98\xec\x82\xac\xeb\xb6\x80\xc2\xb7\xec\x98\x81\xec\xb0\xbd\xea\xb4\x80\xeb\xa6\xac\xeb\xb6\x80 \xec\x8a\xb9\xea\xb2\xa9\xe2\x80\xa6\xea\xb9\x80\xec\xa0\x95\xec\x9d\x80, \xeb\xb6\x80\xec\xa0\x95\xeb\xb6\x80\xed\x8c\xa8\xec\x99\x80 \xec\xa0\x84\xec\x9f\x81 \xec\x98\x88\xea\xb3\xa0"))));
+        entry->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QString::fromUtf8("\xec\xa0\x95\xec\x9d\x80"), QString::fromUtf8("\xea\xb9\x80"))));
+        entry->insert(Entry::ftYear, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("1921"))));
+        koreanFile->setProperty(File::NameFormatting, Preferences::personNameFormatLastFirst);
+        koreanFile->setProperty(File::ProtectCasing, Qt::Unchecked);
+    }
+    return koreanFile;
+}
+
+File *KBibTeXIOTest::russianBibliography()
+{
+    static File *russianFile = nullptr;
+    if (russianFile == nullptr) {
+        russianFile = new File();
+        QSharedPointer<Entry> entry(new Entry(Entry::etBook, QStringLiteral("war-and-peace")));
+        russianFile->append(entry);
+        entry->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(QString::fromUtf8("\xd0\x92\xd0\xbe\xd0\xb9\xd0\xbd\xd0\xb0 \xd0\xb8 \xd0\xbc\xd0\xb8\xd1\x80"))));
+        entry->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QString::fromUtf8("\xd0\x9b\xd0\xb5\xd0\xb2"), QString::fromUtf8("{\xd0\x9d\xd0\xb8\xd0\xba\xd0\xbe\xd0\xbb\xd0\xb0\xd0\xb5\xd0\xb2\xd0\xb8\xd1\x87 \xd0\xa2\xd0\xbe\xd0\xbb\xd1\x81\xd1\x82\xd0\xbe\xd0\xb9}"))));
+        entry->insert(Entry::ftYear, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("1869"))));
+        russianFile->setProperty(File::NameFormatting, Preferences::personNameFormatLastFirst);
+        russianFile->setProperty(File::ProtectCasing, Qt::Unchecked);
+    }
+    return russianFile;
+}
 
 QVector<QPair<const char *, File *> > KBibTeXIOTest::fileImporterExporterTestCases()
 {
@@ -299,13 +446,7 @@ QVector<QPair<const char *, File *> > KBibTeXIOTest::fileImporterExporterTestCas
         result.append(QPair<const char *, File *>(fileImporterExporterTestCases_Label_Empty_file, new File()));
 
         /// File with single entry, inspired by 'Moby Dick'
-        File *f1 = new File();
-        QSharedPointer<Entry> entry1(new Entry(Entry::etArticle, QStringLiteral("the-whale-1851")));
-        f1->append(entry1);
-        entry1->insert(Entry::ftTitle, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("{Call me Ishmael}"))));
-        entry1->insert(Entry::ftAuthor, Value() << QSharedPointer<Person>(new Person(QStringLiteral("Herman"), QStringLiteral("Melville"))) << QSharedPointer<Person>(new Person(QStringLiteral("Moby"), QStringLiteral("Dick"))));
-        entry1->insert(Entry::ftYear, Value() << QSharedPointer<PlainText>(new PlainText(QStringLiteral("1851"))));
-        result.append(QPair<const char *, File *>(fileImporterExporterTestCases_Label_Moby_Dick, f1));
+        result.append(QPair<const char *, File *>(fileImporterExporterTestCases_Label_Moby_Dick, mobyDickBibliography()));
 
         // TODO add more file objects to result vector
 
@@ -328,7 +469,7 @@ void KBibTeXIOTest::fileExporterXMLsave_data()
 
     static const QHash<const char *, QString> keyToXmlData {
         {fileImporterExporterTestCases_Label_Empty_file, QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>|</bibliography>|")},
-        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>| <entry id=\"the-whale-1851\" type=\"article\">|  <authors>|<person><firstname>Herman</firstname><lastname>Melville</lastname></person> <person><firstname>Moby</firstname><lastname>Dick</lastname></person>|  </authors>|  <title><text>Call me Ishmael</text></title>|  <year><text>1851</text></year>| </entry>|</bibliography>|")}
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("<?xml version=\"1.0\" encoding=\"UTF-8\"?>|<!-- XML document written by KBibTeXIO as part of KBibTeX -->|<!-- https://userbase.kde.org/KBibTeX -->|<bibliography>| <entry id=\"the-whale-1851\" type=\"book\">|  <authors>|<person><firstname>Herman</firstname><lastname>Melville</lastname></person><person><firstname>Moby</firstname><lastname>Dick</lastname></person>|  </authors>|  <month triple=\"jun\" number=\"6\"><text>June</text></month>|  <title><text>Call me Ishmael</text></title>|  <year number=\"1851\"><text>1851</text></year>| </entry>|</bibliography>|")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -343,70 +484,101 @@ void KBibTeXIOTest::fileExporterXMLsave()
     QFETCH(QString, xmlData);
 
     FileExporterXML fileExporterXML(this);
-    QStringList errorLog;
-    const QString generatedData = fileExporterXML.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
-    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+    const QString generatedData = fileExporterXML.toString(bibTeXfile).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
 
     QCOMPARE(generatedData, xmlData);
 }
 
-void KBibTeXIOTest::fileExporterXSLTstandardSaveFile_data()
+QHash<QString, QHash<const char *, QSet<QString>>> KBibTeXIOTest::fileExporterXSLTtestCases()
 {
-    QTest::addColumn<File *>("bibTeXfile");
-    QTest::addColumn<QSet<QString>>("expectedFragments");
-
-    static const QHash<const char *, QSet<QString>> keyToXsltData {
-        {fileImporterExporterTestCases_Label_Empty_file, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral("<body/>")}},
-        {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral(">1851<"), QStringLiteral(">Call me Ishmael<"), QStringLiteral("</b>"), QStringLiteral("</body>")}}
+    static const QHash<QString, QHash<const char *, QSet<QString>>> xsltTokeyToXsltData {
+        {
+            QStringLiteral("kbibtex/standard.xsl"),
+            {
+                {fileImporterExporterTestCases_Label_Empty_file, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral("<body>|</body>")}},
+                {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral(">1851<"), QStringLiteral(">Call me Ishmael<"), QStringLiteral("</b>"), QStringLiteral("</body>")}}
+            }
+        },
+        {
+            QStringLiteral("kbibtex/fancy.xsl"),
+            {
+                {fileImporterExporterTestCases_Label_Empty_file, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral("<body style=\"margin:0px; padding: 0px;\">|</body>")}},
+                {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral(" style=\"text-decoration: "), QStringLiteral("<span style=\""), QStringLiteral("ref=\"kbibtex:filter:year=1851\">1851</a>"), QStringLiteral("ef=\"kbibtex:filter:title=Call me Ishmael\">Call me Ishmael<"), QStringLiteral("ef=\"kbibtex:filter:author=Melville\">Melville, H.</a>")}}
+            }
+        },
+        {
+            QStringLiteral("kbibtex/wikipedia-cite.xsl"),
+            {
+                {fileImporterExporterTestCases_Label_Empty_file, {QStringLiteral("|")}},
+                {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("{cite book|"), QStringLiteral("|title=Call me Ishmael|"), QStringLiteral("|last1=Melville"), QStringLiteral("|first2=Moby"), QStringLiteral("|year=1851|")}}
+            }
+        }
     };
-    static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
-
-    for (auto it = keyFileTable.constBegin(); it != keyFileTable.constEnd(); ++it)
-        if (keyToXsltData.contains(it->first))
-            QTest::newRow(it->first) << it->second << keyToXsltData.value(it->first);
+    return xsltTokeyToXsltData;
 }
 
-void KBibTeXIOTest::fileExporterXSLTstandardSaveFile()
+void KBibTeXIOTest::fileExporterXSLTsaveFile_data()
+{
+    QTest::addColumn<File *>("bibTeXfile");
+    QTest::addColumn<QString>("xslTranslationFile");
+    QTest::addColumn<QSet<QString>>("expectedFragments");
+
+    static const auto &xsltToKeyToXsltData = fileExporterXSLTtestCases();
+    static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
+
+    for (const QString &xslTranslationFile : xsltToKeyToXsltData.keys()) {
+        const QHash<const char *, QSet<QString>> &keyToXsltData = xsltToKeyToXsltData.value(xslTranslationFile);
+        for (auto it = keyFileTable.constBegin(); it != keyFileTable.constEnd(); ++it)
+            if (keyToXsltData.contains(it->first)) {
+                const QString label = QString(QStringLiteral("'%1' with XSLT '%2'")).arg(QString::fromLatin1(it->first)).arg(xslTranslationFile);
+                QTest::newRow(label.toUtf8().constData()) << it->second << xslTranslationFile << keyToXsltData.value(it->first);
+            }
+    }
+}
+
+void KBibTeXIOTest::fileExporterXSLTsaveFile()
 {
     QFETCH(File *, bibTeXfile);
+    QFETCH(QString, xslTranslationFile);
     QFETCH(QSet<QString>, expectedFragments);
 
-    FileExporterXSLT fileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("kbibtex/standard.xsl")), this);
-    QStringList errorLog;
-    const QString generatedData = fileExporterXSLT.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
-    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+
+    FileExporterXSLT fileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, xslTranslationFile), this);
+    static const QRegularExpression removeSpaceBeforeTagRegExp(QStringLiteral("\\s+(<[/a-z])"));
+    const QString generatedData = fileExporterXSLT.toString(bibTeXfile).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|')).replace(removeSpaceBeforeTagRegExp, QStringLiteral("\\1")).replace(QStringLiteral("|||"), QStringLiteral("|")).replace(QStringLiteral("||"), QStringLiteral("|"));
 
     for (const QString &fragment : expectedFragments)
         QVERIFY2(generatedData.contains(fragment), QString(QStringLiteral("Fragment '%1' not found in generated XML data")).arg(fragment).toLatin1().constData());
 }
 
-void KBibTeXIOTest::fileExporterXSLTstandardSaveElement_data()
+void KBibTeXIOTest::fileExporterXSLTsaveElement_data()
 {
     QTest::addColumn<QSharedPointer<Element>>("element");
+    QTest::addColumn<QString>("xslTranslationFile");
     QTest::addColumn<QSet<QString>>("expectedFragments");
 
-    static const QHash<const char *, QSet<QString>> keyToXsltData {
-        {fileImporterExporterTestCases_Label_Moby_Dick, {QStringLiteral("<title>Bibliography</title>"), QStringLiteral(">1851<"), QStringLiteral(">Call me Ishmael<"), QStringLiteral("</b>"), QStringLiteral("</body>")}}
-    };
+    static const auto &xsltToKeyToXsltData = fileExporterXSLTtestCases();
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
-    for (auto it = keyFileTable.constBegin(); it != keyFileTable.constEnd(); ++it)
-        if (!it->second->isEmpty() && keyToXsltData.contains(it->first))
-            QTest::newRow(it->first) << it->second->first() << keyToXsltData.value(it->first);
+    for (const QString &xslTranslationFile : xsltToKeyToXsltData.keys()) {
+        const QHash<const char *, QSet<QString>> &keyToXsltData = xsltToKeyToXsltData.value(xslTranslationFile);
+        for (auto it = keyFileTable.constBegin(); it != keyFileTable.constEnd(); ++it)
+            if (!it->second->isEmpty() && keyToXsltData.contains(it->first)) {
+                const QString label = QString(QStringLiteral("'%1' with XSLT '%2'")).arg(QString::fromLatin1(it->first)).arg(xslTranslationFile);
+                QTest::newRow(label.toUtf8().constData()) << it->second->first() << xslTranslationFile << keyToXsltData.value(it->first);
+            }
+    }
 }
 
-void KBibTeXIOTest::fileExporterXSLTstandardSaveElement()
+void KBibTeXIOTest::fileExporterXSLTsaveElement()
 {
     QFETCH(QSharedPointer<Element>, element);
+    QFETCH(QString, xslTranslationFile);
     QFETCH(QSet<QString>, expectedFragments);
 
-    FileExporterXSLT fileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, QStringLiteral("kbibtex/standard.xsl")), this);
-    QStringList errorLog;
-    const QString generatedData = fileExporterXSLT.toString(element, nullptr, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
-    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+    FileExporterXSLT fileExporterXSLT(QStandardPaths::locate(QStandardPaths::GenericDataLocation, xslTranslationFile), this);
+    static const QRegularExpression removeSpaceBeforeTagRegExp(QStringLiteral("\\s+(<[/a-z])"));
+    const QString generatedData = fileExporterXSLT.toString(element, nullptr).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|')).replace(removeSpaceBeforeTagRegExp, QStringLiteral("\\1")).replace(QStringLiteral("|||"), QStringLiteral("|")).replace(QStringLiteral("||"), QStringLiteral("|"));
 
     for (const QString &fragment : expectedFragments)
         QVERIFY2(generatedData.contains(fragment), QString(QStringLiteral("Fragment '%1' not found in generated XML data")).arg(fragment).toLatin1().constData());
@@ -419,7 +591,7 @@ void KBibTeXIOTest::fileExporterRISsave_data()
 
     static const QHash<const char *, QString> keyToRisData {
         {fileImporterExporterTestCases_Label_Empty_file, QString()},
-        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("TY  - JOUR|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851///|ER  - ||")}
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("TY  - BOOK|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851/06//|ER  - ||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -434,10 +606,7 @@ void KBibTeXIOTest::fileExporterRISsave()
     QFETCH(QString, risData);
 
     FileExporterRIS fileExporterRIS(this);
-    QStringList errorLog;
-    const QString generatedData = fileExporterRIS.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
-    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+    const QString generatedData = fileExporterRIS.toString(bibTeXfile).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
 
     QCOMPARE(generatedData, risData);
 }
@@ -449,7 +618,7 @@ void KBibTeXIOTest::fileExporterBibTeXsave_data()
 
     static const QHash<const char *, QString> keyToBibTeXData {
         {fileImporterExporterTestCases_Label_Empty_file, QString()},
-        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("@article{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("@book{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\tmonth = jun,|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -464,10 +633,7 @@ void KBibTeXIOTest::fileExporterBibTeXsave()
     QFETCH(QString, bibTeXdata);
 
     FileExporterBibTeX fileExporterBibTeX(this);
-    QStringList errorLog;
-    const QString generatedData = fileExporterBibTeX.toString(bibTeXfile, &errorLog).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
-    for (const QString &logLine : const_cast<const QStringList &>(errorLog))
-        qCDebug(LOG_KBIBTEX_TEST) << logLine;
+    const QString generatedData = fileExporterBibTeX.toString(bibTeXfile).remove(QLatin1Char('\r')).replace(QLatin1Char('\n'), QLatin1Char('|'));
 
     QCOMPARE(generatedData, bibTeXdata);
 }
@@ -479,7 +645,7 @@ void KBibTeXIOTest::fileImporterRISload_data()
 
     static const QHash<const char *, QString> keyToRisData {
         {fileImporterExporterTestCases_Label_Empty_file, QString()},
-        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("TY  - JOUR|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851///|ER  - ||")}
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("TY  - BOOK|ID  - the-whale-1851|AU  - Melville, Herman|AU  - Dick, Moby|TI  - Call me Ishmael|PY  - 1851/06//|ER  - ||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -509,7 +675,7 @@ void KBibTeXIOTest::fileImporterBibTeXload_data()
 
     static const QHash<const char *, QString> keyToBibTeXData {
         {fileImporterExporterTestCases_Label_Empty_file, QString()},
-        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("@article{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
+        {fileImporterExporterTestCases_Label_Moby_Dick, QStringLiteral("@book{the-whale-1851,|\tauthor = {Melville, Herman and Dick, Moby},|\tmonth = jun,|\ttitle = {{Call me Ishmael}},|\tyear = {1851}|}||")}
     };
     static const QVector<QPair<const char *, File *> > keyFileTable = fileImporterExporterTestCases();
 
@@ -555,6 +721,133 @@ void KBibTeXIOTest::protectiveCasingEntryGeneratedOnTheFly()
     const QString textWithoutProtectiveCasing = fileExporterBibTeX.toString(&file);
     QVERIFY(textWithoutProtectiveCasing.contains(singleCurleyBracketTitle)
             && !textWithoutProtectiveCasing.contains(doubleCurleyBracketTitle));
+}
+
+void KBibTeXIOTest::fileExporterBibTeXEncoding_data()
+{
+    QTest::addColumn<File *>("bibTeXfile");
+    QTest::addColumn<QString>("encoding");
+    QTest::addColumn<QByteArray>("expectedOutput");
+
+    static const QByteArray mobyDickEntryOutput {"@book{the-whale-1851,\n\tauthor = {Melville, Herman and Dick, Moby},\n\tmonth = jun,\n\ttitle = {{Call me Ishmael}},\n\tyear = {1851}\n}\n\n"};
+    static const QStringList listOfASCIIcompatibleEncodings {QStringLiteral("LaTeX"), QStringLiteral("UTF-8"), QStringLiteral("ISO-8859-1"), QStringLiteral("Windows-1254"), QStringLiteral("ISO 2022-JP") /** technically not ASCII-compatible, but works for this case here */};
+    for (const QString &encoding : listOfASCIIcompatibleEncodings) {
+        const QByteArray encodingOutput{QByteArray{"@comment{x-kbibtex-encoding="} +encoding.toLatin1() + QByteArray{"}\n\n"}};
+        const QByteArray mobyDickExpectedOutput{encoding == QStringLiteral("LaTeX") ? mobyDickEntryOutput : encodingOutput + mobyDickEntryOutput};
+        QTest::newRow(QString(QStringLiteral("Moby Dick (ASCII only) encoded in '%1'")).arg(encoding).toLatin1().constData()) << mobyDickBibliography() << encoding << mobyDickExpectedOutput;
+    }
+    static const QByteArray mobyDickExpectedOutputUTF16 {"\xFF\xFE@\0""b\0o\0o\0k\0{\0t\0h\0""e\0-\0w\0h\0""a\0l\0""e\0-\0""1\0""8\0""5\0""1\0,\0\n\0\x09\0""a\0u\0t\0h\0o\0r\0 \0=\0 \0{\0M\0""e\0l\0v\0i\0l\0l\0""e\0,\0 \0H\0""e\0r\0m\0""a\0n\0 \0""a\0n\0""d\0 \0""D\0i\0""c\0k\0,\0 \0M\0o\0""b\0y\0}\0,\0\n\0\x09\0m\0o\0n\0t\0h\0 \0=\0 \0j\0u\0n\0,\0\n\0\x09\0t\0i\0t\0l\0""e\0 \0=\0 \0{\0{\0""C\0""a\0l\0l\0 \0m\0""e\0 \0I\0s\0h\0m\0""a\0""e\0l\0}\0}\0,\0\n\0\x09\0y\0""e\0""a\0r\0 \0=\0 \0{\0""1\0""8\0""5\0""1\0}\0\n\0}\0\n\0\n\0", 260};
+    QTest::newRow("Moby Dick (ASCII only) encoded in 'UTF-16'") << mobyDickBibliography() << QStringLiteral("UTF-16") << mobyDickExpectedOutputUTF16;
+    static const QByteArray mobyDickExpectedOutputUTF32 {"\xFF\xFE\0\0@\0\0\0""b\0\0\0o\0\0\0o\0\0\0k\0\0\0{\0\0\0t\0\0\0h\0\0\0""e\0\0\0-\0\0\0w\0\0\0h\0\0\0""a\0\0\0l\0\0\0""e\0\0\0-\0\0\0""1\0\0\0""8\0\0\0""5\0\0\0""1\0\0\0,\0\0\0\n\0\0\0\x09\0\0\0""a\0\0\0u\0\0\0t\0\0\0h\0\0\0o\0\0\0r\0\0\0 \0\0\0=\0\0\0 \0\0\0{\0\0\0M\0\0\0""e\0\0\0l\0\0\0v\0\0\0i\0\0\0l\0\0\0l\0\0\0""e\0\0\0,\0\0\0 \0\0\0H\0\0\0""e\0\0\0r\0\0\0m\0\0\0""a\0\0\0n\0\0\0 \0\0\0""a\0\0\0n\0\0\0""d\0\0\0 \0\0\0""D\0\0\0i\0\0\0""c\0\0\0k\0\0\0,\0\0\0 \0\0\0M\0\0\0o\0\0\0""b\0\0\0y\0\0\0}\0\0\0,\0\0\0\n\0\0\0\x09\0\0\0m\0\0\0o\0\0\0n\0\0\0t\0\0\0h\0\0\0 \0\0\0=\0\0\0 \0\0\0j\0\0\0u\0\0\0n\0\0\0,\0\0\0\n\0\0\0\x09\0\0\0t\0\0\0i\0\0\0t\0\0\0l\0\0\0""e\0\0\0 \0\0\0=\0\0\0 \0\0\0{\0\0\0{\0\0\0""C\0\0\0""a\0\0\0l\0\0\0l\0\0\0 \0\0\0m\0\0\0""e\0\0\0 \0\0\0I\0\0\0s\0\0\0h\0\0\0m\0\0\0""a\0\0\0""e\0\0\0l\0\0\0}\0\0\0}\0\0\0,\0\0\0\n\0\0\0\x09\0\0\0y\0\0\0""e\0\0\0""a\0\0\0r\0\0\0 \0\0\0=\0\0\0 \0\0\0{\0\0\0""1\0\0\0""8\0\0\0""5\0\0\0""1\0\0\0}\0\0\0\n\0\0\0}\0\0\0\n\0\0\0\n\0\0\0", 520};
+    QTest::newRow("Moby Dick (ASCII only) encoded in 'UTF-32'") << mobyDickBibliography() << QStringLiteral("UTF-32") << mobyDickExpectedOutputUTF32;
+    static const QByteArray latinUmlautExpectedOutputLaTeX {"@article{einstein1907relativitaetsprinzip,\n\tauthor = {Einstein, Albert},\n\tpages = {23--42},\n\ttitle = {{{\\\"U}ber das Relativit{\\\"a}tsprinzip und die aus demselben gezogenen Folgerungen}},\n\tyear = {1907/08}\n}\n\n"};
+    QTest::newRow("Albert Einstein (latin umlaut) data encoded in 'LaTeX'") << latinUmlautBibliography() << QStringLiteral("LaTeX") << latinUmlautExpectedOutputLaTeX;
+    static const QByteArray latinUmlautExpectedOutputUTF8 {"@comment{x-kbibtex-encoding=UTF-8}\n\n@article{einstein1907relativitaetsprinzip,\n\tauthor = {Einstein, Albert},\n\tpages = {23\xE2\x80\x93""42},\n\ttitle = {{\xC3\x9C""ber das Relativit\xC3\xA4tsprinzip und die aus demselben gezogenen Folgerungen}},\n\tyear = {1907/08}\n}\n\n"};
+    QTest::newRow("Albert Einstein (latin umlaut) encoded in 'UTF-8'") << latinUmlautBibliography() << QStringLiteral("UTF-8") << latinUmlautExpectedOutputUTF8;
+}
+
+void KBibTeXIOTest::fileExporterBibTeXEncoding()
+{
+    QFETCH(File *, bibTeXfile);
+    QFETCH(QString, encoding);
+    QFETCH(QByteArray, expectedOutput);
+
+    FileExporterBibTeX exporter(this);
+    exporter.setEncoding(encoding);
+    QByteArray generatedOutput;
+    generatedOutput.reserve(8192);
+    QBuffer buffer(&generatedOutput);
+    buffer.open(QBuffer::WriteOnly);
+    QVERIFY(exporter.save(&buffer, bibTeXfile));
+    buffer.close();
+
+    QCOMPARE(generatedOutput, expectedOutput);
+}
+
+void KBibTeXIOTest::fileImportExportBibTeXroundtrip_data() {
+    struct TestCase {
+        QString label;
+        File *bibliography;
+        QStringList encodingsToBeTested;
+    };
+    static const QVector<struct TestCase> testCases {
+        {QStringLiteral("Moby Dick"), mobyDickBibliography(), Preferences::availableBibTeXEncodings},
+        {QStringLiteral("Albert Einstein"), latinUmlautBibliography(), Preferences::availableBibTeXEncodings},
+        {QStringLiteral("Kim Jong-un"), koreanBibliography(), {QStringLiteral("LaTeX"), QStringLiteral("UTF-8"), QStringLiteral("UTF-16"), QStringLiteral("UTF-16BE"), QStringLiteral("UTF-16LE"), QStringLiteral("UTF-32"), QStringLiteral("UTF-32BE"), QStringLiteral("UTF-32LE"), QStringLiteral("GB18030"), QStringLiteral("EUC-KR"), QStringLiteral("Windows-949")}},
+        {QStringLiteral("L. Tolstoy"), russianBibliography(), {QStringLiteral("LaTeX"), QStringLiteral("ISO-8859-5"), QStringLiteral("UTF-8"), QStringLiteral("UTF-16"), QStringLiteral("UTF-16BE"), QStringLiteral("UTF-16LE"), QStringLiteral("UTF-32"), QStringLiteral("UTF-32BE"), QStringLiteral("UTF-32LE"), QStringLiteral("KOI8-R"), QStringLiteral("KOI8-U"), QStringLiteral("Big5-HKSCS"), QStringLiteral("GB18030"), QStringLiteral("EUC-JP"), QStringLiteral("EUC-KR"), QStringLiteral("ISO 2022-JP"), QStringLiteral("Shift-JIS"), QStringLiteral("Windows-949"), QStringLiteral("Windows-1251")}}
+    };
+
+    QTest::addColumn<File *>("bibliography");
+    QTest::addColumn<QString>("encoding");
+
+    for (const TestCase &testCase : testCases) {
+        for (const QString &encoding : testCase.encodingsToBeTested) {
+            const QString testLabel = QString(QStringLiteral("Round-trip of '%1' encoded in '%2'")).arg(testCase.label).arg(encoding);
+            QTest::newRow(testLabel.toLatin1().constData()) << testCase.bibliography << encoding;
+        }
+    }
+}
+
+void KBibTeXIOTest::fileImportExportBibTeXroundtrip()
+{
+    QFETCH(File *, bibliography);
+    QFETCH(QString, encoding);
+
+    FileImporterBibTeX importer(this);
+
+    // The point with this test is to apply various encodings (e.g. 'UTF-8', 'ISO 2022-JP')
+    // to example bibliography files when writing to a buffer (a in-memory representation of
+    // a real .bib file).
+    // The encoding can by set in two different ways:
+    // 1. As a property of the File object
+    // 2. Enforced upon a FileExporterBibTeX instance, ignoring the File's encoding property
+
+    // Fist, the forced-upon case will be executed
+
+    QByteArray ba(1 << 12, '\0');
+    QBuffer buffer(&ba);
+
+    buffer.open(QBuffer::WriteOnly);
+    FileExporterBibTeX exporterWithForcedEncoding(this);
+    exporterWithForcedEncoding.setEncoding(encoding); //< Force the encoding on the FileExporterBibTeX instance
+    QVERIFY(exporterWithForcedEncoding.save(&buffer, bibliography));
+    const qint64 bytesWrittenWithForcedEncoding = buffer.pos();
+    QVERIFY(bytesWrittenWithForcedEncoding > 32); //< All bibliographies in test have a certain minimum size
+    buffer.close();
+
+    ba.resize(static_cast<int>(bytesWrittenWithForcedEncoding & 0x7fffffff));
+
+    buffer.open(QBuffer::ReadOnly);
+    File *loadedFile = importer.load(&buffer);
+    buffer.close();
+
+    QVERIFY(loadedFile != nullptr);
+    QVERIFY(loadedFile->length() == 1);
+    QVERIFY(bibliography->operator ==(*loadedFile));
+    delete loadedFile;
+
+    // Second, the File encoding property case will be executed
+
+    ba.fill('\0', 1 << 12); //< reset and clear buffer from above execution
+
+    buffer.open(QBuffer::WriteOnly);
+    FileExporterBibTeX exporterWithFileEncoding(this);
+    bibliography->setProperty(File::Encoding, encoding); //< set the File's encoding property
+    QVERIFY(exporterWithFileEncoding.save(&buffer, bibliography));
+    const qint64 bytesWrittenWithFileEncoding = buffer.pos();
+    QVERIFY(bytesWrittenWithFileEncoding > 32); //< All bibliographies in test have a certain minimum size
+    buffer.close();
+
+    ba.resize(static_cast<int>(bytesWrittenWithFileEncoding & 0x7fffffff));
+
+    buffer.open(QBuffer::ReadOnly);
+    loadedFile = importer.load(&buffer);
+    buffer.close();
+
+    QVERIFY(loadedFile != nullptr);
+    QVERIFY(loadedFile->length() == 1);
+    QVERIFY(bibliography->operator ==(*loadedFile));
+    delete loadedFile;
 }
 
 void KBibTeXIOTest::protectiveCasingEntryFromData()
@@ -662,7 +955,7 @@ void KBibTeXIOTest::partialBibTeXInput()
     bool gotErrors = false;
     FileImporterBibTeX importer(this);
     connect(&importer, &FileImporter::message, [&gotErrors](const FileImporter::MessageSeverity messageSeverity, const QString &messageText) {
-        gotErrors |= messageSeverity >= FileImporter::SeverityError;
+        gotErrors |= messageSeverity >= FileImporter::MessageSeverity::Error;
         Q_UNUSED(messageText)
         //qCDebug(LOG_KBIBTEX_TEST)<<"FileImporterBibTeX issues message during 'partialBibTeXInput' test: "<<messageText;
     });
@@ -703,7 +996,7 @@ void KBibTeXIOTest::partialRISInput()
     bool gotErrors = false;
     FileImporterRIS importer(this);
     connect(&importer, &FileImporter::message, [&gotErrors](const FileImporter::MessageSeverity messageSeverity, const QString &messageText) {
-        gotErrors |= messageSeverity >= FileImporter::SeverityError;
+        gotErrors |= messageSeverity >= FileImporter::MessageSeverity::Error;
         Q_UNUSED(messageText)
         //qCDebug(LOG_KBIBTEX_TEST)<<"FileImporterRIS issues message during 'partialBibTeXInput' test: "<<messageText;
     });

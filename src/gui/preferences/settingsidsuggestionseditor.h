@@ -1,20 +1,21 @@
-/*****************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
- *                                                                           *
- *                                                                           *
- *   This program is free software; you can redistribute it and/or modify    *
- *   it under the terms of the GNU General Public License as published by    *
- *   the Free Software Foundation; either version 2 of the License, or       *
- *   (at your option) any later version.                                     *
- *                                                                           *
- *   This program is distributed in the hope that it will be useful,         *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
- *   GNU General Public License for more details.                            *
- *                                                                           *
- *   You should have received a copy of the GNU General Public License       *
- *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
- *****************************************************************************/
+/***************************************************************************
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
+ ***************************************************************************/
 
 #ifndef KBIBTEX_GUI_SETTINGSIDSUGGESTIONSEDITOR_H
 #define KBIBTEX_GUI_SETTINGSIDSUGGESTIONSEDITOR_H
@@ -23,8 +24,6 @@
 #include <QLayout>
 #include <QDialog>
 #include <QGroupBox>
-
-#include <IdSuggestions>
 
 #include "kbibtexgui_export.h"
 
@@ -44,18 +43,18 @@ public:
     static QString editSuggestion(const Entry *previewEntry, const QString &suggestion, QWidget *parent);
 
 protected:
-    explicit IdSuggestionsEditDialog(QWidget *parent = nullptr, Qt::WindowFlags flags = 0);
+    explicit IdSuggestionsEditDialog(QWidget *parent = nullptr);
 };
 
 /**
  * @author Thomas Fischer
  */
-class IdSuggestionsEditWidget : public QWidget, public IdSuggestions
+class IdSuggestionsEditWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit IdSuggestionsEditWidget(const Entry *previewEntry, QWidget *parent = nullptr, Qt::WindowFlags f = 0);
+    explicit IdSuggestionsEditWidget(const Entry *previewEntry, QWidget *parent = nullptr);
     ~IdSuggestionsEditWidget() override;
 
     void setFormatString(const QString &formatString);

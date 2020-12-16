@@ -14,8 +14,8 @@
      Maintain original HTML tags
 -->
 <xsl:template match="a|abbr|acronym|address|applet|b|big|blockquote|br|cite|code|del|dfn|div|em|hr|i|kbd|p|param|pre|q|quote|samp|script|span|small|strike|strong|sub|sup|tt|var|button|fieldset|form|input|label|legend|object|option|optgroup|select|caption|col|colgroup|table|tbody|td|tfoot|th|thead|tr|dl|dd|dt|ol|ul|li|img|quote|quotation" xmlns:html="http://www.w3.org/1999/XSL/some">
-<xsl:copy>
-<xsl:copy-of select="@*" />
+<xsl:copy copy-namespaces="no">
+<xsl:copy-of copy-namespaces="no" select="@*" />
 <xsl:apply-templates />
 </xsl:copy>
 </xsl:template>
@@ -99,16 +99,6 @@
 <a style="text-decoration: none; color: black;"><xsl:attribute name="href"><xsl:text>kbibtex:filter:publisher=</xsl:text><xsl:value-of select="."/></xsl:attribute><xsl:value-of select="."/></a>
 </xsl:template>
 
-<xsl:template match="volume">
-<xsl:if test="string-length(../journal)=0">
-<!-- do not print volume if there is "journal" field,
-     which prints the volume, too.                     -->
-<xsl:text>, </xsl:text>
-<xsl:text>volume </xsl:text>
-<a style="text-decoration: none; color: black;"><xsl:attribute name="href"><xsl:text>kbibtex:filter:volume=</xsl:text><xsl:value-of select="."/></xsl:attribute><xsl:value-of select="."/></a>
-</xsl:if>
-</xsl:template>
-
 <xsl:template match="edition">
 <xsl:text>, </xsl:text>
 <a style="text-decoration: none; color: black;"><xsl:attribute name="href"><xsl:text>kbibtex:filter:edition=</xsl:text><xsl:value-of select="."/></xsl:attribute><xsl:value-of select="."/>
@@ -145,7 +135,6 @@
 <xsl:apply-templates select="journal" />
 <xsl:apply-templates select="type" />
 <xsl:apply-templates select="school" />
-<xsl:apply-templates select="volume" />
 <xsl:apply-templates select="edition" />
 <xsl:apply-templates select="publisher" />
 <xsl:apply-templates select="institution" />

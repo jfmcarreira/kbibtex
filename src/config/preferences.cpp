@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -242,11 +244,19 @@ public:
     {
         const QString rawEntry = configGroup.readEntry(key, QString());
         if (rawEntry.isEmpty()) return Preferences::defaultColorCodes;
+#if QT_VERSION >= 0x050e00
+        const QStringList pairs = rawEntry.split(QStringLiteral("\0\0"), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
         const QStringList pairs = rawEntry.split(QStringLiteral("\0\0"), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         if (pairs.isEmpty()) return Preferences::defaultColorCodes;
         QVector<QPair<QColor, QString>> result;
         for (const QString &pair : pairs) {
+#if QT_VERSION >= 0x050e00
+            const QStringList colorLabelPair = pair.split(QStringLiteral("\0"), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
             const QStringList colorLabelPair = pair.split(QStringLiteral("\0"), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
             if (colorLabelPair.length() != 2) return Preferences::defaultColorCodes;
             result.append(qMakePair(QColor(colorLabelPair[0]), colorLabelPair[1]));
         }
@@ -389,7 +399,7 @@ Preferences::~Preferences()
     delete d;
 }
 
-const QVector<QPair<Preferences::BibliographySystem, QString>> Preferences::availableBibliographySystems {{Preferences::BibTeX, i18n("BibTeX")}, {Preferences::BibLaTeX, i18n("BibLaTeX")}};
+const QVector<QPair<Preferences::BibliographySystem, QString>> Preferences::availableBibliographySystems {{Preferences::BibliographySystem::BibTeX, i18n("BibTeX")}, {Preferences::BibliographySystem::BibLaTeX, i18n("BibLaTeX")}};
 const Preferences::BibliographySystem Preferences::defaultBibliographySystem = Preferences::availableBibliographySystems.front().first;
 
 Preferences::BibliographySystem Preferences::bibliographySystem()
@@ -553,7 +563,7 @@ bool Preferences::setPageSize(const QPageSize::PageSizeId newValue)
 }
 #endif // HAVE_KF5
 
-const QVector<QPair<Preferences::BackupScope, QString>> Preferences::availableBackupScopes {{Preferences::NoBackup, i18n("No backups")}, {Preferences::LocalOnly, i18n("Local files only")}, {Preferences::BothLocalAndRemote, i18n("Both local and remote files")}};
+const QVector<QPair<Preferences::BackupScope, QString>> Preferences::availableBackupScopes {{Preferences::BackupScope::None, i18n("No backups")}, {Preferences::BackupScope::LocalOnly, i18n("Local files only")}, {Preferences::BackupScope::BothLocalAndRemote, i18n("Both local and remote files")}};
 const Preferences::BackupScope Preferences::defaultBackupScope = Preferences::availableBackupScopes.front().first;
 
 Preferences::BackupScope Preferences::backupScope()
@@ -787,7 +797,7 @@ bool Preferences::setLyXPipePath(const QString &newValue)
 }
 #endif // HAVE_KF5
 
-const QStringList Preferences::availableBibTeXEncodings {QStringLiteral("LaTeX"), QStringLiteral("US-ASCII"), QStringLiteral("ISO-8859-1"), QStringLiteral("ISO-8859-2"), QStringLiteral("ISO-8859-3"), QStringLiteral("ISO-8859-4"), QStringLiteral("ISO-8859-5"), QStringLiteral("ISO-8859-6"), QStringLiteral("ISO-8859-7"), QStringLiteral("ISO-8859-8"), QStringLiteral("ISO-8859-9"), QStringLiteral("ISO-8859-10"), QStringLiteral("ISO-8859-13"), QStringLiteral("ISO-8859-14"), QStringLiteral("ISO-8859-15"), QStringLiteral("ISO-8859-16"), QStringLiteral("UTF-8"), QStringLiteral("UTF-16"), QStringLiteral("UTF-16BE"), QStringLiteral("UTF-16LE"), QStringLiteral("UTF-32"), QStringLiteral("UTF-32BE"), QStringLiteral("UTF-32LE"), QStringLiteral("KOI8-R"), QStringLiteral("KOI8-U"), QStringLiteral("Big5"), QStringLiteral("Big5-HKSCS"), QStringLiteral("GB18030"), QStringLiteral("EUC-JP"), QStringLiteral("EUC-KR"), QStringLiteral("ISO 2022-JP"), QStringLiteral("Shift-JIS"), QStringLiteral("Windows-1250"), QStringLiteral("Windows-1251"), QStringLiteral("Windows-1252"), QStringLiteral("Windows-1253"), QStringLiteral("Windows-1254"), QStringLiteral("Windows-1255"), QStringLiteral("Windows-1256"), QStringLiteral("Windows-1257"), QStringLiteral("Windows-1258")};
+const QStringList Preferences::availableBibTeXEncodings {QStringLiteral("LaTeX"), QStringLiteral("ISO-8859-1"), QStringLiteral("ISO-8859-2"), QStringLiteral("ISO-8859-3"), QStringLiteral("ISO-8859-4"), QStringLiteral("ISO-8859-5"), QStringLiteral("ISO-8859-6"), QStringLiteral("ISO-8859-7"), QStringLiteral("ISO-8859-8"), QStringLiteral("ISO-8859-9"), QStringLiteral("ISO-8859-10"), QStringLiteral("ISO-8859-13"), QStringLiteral("ISO-8859-14"), QStringLiteral("ISO-8859-15"), QStringLiteral("ISO-8859-16"), QStringLiteral("UTF-8"), QStringLiteral("UTF-16"), QStringLiteral("UTF-16BE"), QStringLiteral("UTF-16LE"), QStringLiteral("UTF-32"), QStringLiteral("UTF-32BE"), QStringLiteral("UTF-32LE"), QStringLiteral("KOI8-R"), QStringLiteral("KOI8-U"), QStringLiteral("Big5"), QStringLiteral("Big5-HKSCS"), QStringLiteral("GB18030"), QStringLiteral("EUC-JP"), QStringLiteral("EUC-KR"), QStringLiteral("ISO 2022-JP"), QStringLiteral("Shift-JIS"), QStringLiteral("Windows-949"), QStringLiteral("Windows-1250"), QStringLiteral("Windows-1251"), QStringLiteral("Windows-1252"), QStringLiteral("Windows-1253"), QStringLiteral("Windows-1254"), QStringLiteral("Windows-1255"), QStringLiteral("Windows-1256"), QStringLiteral("Windows-1257"), QStringLiteral("Windows-1258")};
 const QString Preferences::defaultBibTeXEncoding = QStringLiteral("UTF-8");
 
 const QString &Preferences::bibTeXEncoding()
@@ -879,7 +889,7 @@ bool Preferences::setBibTeXStringDelimiter(const QString &newValue)
 }
 #endif // HAVE_KF5
 
-const QVector<QPair<Preferences::QuoteComment, QString>> Preferences::availableBibTeXQuoteComments {{Preferences::qcNone, i18nc("Comment Quoting", "None")}, {Preferences::qcCommand, i18nc("Comment Quoting", "@comment{\342\200\246}")}, {Preferences::qcPercentSign, i18nc("Comment Quoting", "% \342\200\246")}};
+const QVector<QPair<Preferences::QuoteComment, QString>> Preferences::availableBibTeXQuoteComments {{Preferences::QuoteComment::None, i18nc("Comment Quoting", "None")}, {Preferences::QuoteComment::Command, i18nc("Comment Quoting", "@comment{\342\200\246}")}, {Preferences::QuoteComment::PercentSign, i18nc("Comment Quoting", "% \342\200\246")}};
 const Preferences::QuoteComment Preferences::defaultBibTeXQuoteComment = Preferences::availableBibTeXQuoteComments.front().first;
 
 Preferences::QuoteComment Preferences::bibTeXQuoteComment()
@@ -918,7 +928,7 @@ bool Preferences::setBibTeXQuoteComment(const Preferences::QuoteComment newValue
 }
 #endif // HAVE_KF5
 
-const QVector<QPair<KBibTeX::Casing, QString>> Preferences::availableBibTeXKeywordCasings {{KBibTeX::cLowerCase, i18nc("Casing of strings", "lowercase")}, {KBibTeX::cInitialCapital, i18nc("Casing of strings", "Initial capital")}, {KBibTeX::cUpperCamelCase, i18nc("Casing of strings", "UpperCamelCase")}, {KBibTeX::cLowerCamelCase, i18nc("Casing of strings", "lowerCamelCase")}, {KBibTeX::cUpperCase, i18nc("Casing of strings", "UPPERCASE")}};
+const QVector<QPair<KBibTeX::Casing, QString>> Preferences::availableBibTeXKeywordCasings {{KBibTeX::Casing::LowerCase, i18nc("Casing of strings", "lowercase")}, {KBibTeX::Casing::InitialCapital, i18nc("Casing of strings", "Initial capital")}, {KBibTeX::Casing::UpperCamelCase, i18nc("Casing of strings", "UpperCamelCase")}, {KBibTeX::Casing::LowerCamelCase, i18nc("Casing of strings", "lowerCamelCase")}, {KBibTeX::Casing::UpperCase, i18nc("Casing of strings", "UPPERCASE")}};
 const KBibTeX::Casing Preferences::defaultBibTeXKeywordCasing = Preferences::availableBibTeXKeywordCasings.front().first;
 
 KBibTeX::Casing Preferences::bibTeXKeywordCasing()
@@ -1117,7 +1127,7 @@ bool Preferences::setBibTeXBibliographyStyle(const QString &newValue)
 }
 #endif // HAVE_KF5
 
-const QVector<QPair<Preferences::FileViewDoubleClickAction, QString>> Preferences::availableFileViewDoubleClickActions {{Preferences::ActionOpenEditor, i18nc("What to do if double-clicking on a file view item", "Open Editor")}, {Preferences::ActionViewDocument, i18nc("What to do if double-clicking on a file view item", "View Document")}};
+const QVector<QPair<Preferences::FileViewDoubleClickAction, QString>> Preferences::availableFileViewDoubleClickActions {{Preferences::FileViewDoubleClickAction::OpenEditor, i18nc("What to do if double-clicking on a file view item", "Open Editor")}, {Preferences::FileViewDoubleClickAction::ViewDocument, i18nc("What to do if double-clicking on a file view item", "View Document")}};
 const Preferences::FileViewDoubleClickAction Preferences::defaultFileViewDoubleClickAction = Preferences::availableFileViewDoubleClickActions.front().first;
 
 Preferences::FileViewDoubleClickAction Preferences::fileViewDoubleClickAction()

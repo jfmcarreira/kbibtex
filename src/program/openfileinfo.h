@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -39,7 +41,7 @@ class OpenFileInfo : public QObject
     Q_OBJECT
 
 public:
-    enum StatusFlag {
+    enum class StatusFlag {
         Open = 0x1,
         RecentlyUsed = 0x2,
         Favorite = 0x4,
@@ -145,7 +147,7 @@ public:
     bool queryCloseAll();
 
     void setCurrentFile(OpenFileInfo *openFileInfo, KService::Ptr servicePtr = KService::Ptr());
-    OpenFileInfoList filteredItems(OpenFileInfo::StatusFlags required, OpenFileInfo::StatusFlags forbidden = nullptr);
+    OpenFileInfoList filteredItems(OpenFileInfo::StatusFlag required, OpenFileInfo::StatusFlags forbidden = OpenFileInfo::StatusFlags());
 
     friend class OpenFileInfo;
 
@@ -162,7 +164,6 @@ private:
 
 private slots:
     void deferredListsChanged();
-    void delayedReadConfig();
 };
 
 #endif // KBIBTEX_PROGRAM_OPENFILEINFO_H

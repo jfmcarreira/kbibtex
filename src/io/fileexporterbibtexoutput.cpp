@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -43,9 +45,9 @@ FileExporterBibTeXOutput::~FileExporterBibTeXOutput()
     /// nothing
 }
 
-bool FileExporterBibTeXOutput::save(QIODevice *ioDevice, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterBibTeXOutput::save(QIODevice *ioDevice, const File *bibtexfile)
 {
-    if (!ioDevice->isWritable() && !ioDevice->open(QIODevice::WriteOnly)) {
+    if (!ioDevice->isWritable() && !ioDevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -56,23 +58,22 @@ bool FileExporterBibTeXOutput::save(QIODevice *ioDevice, const File *bibtexfile,
     if (bibTeXFile.open(QIODevice::WriteOnly)) {
         FileExporterBibTeX bibtexExporter(this);
         bibtexExporter.setEncoding(QStringLiteral("utf-8"));
-        result = bibtexExporter.save(&bibTeXFile, bibtexfile, errorLog);
+        result = bibtexExporter.save(&bibTeXFile, bibtexfile);
         bibTeXFile.close();
     }
 
     if (result)
-        result = generateOutput(errorLog);
+        result = generateOutput();
 
     if (result)
-        result = writeFileToIODevice(m_fileStem + (m_outputType == BibTeXLogFile ? KBibTeX::extensionBLG : KBibTeX::extensionBBL), ioDevice, errorLog);
+        result = writeFileToIODevice(m_fileStem + (m_outputType == OutputType::BibTeXLogFile ? KBibTeX::extensionBLG : KBibTeX::extensionBBL), ioDevice);
 
-    ioDevice->close();
     return result;
 }
 
-bool FileExporterBibTeXOutput::save(QIODevice *ioDevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterBibTeXOutput::save(QIODevice *ioDevice, const QSharedPointer<const Element> element, const File *bibtexfile)
 {
-    if (!ioDevice->isWritable() && !ioDevice->open(QIODevice::WriteOnly)) {
+    if (!ioDevice->isWritable() && !ioDevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -83,25 +84,26 @@ bool FileExporterBibTeXOutput::save(QIODevice *ioDevice, const QSharedPointer<co
     if (bibTeXFile.open(QIODevice::WriteOnly)) {
         FileExporterBibTeX bibtexExporter(this);
         bibtexExporter.setEncoding(QStringLiteral("utf-8"));
-        result = bibtexExporter.save(&bibTeXFile, element, bibtexfile, errorLog);
+        result = bibtexExporter.save(&bibTeXFile, element, bibtexfile);
         bibTeXFile.close();
     }
 
     if (result)
-        result = generateOutput(errorLog);
+        result = generateOutput();
 
     if (result)
-        result = writeFileToIODevice(m_fileStem + (m_outputType == BibTeXLogFile ? KBibTeX::extensionBLG : KBibTeX::extensionBBL), ioDevice, errorLog);
+        result = writeFileToIODevice(m_fileStem + (m_outputType == OutputType::BibTeXLogFile ? KBibTeX::extensionBLG : KBibTeX::extensionBBL), ioDevice);
 
-    ioDevice->close();
     return result;
 }
 
-bool FileExporterBibTeXOutput::generateOutput(QStringList *errorLog)
+bool FileExporterBibTeXOutput::generateOutput()
 {
-    QStringList cmdLines {QStringLiteral("pdflatex -halt-on-error ") + m_fileBasename + KBibTeX::extensionTeX, QStringLiteral("bibtex ") + m_fileBasename + KBibTeX::extensionAux};
+    const QStringList cmdLinesBeforeBibTeX {QStringLiteral("pdflatex -halt-on-error ") + m_fileBasename + KBibTeX::extensionTeX};
+    const QStringList bibTeXarguments {m_fileBasename + KBibTeX::extensionAux};
+    const QStringList cmdLinesAfterBibTeX {};
 
-    if (writeLatexFile(m_fileStem + KBibTeX::extensionTeX) && runProcesses(cmdLines, errorLog))
+    if (writeLatexFile(m_fileStem + KBibTeX::extensionTeX) && runProcesses(cmdLinesBeforeBibTeX) && runProcess(QStringLiteral("bibtex"), bibTeXarguments, true) && runProcesses(cmdLinesAfterBibTeX))
         return true;
     else {
         qCWarning(LOG_KBIBTEX_IO) << "Generating BibTeX output failed";

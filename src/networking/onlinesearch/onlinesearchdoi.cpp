@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -114,10 +116,10 @@ public:
     }
 #endif // HAVE_QTWIDGETS
 
-    QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
+    QUrl buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults) {
         Q_UNUSED(numResults)
 
-        const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(query[queryKeyFreeText]);
+        const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(query[QueryKey::FreeText]);
         if (doiRegExpMatch.hasMatch()) {
             return QUrl(QStringLiteral("https://dx.doi.org/") + doiRegExpMatch.captured(0));
         }
@@ -160,7 +162,7 @@ void OnlineSearchDOI::startSearchFromForm()
 }
 #endif // HAVE_QTWIDGETS
 
-void OnlineSearchDOI::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchDOI::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     m_hasBeenCanceled = false;
     emit progress(curStep = 0, numSteps = 1);
@@ -195,11 +197,6 @@ OnlineSearchAbstract::Form *OnlineSearchDOI::customWidget(QWidget *parent)
 QUrl OnlineSearchDOI::homepage() const
 {
     return QUrl(QStringLiteral("https://dx.doi.org/"));
-}
-
-QString OnlineSearchDOI::favIconUrl() const
-{
-    return QStringLiteral("https://dx.doi.org/favicon.ico");
 }
 
 void OnlineSearchDOI::downloadDone()

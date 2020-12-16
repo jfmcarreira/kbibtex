@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -27,7 +29,7 @@
 /**
  * @author Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *
- * See also: http://dev.springer.com/
+ * See also: https://dev.springernature.com/
  *
  * On the subject of having multiple "constraints" (search terms) in
  * a search, Springer's documentation states: "Each constraint that
@@ -35,7 +37,7 @@
  * For instance, a request including constraints: "title:bone+name:Jones"
  * is the equivilent to the request containing constraints concatenated by
  * the AND operator: "title:bone%20AND%20name:Jones".
- * (source: http://dev.springer.com/docs/read/Filters_Facets_and_Constraints)
+ * (source: https://dev.springernature.com/adding-constraints)
  */
 class KBIBTEXNETWORKING_EXPORT OnlineSearchSpringerLink : public OnlineSearchAbstract
 {
@@ -48,15 +50,12 @@ public:
 #ifdef HAVE_QTWIDGETS
     void startSearchFromForm() override;
 #endif // HAVE_QTWIDGETS
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
+    void startSearch(const QMap<QueryKey, QString> &query, int numResults) override;
     QString label() const override;
 #ifdef HAVE_QTWIDGETS
     OnlineSearchAbstract::Form *customWidget(QWidget *parent) override;
 #endif // HAVE_QTWIDGETS
     QUrl homepage() const override;
-
-protected:
-    QString favIconUrl() const override;
 
 private slots:
     void doneFetchingPAM();

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -24,11 +26,13 @@
 #include <QSpinBox>
 #include <QPushButton>
 #include <QInputDialog>
+#include <QSignalBlocker>
 
 #include <KLocalizedString>
 
 #include <File>
 #include <Entry>
+#include <FileExporterBibTeX>
 #include "fieldlineedit.h"
 #include "fieldlistedit.h"
 #include "colorlabelwidget.h"
@@ -51,7 +55,7 @@ public:
     const Element *element;
 
     FieldInputPrivate(FieldInput *parent)
-            : p(parent), colorWidget(nullptr), starRatingWidget(nullptr), fieldLineEdit(nullptr), fieldListEdit(nullptr), fieldInputType(KBibTeX::SingleLine), preferredTypeFlag(KBibTeX::tfSource), bibtexFile(nullptr), element(nullptr) {
+            : p(parent), colorWidget(nullptr), starRatingWidget(nullptr), fieldLineEdit(nullptr), fieldListEdit(nullptr), fieldInputType(KBibTeX::FieldInputType::SingleLine), preferredTypeFlag(KBibTeX::TypeFlag::Source), bibtexFile(nullptr), element(nullptr) {
         /// nothing
     }
 
@@ -67,16 +71,19 @@ public:
         layout->setMargin(0);
 
         switch (fieldInputType) {
-        case KBibTeX::MultiLine:
+        case KBibTeX::FieldInputType::MultiLine:
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, true, p);
+            connect(fieldLineEdit, &FieldLineEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldLineEdit);
             break;
-        case KBibTeX::List:
+        case KBibTeX::FieldInputType::List:
             fieldListEdit = new FieldListEdit(preferredTypeFlag, typeFlags, p);
+            connect(fieldListEdit, &FieldListEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldListEdit);
             break;
-        case KBibTeX::Month: {
+        case KBibTeX::FieldInputType::Month: {
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, false, p);
+            connect(fieldLineEdit, &FieldLineEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldLineEdit);
             QPushButton *monthSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("view-calendar-month")), QString());
             monthSelector->setToolTip(i18n("Select a predefined month"));
@@ -92,8 +99,9 @@ public:
             monthSelector->setMenu(monthMenu);
         }
         break;
-        case KBibTeX::Edition: {
+        case KBibTeX::FieldInputType::Edition: {
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, false, p);
+            connect(fieldLineEdit, &FieldLineEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldLineEdit);
             QPushButton *editionSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("clock")), QString());
             editionSelector->setToolTip(i18n("Select a predefined edition"));
@@ -110,8 +118,9 @@ public:
             editionSelector->setMenu(editionMenu);
         }
         break;
-        case KBibTeX::CrossRef: {
+        case KBibTeX::FieldInputType::CrossRef: {
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, false, p);
+            connect(fieldLineEdit, &FieldLineEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldLineEdit);
             QPushButton *referenceSelector = new QPushButton(QIcon::fromTheme(QStringLiteral("flag-green")), QString()); ///< find better icon
             referenceSelector->setToolTip(i18n("Select an existing entry"));
@@ -119,65 +128,72 @@ public:
             connect(referenceSelector, &QPushButton::clicked, p, &FieldInput::selectCrossRef);
         }
         break;
-        case KBibTeX::Color: {
+        case KBibTeX::FieldInputType::Color: {
             colorWidget = new ColorLabelWidget(p);
+            connect(colorWidget, &ColorLabelWidget::modified, p, &FieldInput::modified);
             layout->addWidget(colorWidget, 0);
         }
         break;
-        case KBibTeX::StarRating: {
+        case KBibTeX::FieldInputType::StarRating: {
             starRatingWidget = new StarRatingFieldInput(8 /* = #stars */, p);
+            connect(starRatingWidget, &StarRatingFieldInput::modified, p, &FieldInput::modified);
             layout->addWidget(starRatingWidget, 0);
         }
         break;
-        case KBibTeX::PersonList:
+        case KBibTeX::FieldInputType::PersonList:
             fieldListEdit = new PersonListEdit(preferredTypeFlag, typeFlags, p);
+            connect(fieldListEdit, &PersonListEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldListEdit);
             break;
-        case KBibTeX::UrlList:
+        case KBibTeX::FieldInputType::UrlList:
             fieldListEdit = new UrlListEdit(p);
+            connect(fieldListEdit, &FieldListEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldListEdit);
             break;
-        case KBibTeX::KeywordList:
+        case KBibTeX::FieldInputType::KeywordList:
             fieldListEdit = new KeywordListEdit(p);
+            connect(fieldListEdit, &FieldListEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldListEdit);
             break;
         default:
             fieldLineEdit = new FieldLineEdit(preferredTypeFlag, typeFlags, false, p);
+            connect(fieldLineEdit, &FieldLineEdit::modified, p, &FieldInput::modified);
             layout->addWidget(fieldLineEdit);
         }
-
-        enableModifiedSignal();
     }
 
     void clear() {
-        disableModifiedSignal();
-        if (fieldLineEdit != nullptr)
-            fieldLineEdit->setText(QString());
-        else if (fieldListEdit != nullptr)
+        if (fieldLineEdit != nullptr) {
+            const QSignalBlocker blocker(fieldLineEdit);
+            fieldLineEdit->clear();
+        } else if (fieldListEdit != nullptr) {
+            const QSignalBlocker blocker(fieldListEdit);
             fieldListEdit->clear();
-        else if (colorWidget != nullptr)
+        } else if (colorWidget != nullptr) {
+            const QSignalBlocker blocker(colorWidget);
             colorWidget->clear();
-        else if (starRatingWidget != nullptr)
+        } else if (starRatingWidget != nullptr) {
+            const QSignalBlocker blocker(starRatingWidget);
             starRatingWidget->unsetValue();
-        enableModifiedSignal();
+        }
     }
 
     bool reset(const Value &value) {
-        /// if signals are not deactivated, the "modified" signal would be emitted when
-        /// resetting the widget's value
-        disableModifiedSignal();
-
         bool result = false;
-        if (fieldLineEdit != nullptr)
+        if (fieldLineEdit != nullptr) {
+            const QSignalBlocker blocker(fieldLineEdit);
             result = fieldLineEdit->reset(value);
-        else if (fieldListEdit != nullptr)
+        } else if (fieldListEdit != nullptr) {
+            const QSignalBlocker blocker(fieldListEdit);
             result = fieldListEdit->reset(value);
-        else if (colorWidget != nullptr)
+        } else if (colorWidget != nullptr) {
+            const QSignalBlocker blocker(colorWidget);
             result = colorWidget->reset(value);
-        else if (starRatingWidget != nullptr)
+        } else if (starRatingWidget != nullptr) {
+            const QSignalBlocker blocker(starRatingWidget);
             result = starRatingWidget->reset(value);
+        }
 
-        enableModifiedSignal();
         return result;
     }
 
@@ -253,7 +269,7 @@ public:
 
         /// create a standard input dialog with a list of all keys (ids of entries)
         bool ok = false;
-        QStringList list = bibtexFile->allKeys(File::etEntry);
+        QStringList list = bibtexFile->allKeys(File::ElementType::Entry);
         list.sort();
 
         /// remove own id
@@ -272,28 +288,6 @@ public:
         return false;
     }
 
-    void enableModifiedSignal() {
-        if (fieldLineEdit != nullptr)
-            connect(fieldLineEdit, &FieldLineEdit::textChanged, p, &FieldInput::modified);
-        if (fieldListEdit != nullptr)
-            connect(fieldListEdit, &FieldListEdit::modified, p, &FieldInput::modified);
-        if (colorWidget != nullptr)
-            connect(colorWidget, &ColorLabelWidget::modified, p, &FieldInput::modified);
-        if (starRatingWidget != nullptr)
-            connect(starRatingWidget, &StarRatingFieldInput::modified, p, &FieldInput::modified);
-    }
-
-    void disableModifiedSignal() {
-        if (fieldLineEdit != nullptr)
-            disconnect(fieldLineEdit, &FieldLineEdit::textChanged, p, &FieldInput::modified);
-        if (fieldListEdit != nullptr)
-            disconnect(fieldListEdit, &FieldListEdit::modified, p, &FieldInput::modified);
-        if (colorWidget != nullptr)
-            disconnect(colorWidget, &ColorLabelWidget::modified, p, &FieldInput::modified);
-        if (starRatingWidget != nullptr)
-            disconnect(starRatingWidget, &StarRatingFieldInput::modified, p, &FieldInput::modified);
-    }
-
     void setMonth(int month)
     {
         Value value;
@@ -305,11 +299,14 @@ public:
 
     void setEdition(int edition)
     {
-        Value value;
-        value.append(QSharedPointer<MacroKey>(new MacroKey(QString::number(edition))));
-        reset(value);
-        /// Instead of an 'emit' ...
-        QMetaObject::invokeMethod(p, "modified", Qt::DirectConnection, QGenericReturnArgument());
+        const QString editionString = FileExporterBibTeX::editionNumberToString(edition);
+        if (!editionString.isEmpty()) {
+            Value value;
+            value.append(QSharedPointer<PlainText>(new PlainText(editionString)));
+            reset(value);
+            /// Instead of an 'emit' ...
+            QMetaObject::invokeMethod(p, "modified", Qt::DirectConnection, QGenericReturnArgument());
+        }
     }
 };
 

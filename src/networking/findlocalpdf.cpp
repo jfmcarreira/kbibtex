@@ -101,7 +101,7 @@ public:
                     FindPDF::ResultItem resultItem;
                     resultItem.url = QUrl(info.absoluteFilePath());
                     resultItem.tempFilename = NULL;
-                    resultItem.downloadMode = FindPDF::URLonly;
+                    resultItem.downloadMode = FindPDF::DownloadMode::URLonly;
                     resultItem.relevance = 1.0;
                     resultItem.textPreview = doc->info(QStringLiteral("Title")).simplified();
 

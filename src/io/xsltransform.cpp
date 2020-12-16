@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2018 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -19,6 +21,7 @@
 
 #include <QFileInfo>
 #include <QXmlQuery>
+#include <QXmlSerializer>
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QStandardPaths>
@@ -79,11 +82,20 @@ QString XSLTransform::transform(const QString &xmlText) const
         return QString();
     }
 
-    QString result;
-    if (query.evaluateTo(&result)) {
+    static QByteArray ba(1 << 24, '\0');
+    QBuffer buffer(&ba);
+    if (!buffer.open(QBuffer::WriteOnly)) {
+        qCWarning(LOG_KBIBTEX_IO) << "Could not open buffer to receive data";
+        return QString();
+    }
+
+    QXmlSerializer serializer(query, &buffer);
+    if (query.evaluateTo(&serializer)) {
+        const int size_written_data = static_cast<int>(buffer.pos() & 0x7fffffff);
+        buffer.close();
         /// Return result of XSL transformation and replace
         /// the usual XML suspects with its plain counterparts
-        return result;
+        return QString::fromUtf8(ba.constData(), size_written_data);
     } else {
         qCWarning(LOG_KBIBTEX_IO) << "Invoking QXmlQuery::evaluateTo(...) failed";
         return QString();
@@ -97,7 +109,5 @@ QString XSLTransform::locateXSLTfile(const QString &stem)
         qCWarning(LOG_KBIBTEX_IO) << "Generated XSLT filename is empty for stem " << stem;
     else if (!QFileInfo::exists(xsltFilename))
         qCWarning(LOG_KBIBTEX_IO) << "Generated XSLT filename " << xsltFilename << " refers to non-existing file";
-    else
-        qCDebug(LOG_KBIBTEX_IO) << "Generated XSLT filename is " << xsltFilename << " for stem " << stem;
     return xsltFilename;
 }

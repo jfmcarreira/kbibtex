@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -34,7 +36,6 @@ class Element;
 class Comment;
 class Preamble;
 class Macro;
-class Entry;
 class Value;
 class Keyword;
 
@@ -49,12 +50,15 @@ class KBIBTEXIO_EXPORT FileImporterBibTeX : public FileImporter
     Q_OBJECT
 
 public:
-    enum CommentHandling {IgnoreComments = 0, KeepComments = 1};
+    enum class CommentHandling {Ignore, Keep};
 
     /**
      * Creates an importer class to read a BibTeX file.
      */
     explicit FileImporterBibTeX(QObject *parent);
+    ~FileImporterBibTeX();
+
+    virtual File *fromString(const QString &text) override;
 
     /**
      * Read data from the given device and construct a File object holding
@@ -71,8 +75,9 @@ public:
     /**
      * Split a list of keyword separated by ";" or "," into single Keyword objects.
      * @param text Text containing the keyword list
+     * @param usedSplitChar The split char that is used to separate the keywords
      * @return A list of Keyword object containing the keywords
-      * @see Keyword
+     * @see Keyword
      */
     static QList<QSharedPointer<Keyword> > splitKeywords(const QString &text, char *usedSplitChar = nullptr);
 
@@ -81,16 +86,20 @@ public:
      * Examples: "Smith, John, Fulkerson, Ford, and Johnson, Tim"
      * or "John Smith and Tim Johnson"
      * @param text Text containing the persons' names
+     * @param line_number Line number to use in error message if splitting failed
+     * @param parent The parent object
      * @return A list of Person object containing the names
      * @see Person
      */
-    static QList<QSharedPointer<Person> > splitNames(const QString &text, const int line_number = 1, QObject *parent = nullptr);
+    static QList<QSharedPointer<Person> > splitNames(const QString &text);
 
     /**
      * Split a person's name into its parts and construct a Person object from them.
      * This is a functions specialized on the properties of (La)TeX code considering
      * e.g. curly brackets.
      * @param name The persons name
+     * @param line_number Line number to use in error message if splitting failed
+     * @param parent The parent object
      * @return A Person object containing the name
      * @see Person
      */
@@ -98,58 +107,34 @@ public:
 
     static void parsePersonList(const QString &text, Value &value, const int line_number = 1, QObject *parent = nullptr);
 
+    /**
+     * Convert a textual representation of an edition string into a number.
+     * Examples for supported string patterns include '4', '4th', or 'fourth'.
+     * Success of the conversion is returned via the @c ok variable, where the
+     * function caller has to provide a pointer to a boolean variable.
+     * In case of success, the function's result is the edition, in case
+     * of failure, i.e. @c *ok==false, the result is undefined.
+     * @param[in] editionString A string representing an edition number
+     * @param[out] ok Pointer to a boolean variable used to return the success (@c true) or failure (@c false) state of the conversion; must not be @c nullptr
+     * @return In case of success, the edition as a positive int, else undefined
+     */
+    static int editionStringToNumber(const QString &editionString, bool *ok);
+
     void setCommentHandling(CommentHandling commentHandling);
 
 public slots:
     void cancel() override;
 
 private:
-    enum Token {
-        tAt = 1, tBracketOpen = 2, tBracketClose = 3, tAlphaNumText = 4, tComma = 5, tAssign = 6, tDoublecross = 7, tEOF = 0xffff, tUnknown = -1
-    };
-    enum CommaContainment { ccNoComma = 0, ccContainsComma = 1 };
-
-    struct {
-        int countCurlyBrackets, countQuotationMarks;
-        int countFirstNameFirst, countLastNameFirst;
-        int countNoCommentQuote, countCommentPercent, countCommentCommand;
-        int countProtectedTitle, countUnprotectedTitle;
-        QString mostRecentListSeparator;
-    } m_statistics;
+    class Private;
+    Private *d;
 
     bool m_cancelFlag;
-    QTextStream *m_textStream;
-    CommentHandling m_commentHandling;
-    KBibTeX::Casing m_keywordCasing;
-    QStringList m_keysForPersonDetection;
-    QSet<QString> m_knownElementIds;
 
-    /// low-level character operations
-    QChar m_prevChar, m_nextChar;
-    unsigned int m_lineNo;
-    QString m_prevLine, m_currentLine;
-    bool readChar();
-    bool readCharUntil(const QString &until);
-    bool skipWhiteChar();
-    QString readLine();
 
     /// high-level parsing functions
     Comment *readCommentElement();
     Comment *readPlainCommentElement(const QString &prefix);
-    Macro *readMacroElement();
-    Preamble *readPreambleElement();
-    Entry *readEntryElement(const QString &typeString);
-    Element *nextElement();
-    Token nextToken();
-    QString readString(bool &isStringKey);
-    QString readSimpleString(const QString &until = QString(), const bool readNestedCurlyBrackets = false);
-    QString readQuotedString();
-    QString readBracketString();
-    Token readValue(Value &value, const QString &fieldType);
-
-    static QSharedPointer<Person> personFromString(const QString &name, CommaContainment *comma, const int line_number, QObject *parent);
-    static QSharedPointer<Person> personFromTokenList(const QStringList &tokens, CommaContainment *comma, const int line_number, QObject *parent);
-    static void parsePersonList(const QString &text, Value &value, CommaContainment *comma, const int line_number, QObject *parent);
 
     /**
      * Split a string into white-space separated chunks,
@@ -163,9 +148,7 @@ private:
     static void contextSensitiveSplit(const QString &text, QStringList &segments);
 
     static QString bibtexAwareSimplify(const QString &text);
-
-    bool evaluateParameterComments(QTextStream *textStream, const QString &line, File *file);
-    QString tokenidToString(Token token);
+    static QString rstrip(const QString &text);
 };
 
 #endif // KBIBTEX_IO_FILEIMPORTERBIBTEX_H

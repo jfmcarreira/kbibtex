@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -90,9 +92,10 @@ class DocumentList : public QTabWidget
     Q_OBJECT
 
 public:
-    enum Category { OpenFiles = 0, RecentFiles = 1, Favorites = 2 };
+    enum class Category { OpenFiles = 0, RecentFiles = 1, Favorites = 2 };
 
     explicit DocumentList(QWidget *parent = nullptr);
+    ~DocumentList();
 
 signals:
     void openFile(const QUrl &url);

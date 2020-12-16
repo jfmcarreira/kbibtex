@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -23,8 +25,13 @@
 #include <QTimer>
 #include <QStandardPaths>
 #include <QRegularExpression>
+#ifdef HAVE_KF5
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
+#endif // HAVE_KF5
+#if QT_VERSION >= 0x050a00
+#include <QRandomGenerator>
+#endif // QT_VERSION
 #ifdef HAVE_QTWIDGETS
 #include <QListWidgetItem>
 #endif // HAVE_QTWIDGETS
@@ -38,12 +45,14 @@
 #include <Encoder>
 #include "internalnetworkaccessmanager.h"
 #include "onlinesearchabstract_p.h"
+#include "faviconlocator.h"
 #include "logging_networking.h"
 
-const QString OnlineSearchAbstract::queryKeyFreeText = QStringLiteral("free");
-const QString OnlineSearchAbstract::queryKeyTitle = QStringLiteral("title");
-const QString OnlineSearchAbstract::queryKeyAuthor = QStringLiteral("author");
-const QString OnlineSearchAbstract::queryKeyYear = QStringLiteral("year");
+#if QT_VERSION >= 0x050a00
+#define randomGeneratorGlobalGenerate()  QRandomGenerator::global()->generate()
+#else // QT_VERSION
+#define randomGeneratorGlobalGenerate()  (qrand())
+#endif // QT_VERSION
 
 const int OnlineSearchAbstract::resultNoError = 0;
 const int OnlineSearchAbstract::resultCancelled = 0; /// may get redefined in the future!
@@ -111,25 +120,11 @@ OnlineSearchAbstract::OnlineSearchAbstract(QObject *parent)
 #ifdef HAVE_QTWIDGETS
 QIcon OnlineSearchAbstract::icon(QListWidgetItem *listWidgetItem)
 {
-    static const QRegularExpression invalidChars(QStringLiteral("[^-a-z0-9_]"), QRegularExpression::CaseInsensitiveOption);
-    const QString cacheDirectory = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/favicons/");
-    QDir().mkpath(cacheDirectory);
-    const QString fileNameStem = cacheDirectory + QString(favIconUrl()).remove(invalidChars);
-    const QStringList fileNameExtensions {QStringLiteral(".ico"), QStringLiteral(".png"), QString()};
-
-    for (const QString &extension : fileNameExtensions) {
-        const QString fileName = fileNameStem + extension;
-        if (QFileInfo::exists(fileName))
-            return QIcon(fileName);
-    }
-
-    QNetworkRequest request(favIconUrl());
-    QNetworkReply *reply = InternalNetworkAccessManager::instance().get(request);
-    reply->setObjectName(fileNameStem);
-    if (listWidgetItem != nullptr)
-        m_iconReplyToListWidgetItem.insert(reply, listWidgetItem);
-    connect(reply, &QNetworkReply::finished, this, &OnlineSearchAbstract::iconDownloadFinished);
-    return QIcon::fromTheme(QStringLiteral("applications-internet"));
+    FavIconLocator *fil = new FavIconLocator(homepage(), this);
+    connect(fil, &FavIconLocator::gotIcon, this, [listWidgetItem](const QIcon &icon) {
+        listWidgetItem->setIcon(icon);
+    });
+    return fil->icon();
 }
 
 OnlineSearchAbstract::Form *OnlineSearchAbstract::customWidget(QWidget *) {
@@ -203,7 +198,7 @@ bool OnlineSearchAbstract::handleErrors(QNetworkReply *reply, QUrl &newUrl)
     } else if (reply->error() != QNetworkReply::NoError) {
         m_hasBeenCanceled = true;
         const QString errorString = reply->errorString();
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "Search using" << label() << "failed (error code" << reply->error() << "," << errorString << "), HTTP code" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() << ":" << reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toByteArray() << ") for URL" << urlToShow.toDisplayString();
+        qCWarning(LOG_KBIBTEX_NETWORKING) << "Search using" << label() << "failed (error code" << reply->error() << "," << InternalNetworkAccessManager::removeApiKey(errorString) << "), HTTP code" << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() << ":" << reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toByteArray() << ") for URL" << urlToShow.toDisplayString();
         const QNetworkRequest &request = reply->request();
         /// Dump all HTTP headers that were sent with the original request (except for API keys)
         const QList<QByteArray> rawHeadersSent = request.rawHeaderList();
@@ -218,7 +213,7 @@ bool OnlineSearchAbstract::handleErrors(QNetworkReply *reply, QUrl &newUrl)
             qCDebug(LOG_KBIBTEX_NETWORKING) << "RECVD " << rawHeaderName << ":" << reply->rawHeader(rawHeaderName);
         }
 #ifdef HAVE_KF5
-        sendVisualNotification(errorString.isEmpty() ? i18n("Searching '%1' failed for unknown reason.", label()) : i18n("Searching '%1' failed with error message:\n\n%2", label(), errorString), label(), QStringLiteral("kbibtex"), 7 * 1000);
+        sendVisualNotification(errorString.isEmpty() ? i18n("Searching '%1' failed for unknown reason.", label()) : i18n("Searching '%1' failed with error message:\n\n%2", label(), InternalNetworkAccessManager::removeApiKey(errorString)), label(), QStringLiteral("kbibtex"), 7 * 1000);
 #endif // HAVE_KF5
 
         int resultCode = resultUnspecifiedError;
@@ -363,7 +358,7 @@ QString OnlineSearchAbstract::decodeURL(QString rawText)
     return rawText;
 }
 
-QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlText, int startPos) const
+QMultiMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlText, int startPos) const
 {
     /// how to recognize HTML tags
     static const QString formTagEnd = QStringLiteral("</form>");
@@ -373,7 +368,7 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
     static const QString optionTagBegin = QStringLiteral("<option ");
 
     /// initialize result map
-    QMap<QString, QString> result;
+    QMultiMap<QString, QString> result;
 
     /// determined boundaries of (only) "form" tag
     int endPos = htmlText.indexOf(formTagEnd, startPos, Qt::CaseInsensitive);
@@ -393,17 +388,17 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
         if (!inputName.isEmpty()) {
             /// get value of input types
             if (inputType == QStringLiteral("hidden") || inputType == QStringLiteral("text") || inputType == QStringLiteral("submit"))
-                result[inputName] = inputValue;
+                result.replace(inputName, inputValue);
             else if (inputType == QStringLiteral("radio")) {
                 /// must be selected
                 if (htmlAttributeIsSelected(htmlText, p, QStringLiteral("checked"))) {
-                    result[inputName] = inputValue;
+                    result.replace(inputName, inputValue);
                 }
             } else if (inputType == QStringLiteral("checkbox")) {
                 /// must be checked
                 if (htmlAttributeIsSelected(htmlText, p, QStringLiteral("checked"))) {
                     /// multiple checkbox values with the same name are possible
-                    result.insertMulti(inputName, inputValue);
+                    result.insert(inputName, inputValue);
                 }
             }
         }
@@ -427,7 +422,7 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
             if (!selectName.isEmpty() && !optionValue.isEmpty()) {
                 /// if this "option" tag is "selected", store value
                 if (htmlAttributeIsSelected(htmlText, popt, QStringLiteral("selected"))) {
-                    result[selectName] = optionValue;
+                    result.replace(selectName, optionValue);
                 }
             }
 
@@ -440,95 +435,12 @@ QMap<QString, QString> OnlineSearchAbstract::formParameters(const QString &htmlT
     return result;
 }
 
-#ifdef HAVE_QTWIDGETS
-void OnlineSearchAbstract::iconDownloadFinished()
-{
-    QNetworkReply *reply = static_cast<QNetworkReply *>(sender());
-
-    if (reply->error() == QNetworkReply::NoError) {
-        const QUrl redirUrl = reply->attribute(QNetworkRequest::RedirectionTargetAttribute).toUrl();
-        if (redirUrl.isValid()) {
-            QNetworkRequest request(redirUrl);
-            QNetworkReply *newReply = InternalNetworkAccessManager::instance().get(request);
-            newReply->setObjectName(reply->objectName());
-            QListWidgetItem *listWidgetItem = m_iconReplyToListWidgetItem.value(reply, nullptr);
-            m_iconReplyToListWidgetItem.remove(reply);
-            if (listWidgetItem != nullptr)
-                m_iconReplyToListWidgetItem.insert(newReply, listWidgetItem);
-            connect(newReply, &QNetworkReply::finished, this, &OnlineSearchAbstract::iconDownloadFinished);
-            return;
-        }
-
-        const QByteArray iconData = reply->readAll();
-        if (iconData.size() < 10) {
-            /// Unlikely that an icon's data is less than 10 bytes,
-            /// must be an error.
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "Received invalid icon data from " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
-            return;
-        }
-
-        QString extension;
-        if (iconData[1] == 'P' && iconData[2] == 'N' && iconData[3] == 'G') {
-            /// PNG files have string "PNG" at second to fourth byte
-            extension = QStringLiteral(".png");
-        } else if (iconData[0] == static_cast<char>(0x00) && iconData[1] == static_cast<char>(0x00) && iconData[2] == static_cast<char>(0x01) && iconData[3] == static_cast<char>(0x00)) {
-            /// Microsoft Icon have first two bytes always 0x0000,
-            /// third and fourth byte is 0x0001 (for .ico)
-            extension = QStringLiteral(".ico");
-        } else if (iconData[0] == '<') {
-            /// HTML or XML code
-            const QString htmlCode = QString::fromUtf8(iconData);
-            qCDebug(LOG_KBIBTEX_NETWORKING) << "Received XML or HTML data from " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString() << ": " << htmlCode.left(128);
-            return;
-        } else {
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "Favicon is of unknown format: " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString();
-            return;
-        }
-        const QString filename = reply->objectName() + extension;
-
-        QFile iconFile(filename);
-        if (iconFile.open(QFile::WriteOnly)) {
-            iconFile.write(iconData);
-            iconFile.close();
-
-            QListWidgetItem *listWidgetItem = m_iconReplyToListWidgetItem.value(reply, nullptr);
-            if (listWidgetItem != nullptr) {
-                /// Disable signals while updating the widget and its items
-                blockSignals(true);
-                listWidgetItem->setIcon(QIcon(filename));
-                /// Re-enable signals after updating the widget and its items
-                blockSignals(false);
-            }
-        } else {
-            qCWarning(LOG_KBIBTEX_NETWORKING) << "Could not save icon data from URL" << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString() << "to file" << filename;
-            return;
-        }
-    } else
-        qCWarning(LOG_KBIBTEX_NETWORKING) << "Could not download icon from URL " << InternalNetworkAccessManager::removeApiKey(reply->url()).toDisplayString() << ": " << reply->errorString();
-}
-#endif // HAVE_QTWIDGETS
-
-void OnlineSearchAbstract::dumpToFile(const QString &filename, const QString &text)
-{
-    const QString usedFilename = QDir::tempPath() + QLatin1Char('/') + filename;
-
-    QFile f(usedFilename);
-    if (f.open(QFile::WriteOnly)) {
-        qCDebug(LOG_KBIBTEX_NETWORKING) << "Dumping text" << KBibTeX::squeezeText(text, 96) << "to" << usedFilename;
-        f.write(text.toUtf8());
-        f.close();
-    }
-}
-
 void OnlineSearchAbstract::delayedStoppedSearch(int returnCode)
 {
     m_delayedStoppedSearchReturnCode = returnCode;
-    QTimer::singleShot(500, this, &OnlineSearchAbstract::delayedStoppedSearchTimer);
-}
-
-void OnlineSearchAbstract::delayedStoppedSearchTimer()
-{
-    stopSearch(m_delayedStoppedSearchReturnCode);
+    QTimer::singleShot(500, this, [this]() {
+        stopSearch(m_delayedStoppedSearchReturnCode);
+    });
 }
 
 void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
@@ -537,7 +449,7 @@ void OnlineSearchAbstract::sanitizeEntry(QSharedPointer<Entry> entry)
 
     /// Sometimes, there is no identifier, so set a random one
     if (entry->id().isEmpty())
-        entry->setId(QString(QStringLiteral("entry-%1")).arg(QString::number(qrand(), 36)));
+        entry->setId(QString(QStringLiteral("entry-%1")).arg(QString::number(randomGeneratorGlobalGenerate(), 36)));
     /// Missing entry type? Set it to 'misc'
     if (entry->type().isEmpty())
         entry->setType(Entry::etMisc);

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de>      *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2017 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -36,14 +38,12 @@ Page {
             width: parent.width
 
             PageHeader {
-                //% "Settings"
-                title: qsTrId("settings-title")
+                title: qsTr("Settings")
             }
 
             ComboBox {
                 id: sortOrder
-                //% "Sort Order"
-                label: qsTrId("label-sort-order")
+                label: qsTr("Sort Order")
                 currentIndex: bibliographyModel.sortOrder
                 menu: ContextMenu {
                     Repeater {
@@ -59,16 +59,12 @@ Page {
             }
 
             ValueButton {
-                //% "Search Engines"
-                label: qsTrId("label-search-engines")
+                label: qsTr("Search Engines")
                 value: searchEngineList.searchEngineCount === 0
-                       //% "None selected"
-                       ? qsTrId("selected-count-none")
-                       //% "%1 selected"
-                       : qsTrId("selected-count-numarg").arg(searchEngineList.searchEngineCount)
+                       ? qsTr("None selected")
+                       : qsTr("%1 selected").arg(searchEngineList.searchEngineCount)
                 description: searchEngineList.searchEngineCount === 0
-                             //% "At least one search engine must be selected."
-                             ? qsTrId("label-selected-atleastone")
+                             ? qsTr("At least one search engine must be selected.")
                              : searchEngineList.humanReadableSearchEngines()
 
                 onClicked: {

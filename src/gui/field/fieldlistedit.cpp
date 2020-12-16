@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -171,7 +173,7 @@ public:
             }
         });
 
-        connect(le, &FieldLineEdit::textChanged, p, &FieldListEdit::modified);
+        connect(le, &FieldLineEdit::modified, p, &FieldListEdit::modified);
 
         return le;
     }
@@ -334,18 +336,19 @@ void FieldListEdit::dragEnterEvent(QDragEnterEvent *event)
 
 void FieldListEdit::dropEvent(QDropEvent *event)
 {
-    const QString clipboardText = event->mimeData()->text();
+    const QString clipboardText = QString::fromUtf8(event->mimeData()->data(QStringLiteral("text/plain")));
+    event->acceptProposedAction();
     if (clipboardText.isEmpty()) return;
 
-    const File *file = nullptr;
+    bool success = false;
     if (!d->fieldKey.isEmpty() && clipboardText.startsWith(QStringLiteral("@"))) {
         FileImporterBibTeX importer(this);
-        file = importer.fromString(clipboardText);
-        const QSharedPointer<Entry> entry = (file != nullptr && file->count() == 1) ? file->first().dynamicCast<Entry>() : QSharedPointer<Entry>();
+        QScopedPointer<const File> file(importer.fromString(clipboardText));
+        const QSharedPointer<Entry> entry = (!file.isNull() && file->count() == 1) ? file->first().dynamicCast<Entry>() : QSharedPointer<Entry>();
 
-        if (file != nullptr && !entry.isNull() && d->fieldKey == QStringLiteral("^external")) {
+        if (!entry.isNull() && d->fieldKey == QStringLiteral("^external")) {
             /// handle "external" list differently
-            const auto urlList = FileInfo::entryUrls(entry, QUrl(file->property(File::Url).toUrl()), FileInfo::TestExistenceNo);
+            const auto urlList = FileInfo::entryUrls(entry, QUrl(file->property(File::Url).toUrl()), FileInfo::TestExistence::No);
             Value v;
             v.reserve(urlList.size());
             for (const QUrl &url : urlList) {
@@ -353,17 +356,18 @@ void FieldListEdit::dropEvent(QDropEvent *event)
             }
             reset(v);
             emit modified();
-            return;
+            success = true;
         } else if (!entry.isNull() && entry->contains(d->fieldKey)) {
             /// case for "normal" lists like for authors, editors, ...
             reset(entry->value(d->fieldKey));
             emit modified();
-            return;
+            success = true;
         }
     }
 
-    if (file == nullptr || file->count() == 0) {
-        /// fall-back case: single field line edit with text
+    if (!success) {
+        /// In case above cases were not met and thus 'success' is still false,
+        /// clear this list edit and use the clipboad text as its single and only list element
         d->removeAllFieldLineEdits();
         FieldLineEdit *fle = addFieldLineEdit();
         fle->setText(clipboardText);
@@ -457,7 +461,7 @@ void PersonListEdit::slotAddNamesFromClipboard()
 
 
 UrlListEdit::UrlListEdit(QWidget *parent)
-        : FieldListEdit(KBibTeX::tfVerbatim, KBibTeX::tfVerbatim, parent)
+        : FieldListEdit(KBibTeX::TypeFlag::Verbatim, KBibTeX::TypeFlag::Verbatim, parent)
 {
     m_buttonAddFile = new QPushButton(QIcon::fromTheme(QStringLiteral("list-add")), i18n("Add file..."), this);
     addButton(m_buttonAddFile);
@@ -465,8 +469,12 @@ UrlListEdit::UrlListEdit(QWidget *parent)
     m_buttonAddFile->setMenu(menuAddFile);
     connect(m_buttonAddFile, &QPushButton::clicked, m_buttonAddFile, &QPushButton::showMenu);
 
-    menuAddFile->addAction(QIcon::fromTheme(QStringLiteral("emblem-symbolic-link")), i18n("Add reference ..."), this, SLOT(slotAddReference()));
-    menuAddFile->addAction(QIcon::fromTheme(QStringLiteral("emblem-symbolic-link")), i18n("Add reference from clipboard"), this, SLOT(slotAddReferenceFromClipboard()));
+    menuAddFile->addAction(QIcon::fromTheme(QStringLiteral("emblem-symbolic-link")), i18n("Add reference ..."), this, [this]() {
+        slotAddReference();
+    });
+    menuAddFile->addAction(QIcon::fromTheme(QStringLiteral("emblem-symbolic-link")), i18n("Add reference from clipboard"), this, [this]() {
+        slotAddReferenceFromClipboard();
+    });
 }
 
 void UrlListEdit::slotAddReference()
@@ -614,7 +622,7 @@ void UrlListEdit::setReadOnly(bool isReadOnly)
 const QString KeywordListEdit::keyGlobalKeywordList = QStringLiteral("globalKeywordList");
 
 KeywordListEdit::KeywordListEdit(QWidget *parent)
-        : FieldListEdit(KBibTeX::tfKeyword, KBibTeX::tfKeyword | KBibTeX::tfSource, parent), m_config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), m_configGroupName(QStringLiteral("Global Keywords"))
+        : FieldListEdit(KBibTeX::TypeFlag::Keyword, KBibTeX::TypeFlag::Keyword | KBibTeX::TypeFlag::Source, parent), m_config(KSharedConfig::openConfig(QStringLiteral("kbibtexrc"))), m_configGroupName(QStringLiteral("Global Keywords"))
 {
     m_buttonAddKeywordsFromList = new QPushButton(QIcon::fromTheme(QStringLiteral("list-add")), i18n("Add Keywords from List"), this);
     m_buttonAddKeywordsFromList->setToolTip(i18n("Add keywords as selected from a pre-defined list of keywords"));

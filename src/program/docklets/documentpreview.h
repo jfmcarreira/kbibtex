@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -40,7 +42,7 @@ class ImageLabel : public QLabel
     Q_OBJECT
 
 public:
-    explicit ImageLabel(const QString &text, QWidget *parent = nullptr, Qt::WindowFlags f = 0);
+    explicit ImageLabel(const QString &text, QWidget *parent = nullptr);
     void setPixmap(const QPixmap &pixmap);
 
 protected:
@@ -68,10 +70,7 @@ private:
     QString mimeType(const QUrl &url);
 
 private slots:
-    void openExternally();
     void onlyLocalFilesChanged();
-    void visibilityChanged(bool);
-    void comboBoxChanged(int);
     void statFinished(KJob *);
     void loadingFinished();
     void linkActivated(const QString &link);

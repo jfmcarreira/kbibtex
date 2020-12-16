@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -94,8 +96,8 @@ public:
         /// Load and set configuration as stored in settings
         properties.insert(File::Encoding, Preferences::instance().bibTeXEncoding());
         properties.insert(File::StringDelimiter, Preferences::instance().bibTeXStringDelimiter());
-        properties.insert(File::QuoteComment,  Preferences::instance().bibTeXQuoteComment());
-        properties.insert(File::KeywordCasing, Preferences::instance().bibTeXKeywordCasing());
+        properties.insert(File::QuoteComment,  static_cast<int>(Preferences::instance().bibTeXQuoteComment()));
+        properties.insert(File::KeywordCasing, static_cast<int>(Preferences::instance().bibTeXKeywordCasing()));
         properties.insert(File::NameFormatting, Preferences::instance().personNameFormat());
         properties.insert(File::ProtectCasing, static_cast<int>(Preferences::instance().bibTeXProtectCasing() ? Qt::Checked : Qt::Unchecked));
         properties.insert(File::ListSeparator,  Preferences::instance().bibTeXListSeparator());
@@ -212,12 +214,12 @@ const QSharedPointer<Element> File::containsKey(const QString &key, ElementTypes
     if (!d->checkValidity())
         qCCritical(LOG_KBIBTEX_DATA) << "const QSharedPointer<Element> File::containsKey(const QString &key, ElementTypes elementTypes) const" << "This File object is not valid";
     for (const auto &element : const_cast<const File &>(*this)) {
-        const QSharedPointer<Entry> entry = elementTypes.testFlag(etEntry) ? element.dynamicCast<Entry>() : QSharedPointer<Entry>();
+        const QSharedPointer<Entry> entry = elementTypes.testFlag(ElementType::Entry) ? element.dynamicCast<Entry>() : QSharedPointer<Entry>();
         if (!entry.isNull()) {
             if (entry->id() == key)
                 return entry;
         } else {
-            const QSharedPointer<Macro> macro = elementTypes.testFlag(etMacro) ? element.dynamicCast<Macro>() : QSharedPointer<Macro>();
+            const QSharedPointer<Macro> macro = elementTypes.testFlag(ElementType::Macro) ? element.dynamicCast<Macro>() : QSharedPointer<Macro>();
             if (!macro.isNull()) {
                 if (macro->key() == key)
                     return macro;
@@ -235,11 +237,11 @@ QStringList File::allKeys(ElementTypes elementTypes) const
     QStringList result;
     result.reserve(size());
     for (const auto &element : const_cast<const File &>(*this)) {
-        const QSharedPointer<Entry> entry = elementTypes.testFlag(etEntry) ? element.dynamicCast<Entry>() : QSharedPointer<Entry>();
+        const QSharedPointer<Entry> entry = elementTypes.testFlag(ElementType::Entry) ? element.dynamicCast<Entry>() : QSharedPointer<Entry>();
         if (!entry.isNull())
             result.append(entry->id());
         else {
-            const QSharedPointer<Macro> macro = elementTypes.testFlag(etMacro) ? element.dynamicCast<Macro>() : QSharedPointer<Macro>();
+            const QSharedPointer<Macro> macro = elementTypes.testFlag(ElementType::Macro) ? element.dynamicCast<Macro>() : QSharedPointer<Macro>();
             if (!macro.isNull())
                 result.append(macro->key());
         }
@@ -287,7 +289,11 @@ QStringList File::uniqueEntryValuesList(const QString &fieldName) const
     if (!d->checkValidity())
         qCCritical(LOG_KBIBTEX_DATA) << "QStringList File::uniqueEntryValuesList(const QString &fieldName) const" << "This File object is not valid";
     QSet<QString> valueSet = uniqueEntryValuesSet(fieldName);
+#if QT_VERSION >= 0x050e00
+    QStringList list(valueSet.constBegin(), valueSet.constEnd()); ///< This function was introduced in Qt 5.14
+#else // QT_VERSION < 0x050e00
     QStringList list = valueSet.toList();
+#endif // QT_VERSION >= 0x050e00
     list.sort();
     return list;
 }

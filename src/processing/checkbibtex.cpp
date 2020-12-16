@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -36,7 +38,7 @@ CheckBibTeX::CheckBibTeXResult CheckBibTeX::checkBibTeX(QSharedPointer<Element> 
     /// only entries are supported, no macros, preambles, ...
     QSharedPointer<Entry> entry = element.dynamicCast<Entry>();
     if (entry.isNull())
-        return InvalidData;
+        return CheckBibTeXResult::InvalidData;
     else
         return checkBibTeX(entry, file, parent);
 }
@@ -57,7 +59,7 @@ CheckBibTeX::CheckBibTeXResult CheckBibTeX::checkBibTeX(QSharedPointer<Entry> &e
     Value crossRefVal = entry->value(Entry::ftCrossRef);
     if (!crossRefVal.isEmpty() && file != nullptr) {
         crossRefStr = PlainTextValue::text(crossRefVal);
-        QSharedPointer<Entry> crossRefDest = file->containsKey(crossRefStr, File::etEntry).dynamicCast<Entry>();
+        QSharedPointer<Entry> crossRefDest = file->containsKey(crossRefStr, File::ElementType::Entry).dynamicCast<Entry>();
         if (!crossRefDest.isNull())
             dummyFile << crossRefDest;
         else
@@ -71,18 +73,24 @@ CheckBibTeX::CheckBibTeXResult CheckBibTeX::checkBibTeX(QSharedPointer<Entry> &e
                 dummyFile << element;
 
     /// run special exporter to get BibTeX's output
-    QStringList bibtexOuput;
+    QStringList bibtexOutput;
     QByteArray ba;
     QBuffer buffer(&ba);
     buffer.open(QIODevice::WriteOnly);
-    FileExporterBibTeXOutput exporter(FileExporterBibTeXOutput::BibTeXLogFile, parent);
-    bool exporterResult = exporter.save(&buffer, &dummyFile, &bibtexOuput);
+    FileExporterBibTeXOutput exporter(FileExporterBibTeXOutput::OutputType::BibTeXLogFile, parent);
+    QObject::connect(&exporter, &FileExporterBibTeXOutput::processStandardOut, parent, [&bibtexOutput](const QString & line) {
+        bibtexOutput.append(line);
+    });
+    QObject::connect(&exporter, &FileExporterBibTeXOutput::processStandardError, parent, [&bibtexOutput](const QString & line) {
+        bibtexOutput.append(line);
+    });
+    bool exporterResult = exporter.save(&buffer, &dummyFile);
     buffer.close();
 
     if (!exporterResult) {
         QApplication::restoreOverrideCursor();
-        KMessageBox::errorList(parent, i18n("Running BibTeX failed.\n\nSee the following output to trace the error:"), bibtexOuput, i18n("Running BibTeX failed."));
-        return FailedToCheck;
+        KMessageBox::errorList(parent, i18n("Running BibTeX failed.\n\nSee the following output to trace the error:"), bibtexOutput, i18n("Running BibTeX failed."));
+        return CheckBibTeXResult::FailedToCheck;
     }
 
     /// define variables how to parse BibTeX's output
@@ -98,7 +106,7 @@ CheckBibTeX::CheckBibTeXResult CheckBibTeX::checkBibTeX(QSharedPointer<Entry> &e
     /// go line-by-line through BibTeX output and collect warnings/errors
     QStringList warnings;
     QString errorPlainText;
-    for (const QString &line : const_cast<const QStringList &>(bibtexOuput)) {
+    for (const QString &line : const_cast<const QStringList &>(bibtexOutput)) {
         QRegularExpressionMatch match;
         if ((match = errorLine.match(line)).hasMatch()) {
             buffer.open(QIODevice::ReadOnly);
@@ -136,14 +144,14 @@ CheckBibTeX::CheckBibTeXResult CheckBibTeX::checkBibTeX(QSharedPointer<Entry> &e
         }
     }
 
-    CheckBibTeXResult result = NoProblem;
+    CheckBibTeXResult result = CheckBibTeXResult::NoProblem;
     QApplication::restoreOverrideCursor();
     if (!errorPlainText.isEmpty()) {
-        result = BibTeXWarning;
+        result = CheckBibTeXResult::BibTeXWarning;
         KMessageBox::information(parent, i18n("<qt><p>The following error was found:</p><pre>%1</pre></qt>", errorPlainText), i18n("Errors found"));
     } else if (!warnings.isEmpty()) {
         KMessageBox::informationList(parent, i18n("The following warnings were found:"), warnings, i18n("Warnings found"));
-        result = BibTeXError;
+        result = CheckBibTeXResult::BibTeXError;
     } else
         KMessageBox::information(parent, i18n("No warnings or errors were found.%1", crossRefStr.isEmpty() ? QString() : i18n("\n\nSome fields missing in this entry were taken from the crossref'ed entry '%1'.", crossRefStr)), i18n("No Errors or Warnings"));
 

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -43,7 +45,9 @@ CollectionModel::CollectionModel(Collection *collection, QObject *parent)
         : QAbstractItemModel(parent), d(new Zotero::CollectionModel::Private(collection, this))
 {
     beginResetModel();
-    connect(collection, &Collection::finishedLoading, this, &CollectionModel::fetchingDone);
+    connect(collection, &Collection::finishedLoading, this, [this]() {
+        endResetModel();
+    });
 }
 
 QVariant CollectionModel::data(const QModelIndex &index, int role) const
@@ -133,9 +137,4 @@ bool CollectionModel::hasChildren(const QModelIndex &parent) const
         return false;
 
     return rowCount(parent) > 0;
-}
-
-void CollectionModel::fetchingDone()
-{
-    endResetModel();
 }

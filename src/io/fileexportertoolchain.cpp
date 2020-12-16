@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -30,6 +32,7 @@
 #include <KLocalizedString>
 
 #include <Preferences>
+#include "logging_io.h"
 
 FileExporterToolchain::FileExporterToolchain(QObject *parent)
         : FileExporter(parent)
@@ -37,7 +40,7 @@ FileExporterToolchain::FileExporterToolchain(QObject *parent)
     tempDir.setAutoRemove(true);
 }
 
-bool FileExporterToolchain::runProcesses(const QStringList &progs, QStringList *errorLog)
+bool FileExporterToolchain::runProcesses(const QStringList &progs, bool doEmitProcessOutput)
 {
     bool result = true;
     int i = 0;
@@ -48,14 +51,14 @@ bool FileExporterToolchain::runProcesses(const QStringList &progs, QStringList *
         QStringList args = (*it).split(' ');
         QString cmd = args.first();
         args.erase(args.begin());
-        result &= runProcess(cmd, args, errorLog);
+        result &= runProcess(cmd, args, doEmitProcessOutput);
         emit progress(i++, progs.size());
     }
     QCoreApplication::instance()->processEvents();
     return result;
 }
 
-bool FileExporterToolchain::runProcess(const QString &cmd, const QStringList &args, QStringList *errorLog)
+bool FileExporterToolchain::runProcess(const QString &cmd, const QStringList &args, bool doEmitProcessOutput)
 {
     QProcess process(this);
     QProcessEnvironment processEnvironment = QProcessEnvironment::systemEnvironment();
@@ -70,67 +73,78 @@ bool FileExporterToolchain::runProcess(const QString &cmd, const QStringList &ar
     /// for use in log messages and debug output
     const QString fullCommandLine = cmd + QLatin1Char(' ') + args.join(QStringLiteral(" "));
 
-    if (errorLog != nullptr)
-        errorLog->append(i18n("Running command '%1' using working directory '%2'", fullCommandLine, process.workingDirectory()));
+    qCInfo(LOG_KBIBTEX_IO) << "Running command" << fullCommandLine << "using working directory" << process.workingDirectory();
     process.start(cmd, args);
 
-    if (errorLog != nullptr) {
-        /// Redirect any standard output from process into errorLog
-        connect(&process, &QProcess::readyReadStandardOutput, [errorLog, &process] {
-            QTextStream ts(process.readAllStandardOutput());
-            while (!ts.atEnd())
-                errorLog->append(ts.readLine());
-        });
-        /// Redirect any standard error from process into errorLog
-        connect(&process, &QProcess::readyReadStandardError, [errorLog, &process] {
-            QTextStream ts(process.readAllStandardError());
-            while (!ts.atEnd())
-                errorLog->append(ts.readLine());
-        });
-    }
+    connect(&process, &QProcess::readyReadStandardOutput, [this, &doEmitProcessOutput, &process] {
+        QTextStream ts(process.readAllStandardOutput());
+        while (!ts.atEnd()) {
+            const QString line = ts.readLine();
+            qCWarning(LOG_KBIBTEX_IO) << line;
+            if (doEmitProcessOutput)
+                emit processStandardOut(line);
+        }
+    });
+    connect(&process, &QProcess::readyReadStandardError, [this, &doEmitProcessOutput, &process] {
+        QTextStream ts(process.readAllStandardError());
+        while (!ts.atEnd()) {
+            const QString line = ts.readLine();
+            qCDebug(LOG_KBIBTEX_IO) << line;
+            if (doEmitProcessOutput)
+                emit processStandardError(line);
+        }
+    });
 
-    bool result = process.waitForStarted(3000);
-    if (!result) {
-        if (errorLog != nullptr)
-            errorLog->append(i18n("Starting command '%1' failed: %2", fullCommandLine, process.errorString()));
+    if (process.waitForStarted(3000)) {
+        if (process.waitForFinished(30000)) {
+            if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0)
+                qCInfo(LOG_KBIBTEX_IO) << "Command" << fullCommandLine << "succeeded";
+            else {
+                qCWarning(LOG_KBIBTEX_IO) << "Command" << fullCommandLine << "failed with exit code" << process.exitCode() << ":" << process.errorString();
+                return false;
+            }
+        } else {
+            qCWarning(LOG_KBIBTEX_IO) << "Timeout waiting for command" << fullCommandLine << "failed:" << process.errorString();
+            return false;
+        }
+    } else {
+        qCWarning(LOG_KBIBTEX_IO) << "Starting command" << fullCommandLine << "failed:" << process.errorString();
         return false;
     }
 
-    if (process.waitForFinished(30000))
-        result = process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
-
-    if (errorLog != nullptr) {
-        if (result)
-            errorLog->append(i18n("Command '%1' succeeded", fullCommandLine));
-        else
-            errorLog->append(i18n("Command '%1' failed with exit code %2: %3", fullCommandLine, process.exitCode(), process.errorString()));
-    }
-
-    return result;
+    return true;
 }
 
-bool FileExporterToolchain::writeFileToIODevice(const QString &filename, QIODevice *device, QStringList *errorLog)
+bool FileExporterToolchain::writeFileToIODevice(const QString &filename, QIODevice *device)
 {
+    bool result = false;
     QFile file(filename);
     if (file.open(QIODevice::ReadOnly)) {
-        bool result = true;
         static const qint64 buffersize = 0x10000;
-        qint64 amount = 0;
         char buffer[buffersize];
-        do {
-            result = ((amount = file.read(buffer, buffersize)) > -1) && (device->write(buffer, amount) > -1);
-        } while (result && amount > 0);
+        result = true;
+        while (result) {
+            const qint64 indata_size = file.read(buffer, buffersize);
+            result &= indata_size >= 0;
+            if (!result || indata_size == 0) break; //< on error or end of data
+
+            qint64 remainingdata_size = buffersize;
+            qint64 outdata_size = 0;
+            int buffer_offset = 0;
+            while (result && outdata_size < remainingdata_size) {
+                buffer_offset += outdata_size;
+                remainingdata_size -= outdata_size;
+                outdata_size = device->write(buffer + buffer_offset, remainingdata_size);
+                result &= outdata_size >= 0;
+            }
+        }
 
         file.close();
-
-        if (errorLog != nullptr)
-            errorLog->append(i18n("Writing to file '%1' succeeded", filename));
-        return result;
     }
 
-    if (errorLog != nullptr)
-        errorLog->append(i18n("Writing to file '%1' failed", filename));
-    return false;
+    if (!result)
+        qCWarning(LOG_KBIBTEX_IO) << "Writing to file" << filename << "failed";
+    return result;
 }
 
 QString FileExporterToolchain::pageSizeToLaTeXName(const QPageSize::PageSizeId pageSizeId) const

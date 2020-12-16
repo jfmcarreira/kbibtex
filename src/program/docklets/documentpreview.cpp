@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -43,9 +45,15 @@
 #endif // HAVE_WEBKITWIDGETS
 #endif // HAVE_WEBENGINEWIDGETS
 
+#include <kio_version.h>
 #include <KLocalizedString>
 #include <KJobWidgets>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
 #include <KRun>
+#endif // KIO_VERSION >= 0x054700
 #include <KMimeTypeTrader>
 #include <KService>
 #include <KParts/Part>
@@ -57,7 +65,6 @@
 #include <KActionCollection>
 #include <KSharedConfig>
 #include <KConfigGroup>
-#include <kio_version.h>
 
 #include <KBibTeX>
 #include <Element>
@@ -66,8 +73,8 @@
 #include <FileInfo>
 #include "logging_program.h"
 
-ImageLabel::ImageLabel(const QString &text, QWidget *parent, Qt::WindowFlags f)
-        : QLabel(text, parent, f)
+ImageLabel::ImageLabel(const QString &text, QWidget *parent)
+        : QLabel(text, parent)
 {
     /// nothing
 }
@@ -119,7 +126,6 @@ private:
     QMap<int, struct UrlInfo> cbxEntryToUrlInfo;
     QMutex addingUrlMutex;
 
-    static const QString arXivPDFUrlStart;
     bool anyLocal;
 
     QMenuBar *menuBar;
@@ -255,13 +261,22 @@ public:
 
         loadState();
 
-        connect(externalViewerButton, &QPushButton::clicked, p, &DocumentPreview::openExternally);
-        connect(urlComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), p, &DocumentPreview::comboBoxChanged);
+        connect(externalViewerButton, &QPushButton::clicked, p, [this]() {
+            openExternally();
+        });
+        connect(urlComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::activated), p, [this](int index) {
+            comboBoxChanged(index);
+        });
         connect(onlyLocalFilesButton, &QPushButton::toggled, p, &DocumentPreview::onlyLocalFilesChanged);
     }
 
+    inline bool isLocalOrRelative(const QUrl &url) const
+    {
+        return url.isLocalFile() || url.isRelative() || url.scheme().isEmpty();
+    }
+
     bool addUrl(const struct UrlInfo &urlInfo) {
-        bool isLocal = KBibTeX::isLocalOrRelative(urlInfo.url);
+        bool isLocal = isLocalOrRelative(urlInfo.url);
         anyLocal |= isLocal;
 
         if (!onlyLocalFilesButton->isChecked() && !isLocal) return true; ///< ignore URL if only local files are allowed
@@ -327,13 +342,13 @@ public:
 
         /// do not load external reference if widget is hidden
         if (isVisible()) {
-            const auto urlList = FileInfo::entryUrls(entry, baseUrl, FileInfo::TestExistenceYes);
+            const auto urlList = FileInfo::entryUrls(entry, baseUrl, FileInfo::TestExistence::Yes);
             for (const QUrl &url : urlList) {
-                bool isLocal = KBibTeX::isLocalOrRelative(url);
+                bool isLocal = isLocalOrRelative(url);
                 anyRemote |= !isLocal;
                 if (!onlyLocalFilesButton->isChecked() && !isLocal) continue;
 
-                KIO::StatJob *job = KIO::stat(url, KIO::StatJob::SourceSide, 3, KIO::HideProgressInfo);
+                KIO::StatJob *job = KIO::mostLocalUrl(url, KIO::HideProgressInfo);
                 runningJobs << job;
                 KJobWidgets::setWindow(job, p);
                 connect(job, &KIO::StatJob::result, p, &DocumentPreview::statFinished);
@@ -540,39 +555,45 @@ public:
         QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
         const QString mimeTypeName = mimeType.name();
         /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
         KRun::runUrl(url, mimeTypeName, p, KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+        KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mimeTypeName);
+        job->setUiDelegate(new KIO::JobUiDelegate());
+        job->start();
+#endif // KIO_VERSION < 0x054700
     }
 
     UrlInfo urlMetaInfo(const QUrl &url) {
         UrlInfo result;
         result.url = url;
 
-        if (!KBibTeX::isLocalOrRelative(url) && url.fileName().isEmpty()) {
+        if (!isLocalOrRelative(url) && url.fileName().isEmpty()) {
             /// URLs not pointing to a specific file should be opened with a web browser component
             result.icon = QIcon::fromTheme(QStringLiteral("text-html"));
             result.mimeType = QStringLiteral("text/html");
             return result;
         }
 
+        /// Generic guess for URL's MIME type
         const QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
         result.mimeType = mimeType.name();
-        result.icon = QIcon::fromTheme(mimeType.iconName());
 
+        /// Guesses made for local file systems may not be applicable for URLs to web pages
         if (result.mimeType == QStringLiteral("application/octet-stream")) {
             /// application/octet-stream is a fall-back if KDE did not know better
-            result.icon = QIcon::fromTheme(QStringLiteral("text-html"));
             result.mimeType = QStringLiteral("text/html");
         } else if ((result.mimeType.isEmpty() || result.mimeType == QStringLiteral("inode/directory")) && (result.url.scheme() == QStringLiteral("http") || result.url.scheme() == QStringLiteral("https"))) {
             /// directory via http means normal webpage (not browsable directory)
-            result.icon = QIcon::fromTheme(QStringLiteral("text-html"));
             result.mimeType = QStringLiteral("text/html");
         }
 
-        if (url.url(QUrl::PreferLocalFile).startsWith(arXivPDFUrlStart)) {
-            result.icon = QIcon::fromTheme(QStringLiteral("application-pdf"));
+        /// Make more specific guesses on an URL's MIME type
+        if (QRegularExpression(QStringLiteral("^http[s]?://arxiv.org/pdf/")).match(url.url(QUrl::PreferLocalFile)).hasMatch()) {
             result.mimeType = QStringLiteral("application/pdf");
         }
 
+        result.icon = QIcon::fromTheme(mimeType.iconName());
         return result;
     }
 
@@ -599,14 +620,15 @@ public:
     }
 };
 
-const QString DocumentPreview::DocumentPreviewPrivate::arXivPDFUrlStart = QStringLiteral("http://arxiv.org/pdf/");
 const QString DocumentPreview::DocumentPreviewPrivate::configGroupName = QStringLiteral("URL Preview");
 const QString DocumentPreview::DocumentPreviewPrivate::onlyLocalFilesCheckConfig = QStringLiteral("OnlyLocalFiles");
 
 DocumentPreview::DocumentPreview(QDockWidget *parent)
         : QWidget(parent), d(new DocumentPreviewPrivate(this))
 {
-    connect(parent, &QDockWidget::visibilityChanged, this, &DocumentPreview::visibilityChanged);
+    connect(parent, &QDockWidget::visibilityChanged, this, [this]() {
+        d->update();
+    });
 }
 
 DocumentPreview::~DocumentPreview()
@@ -620,11 +642,6 @@ void DocumentPreview::setElement(QSharedPointer<Element> element, const File *)
     d->update();
 }
 
-void DocumentPreview::openExternally()
-{
-    d->openExternally();
-}
-
 void DocumentPreview::setBibTeXUrl(const QUrl &url)
 {
     d->baseUrl = url;
@@ -634,16 +651,6 @@ void DocumentPreview::onlyLocalFilesChanged()
 {
     d->saveState();
     d->update();
-}
-
-void DocumentPreview::visibilityChanged(bool)
-{
-    d->update();
-}
-
-void DocumentPreview::comboBoxChanged(int index)
-{
-    d->comboBoxChanged(index);
 }
 
 void DocumentPreview::statFinished(KJob *kjob)
@@ -694,7 +701,13 @@ void DocumentPreview::linkActivated(const QString &link)
             QMimeType mimeType = FileInfo::mimeTypeForUrl(urlToOpen);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
             KRun::runUrl(urlToOpen, mimeTypeName, this, KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+            KIO::OpenUrlJob *job = new KIO::OpenUrlJob(urlToOpen, mimeTypeName);
+            job->setUiDelegate(new KIO::JobUiDelegate());
+            job->start();
+#endif // KIO_VERSION < 0x054700
         }
     }
 }

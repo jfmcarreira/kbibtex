@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -30,6 +32,7 @@ class QAbstractButton;
 class QDialogButtonBox;
 
 class ValueListModel;
+class Clipboard;
 class ElementEditor;
 class ElementEditorDialog;
 
@@ -53,15 +56,12 @@ public:
     ValueListModel *valueListModel(const QString &field);
 
     void setFilterBar(FilterBar *filterBar);
+    void setClipboard(Clipboard *clipboard);
 
 signals:
     void selectedElementsChanged();
     void currentElementChanged(QSharedPointer<Element>, const File *);
     void elementExecuted(QSharedPointer<Element>);
-    void editorMouseEvent(QMouseEvent *);
-    void editorDragEnterEvent(QDragEnterEvent *);
-    void editorDragMoveEvent(QDragMoveEvent *);
-    void editorDropEvent(QDropEvent *);
     void modified(bool);
 
 public slots:
@@ -90,11 +90,12 @@ protected slots:
     void dialogButtonClicked(QAbstractButton *);
 
 private:
-    enum DialogType { DialogTypeView, DialogTypeEdit };
+    enum class DialogType { View, Edit };
 
     QSharedPointer<Element> m_current;
     QList<QSharedPointer<Element> > m_selection;
     FilterBar *m_filterBar;
+    Clipboard *m_clipboard;
     QWidget *m_lastEditorPage;
 
     ElementEditorDialog *m_elementEditorDialog;

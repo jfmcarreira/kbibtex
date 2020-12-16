@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -53,6 +55,8 @@ public:
     static const QString ftCrossRef;
     /** Representation of the BibTeX field key "doi" */
     static const QString ftDOI;
+    /** Representation of the BibTeX field key "edition" */
+    static const QString ftEdition;
     /** Representation of the BibTeX field key "editor" */
     static const QString ftEditor;
     /** Representation of the BibTeX field key "file" */
@@ -125,6 +129,7 @@ public:
      * allowing to call the constructor as Entry() only.
      * Both type and id can be set and retrieved later.
      * @param type type of this entry
+     * @param id identifier of this entry
      */
     explicit Entry(const QString &type = QString(), const QString &id = QString());
 
@@ -175,7 +180,7 @@ public:
      * Re-implementation of QMap's value function, but performing a case-insensitive
      * match on the key. E.g. querying for key "title" will find a key-value pair with
      * key "TITLE".
-     * @see #contains(const QString&)
+     * @see contains
      * @param key field name to search for
      * @return found value or Value() if nothing found
      */
@@ -187,7 +192,7 @@ public:
      * Re-implementation of QMap's contains function, but performing a case-insensitive
      * match on the key. E.g. querying for key "title" will find a key-value pair with
      * key "TITLE".
-     * @see #value(const QString&)
+     * @see value
      * @param key field name to search for
      * @return true if value with key found, else false
      */

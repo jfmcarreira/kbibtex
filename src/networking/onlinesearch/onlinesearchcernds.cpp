@@ -1,20 +1,22 @@
-/****************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de>  *
- *   Copyright (C) 2013 Yngve I. Levinsen <yngve.inntjore.levinsen@cern.ch> *
- *                                                                          *
- *   This program is free software; you can redistribute it and/or modify   *
- *   it under the terms of the GNU General Public License as published by   *
- *   the Free Software Foundation; either version 2 of the License, or      *
- *   (at your option) any later version.                                    *
- *                                                                          *
- *   This program is distributed in the hope that it will be useful,        *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of         *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          *
- *   GNU General Public License for more details.                           *
- *                                                                          *
- *   You should have received a copy of the GNU General Public License      *
- *   along with this program; if not, see <https://www.gnu.org/licenses/>.  *
- ****************************************************************************/
+/***************************************************************************
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *   SPDX-FileCopyrightText: 2013 Yngve I. Levinsen <yngve.inntjore.levinsen@cern.ch>
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
+ ***************************************************************************/
 
 #include "onlinesearchcernds.h"
 
@@ -37,18 +39,13 @@ QString OnlineSearchCERNDS::label() const
 
 QUrl OnlineSearchCERNDS::homepage() const
 {
-    return QUrl(QStringLiteral("http://cds.cern.ch/"));
+    return QUrl(QStringLiteral("https://cds.cern.ch/"));
 }
 
-QString OnlineSearchCERNDS::favIconUrl() const
-{
-    return QStringLiteral("http://cds.cern.ch/favicon.ico");
-}
-
-QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QString, QString> &query, int numResults)
+QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults)
 {
     /// Example for a search URL:
-    /// http://cds.cern.ch/search?action_search=Search&sf=&so=d&rm=&sc=0&of=hx&f=&rg=10&ln=en&as=1&m1=a&p1=stone&f1=title&op1=a&m2=a&p2=smith&f2=author&op2=a&m3=a&p3=&f3=
+    /// https://cds.cern.ch/search?action_search=Search&sf=&so=d&rm=&sc=0&of=hx&f=&rg=10&ln=en&as=1&m1=a&p1=stone&f1=title&op1=a&m2=a&p2=smith&f2=author&op2=a&m3=a&p3=&f3=
 
     /// of=hx  asks for BibTeX results
     /// rg=10  asks for 10 results
@@ -60,7 +57,7 @@ QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QString, QString> &query, int 
     ///   fX   ""=any field; title; author; reportnumber; year; fulltext
 
     /// Build URL
-    QUrl url = QUrl(QStringLiteral("http://cds.cern.ch/search?ln=en&action_search=Search&c=Articles+%26+Preprints&as=1&sf=&so=d&rm=&sc=0&of=hx&f="));
+    QUrl url = QUrl(QStringLiteral("https://cds.cern.ch/search?ln=en&action_search=Search&c=Articles+%26+Preprints&as=1&sf=&so=d&rm=&sc=0&of=hx&f="));
     QUrlQuery q(url);
     /// Set number of expected results
     q.addQueryItem(QStringLiteral("rg"), QString::number(numResults));
@@ -69,7 +66,7 @@ QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QString, QString> &query, int 
     int argumentCount = 0;
 
     /// add words from "free text" field
-    const QStringList freeTextWords = splitRespectingQuotationMarks(query[queryKeyFreeText]);
+    const QStringList freeTextWords = splitRespectingQuotationMarks(query[QueryKey::FreeText]);
     for (const QString &word : freeTextWords) {
         ++argumentCount;
         q.addQueryItem(QString(QStringLiteral("p%1")).arg(argumentCount), word);
@@ -79,7 +76,7 @@ QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QString, QString> &query, int 
     }
 
     /// add words from "author" field
-    const QStringList authorWords = splitRespectingQuotationMarks(query[queryKeyAuthor]);
+    const QStringList authorWords = splitRespectingQuotationMarks(query[QueryKey::Author]);
     for (const QString &word : authorWords) {
         ++argumentCount;
         q.addQueryItem(QString(QStringLiteral("p%1")).arg(argumentCount), word);
@@ -89,7 +86,7 @@ QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QString, QString> &query, int 
     }
 
     /// add words from "title" field
-    const QStringList titleWords = splitRespectingQuotationMarks(query[queryKeyTitle]);
+    const QStringList titleWords = splitRespectingQuotationMarks(query[QueryKey::Title]);
     for (const QString &word : titleWords) {
         ++argumentCount;
         q.addQueryItem(QString(QStringLiteral("p%1")).arg(argumentCount), word);
@@ -99,7 +96,7 @@ QUrl OnlineSearchCERNDS::buildQueryUrl(const QMap<QString, QString> &query, int 
     }
 
     /// add words from "title" field
-    const QString year = query[queryKeyYear];
+    const QString year = query[QueryKey::Year];
     if (!year.isEmpty()) {
         ++argumentCount;
         q.addQueryItem(QString(QStringLiteral("p%1")).arg(argumentCount), year);

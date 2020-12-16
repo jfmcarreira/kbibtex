@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -20,9 +22,10 @@
 #include <onlinesearch/OnlineSearchAbstract>
 #include <AssociatedFiles>
 
-Q_DECLARE_METATYPE(AssociatedFiles::PathType)
+typedef QMultiMap<QString, QString> FormData;
 
-typedef QMap<QString, QString> FormData;
+Q_DECLARE_METATYPE(AssociatedFiles::PathType)
+Q_DECLARE_METATYPE(FormData)
 
 class OnlineSearchDummy : public OnlineSearchAbstract
 {
@@ -30,15 +33,12 @@ class OnlineSearchDummy : public OnlineSearchAbstract
 
 public:
     explicit OnlineSearchDummy(QObject *parent);
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
+    void startSearch(const QMap<QueryKey, QString> &query, int numResults) override;
     QString label() const override;
     QUrl homepage() const override;
 
-    QMap<QString, QString> formParameters_public(const QString &htmlText, int startPos);
+    QMultiMap<QString, QString> formParameters_public(const QString &htmlText, int startPos);
     void sanitizeEntry_public(QSharedPointer<Entry> entry);
-
-protected:
-    QString favIconUrl() const override;
 };
 
 class KBibTeXNetworkingTest : public QObject
@@ -58,12 +58,12 @@ private:
 };
 
 OnlineSearchDummy::OnlineSearchDummy(QObject *parent)
-    : OnlineSearchAbstract(parent)
+        : OnlineSearchAbstract(parent)
 {
     /// nothing
 }
 
-void OnlineSearchDummy::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchDummy::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     Q_UNUSED(query)
     Q_UNUSED(numResults)
@@ -79,12 +79,7 @@ QUrl OnlineSearchDummy::homepage() const
     return QUrl::fromUserInput(QStringLiteral("https://www.kde.org"));
 }
 
-QString OnlineSearchDummy::favIconUrl() const
-{
-    return QStringLiteral("https://www.kde.org/favicon.ico");
-}
-
-QMap<QString, QString> OnlineSearchDummy::formParameters_public(const QString &htmlText, int startPos)
+QMultiMap<QString, QString> OnlineSearchDummy::formParameters_public(const QString &htmlText, int startPos)
 {
     return formParameters(htmlText, startPos);
 }
@@ -100,17 +95,17 @@ void KBibTeXNetworkingTest::onlineSearchAbstractFormParameters_data()
     QTest::addColumn<int>("startPos");
     QTest::addColumn<FormData>("expectedResult");
 
-    QTest::newRow("Empty Form (1)") << QString() << 0 << QMap<QString, QString>();
-    QTest::newRow("Empty Form (2)") << QStringLiteral("<form></form>") << 0 << QMap<QString, QString>();
-    QTest::newRow("Form with text") << QStringLiteral("<form><input type=\"text\" name=\"abc\" value=\"ABC\" /></form>") << 0 << QMap<QString, QString> {{QStringLiteral("abc"), QStringLiteral("ABC")}};
-    QTest::newRow("Form with text but without quotation marks") << QStringLiteral("<form><input type=text name=abc value=ABC /></form>") << 0 << QMap<QString, QString> {{QStringLiteral("abc"), QStringLiteral("ABC")}};
-    QTest::newRow("Form with text and single quotation marks") << QStringLiteral("<form><input type='text' name='abc' value='ABC' /></form>") << 0 << QMap<QString, QString> {{QStringLiteral("abc"), QStringLiteral("ABC")}};
-    QTest::newRow("Form with radio button (none selected)") << QStringLiteral("<form><input type=\"radio\" name=\"direction\" value=\"right\" /><input type=\"radio\" name=\"direction\" value=\"left\"/></form>") << 0 << QMap<QString, QString>();
-    QTest::newRow("Form with radio button (old-style)") << QStringLiteral("<form><input type=\"radio\" name=\"direction\" value=\"right\" /><input type=\"radio\" name=\"direction\" value=\"left\" checked/></form>") << 0 << QMap<QString, QString> {{QStringLiteral("direction"), QStringLiteral("left")}};
-    QTest::newRow("Form with radio button (modern)") << QStringLiteral("<form><input type=\"radio\" name=\"direction\" value=\"right\" checked=\"checked\"/><input type=\"radio\" name=\"direction\" value=\"left\"/></form>") << 0 << QMap<QString, QString> {{QStringLiteral("direction"), QStringLiteral("right")}};
-    QTest::newRow("Form with select/option (none selected)") << QStringLiteral("<form><select name=\"direction\"><option value=\"left\">Left</option><option value=\"right\">Right</option></select></form>") << 0 << QMap<QString, QString>();
-    QTest::newRow("Form with select/option (old-style)") << QStringLiteral("<form><select name=\"direction\"><option value=\"left\" selected >Left</option><option value=\"right\">Right</option></select></form>") << 0 << QMap<QString, QString> {{QStringLiteral("direction"), QStringLiteral("left")}};
-    QTest::newRow("Form with select/option (modern)") << QStringLiteral("<form><select name=\"direction\"><option value=\"left\" >Left</option><option selected=\"selected\" value=\"right\">Right</option></select></form>") << 0 << QMap<QString, QString> {{QStringLiteral("direction"), QStringLiteral("right")}};
+    QTest::newRow("Empty Form (1)") << QString() << 0 << FormData();
+    QTest::newRow("Empty Form (2)") << QStringLiteral("<form></form>") << 0 << FormData();
+    QTest::newRow("Form with text") << QStringLiteral("<form><input type=\"text\" name=\"abc\" value=\"ABC\" /></form>") << 0 << FormData {{QStringLiteral("abc"), QStringLiteral("ABC")}};
+    QTest::newRow("Form with text but without quotation marks") << QStringLiteral("<form><input type=text name=abc value=ABC /></form>") << 0 << FormData {{QStringLiteral("abc"), QStringLiteral("ABC")}};
+    QTest::newRow("Form with text and single quotation marks") << QStringLiteral("<form><input type='text' name='abc' value='ABC' /></form>") << 0 << FormData {{QStringLiteral("abc"), QStringLiteral("ABC")}};
+    QTest::newRow("Form with radio button (none selected)") << QStringLiteral("<form><input type=\"radio\" name=\"direction\" value=\"right\" /><input type=\"radio\" name=\"direction\" value=\"left\"/></form>") << 0 << FormData();
+    QTest::newRow("Form with radio button (old-style)") << QStringLiteral("<form><input type=\"radio\" name=\"direction\" value=\"right\" /><input type=\"radio\" name=\"direction\" value=\"left\" checked/></form>") << 0 << FormData {{QStringLiteral("direction"), QStringLiteral("left")}};
+    QTest::newRow("Form with radio button (modern)") << QStringLiteral("<form><input type=\"radio\" name=\"direction\" value=\"right\" checked=\"checked\"/><input type=\"radio\" name=\"direction\" value=\"left\"/></form>") << 0 << FormData {{QStringLiteral("direction"), QStringLiteral("right")}};
+    QTest::newRow("Form with select/option (none selected)") << QStringLiteral("<form><select name=\"direction\"><option value=\"left\">Left</option><option value=\"right\">Right</option></select></form>") << 0 << FormData();
+    QTest::newRow("Form with select/option (old-style)") << QStringLiteral("<form><select name=\"direction\"><option value=\"left\" selected >Left</option><option value=\"right\">Right</option></select></form>") << 0 << FormData {{QStringLiteral("direction"), QStringLiteral("left")}};
+    QTest::newRow("Form with select/option (modern)") << QStringLiteral("<form><select name=\"direction\"><option value=\"left\" >Left</option><option selected=\"selected\" value=\"right\">Right</option></select></form>") << 0 << FormData {{QStringLiteral("direction"), QStringLiteral("right")}};
 }
 
 void KBibTeXNetworkingTest::onlineSearchAbstractFormParameters()
@@ -236,30 +231,30 @@ void KBibTeXNetworkingTest::associatedFilescomputeAssociateURL_data()
 
     File *bibTeXFile = new File();
     bibTeXFile->setProperty(File::Url, QUrl::fromUserInput(QStringLiteral("https://www.example.com/bibliography/all.bib")));
-    QTest::newRow("Remote URL, relative path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::ptRelative << QStringLiteral("../documents/paper.pdf");
+    QTest::newRow("Remote URL, relative path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::PathType::Relative << QStringLiteral("../documents/paper.pdf");
 
     bibTeXFile = new File();
     bibTeXFile->setProperty(File::Url, QUrl::fromUserInput(QStringLiteral("https://www.example.com/bibliography/all.bib")));
-    QTest::newRow("Remote URL, absolute path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::ptAbsolute << QStringLiteral("https://www.example.com/documents/paper.pdf");
+    QTest::newRow("Remote URL, absolute path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::PathType::Absolute << QStringLiteral("https://www.example.com/documents/paper.pdf");
 
     bibTeXFile = new File();
-    QTest::newRow("Empty base URL, relative path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::ptRelative << QStringLiteral("https://www.example.com/documents/paper.pdf");
+    QTest::newRow("Empty base URL, relative path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::PathType::Relative << QStringLiteral("https://www.example.com/documents/paper.pdf");
 
     bibTeXFile = new File();
     bibTeXFile->setProperty(File::Url, QUrl::fromUserInput(QStringLiteral("https://www.example.com/bibliography/all.bib")));
-    QTest::newRow("Empty document URL, relative path requested") << QUrl() << bibTeXFile << AssociatedFiles::ptRelative << QString();
+    QTest::newRow("Empty document URL, relative path requested") << QUrl() << bibTeXFile << AssociatedFiles::PathType::Relative << QString();
 
     bibTeXFile = new File();
     bibTeXFile->setProperty(File::Url, QUrl(QStringLiteral("bibliography/all.bib")));
-    QTest::newRow("Document URL and base URL are relative, relative path requested") << QUrl(QStringLiteral("documents/paper.pdf")) << bibTeXFile << AssociatedFiles::ptRelative << QStringLiteral("documents/paper.pdf");
+    QTest::newRow("Document URL and base URL are relative, relative path requested") << QUrl(QStringLiteral("documents/paper.pdf")) << bibTeXFile << AssociatedFiles::PathType::Relative << QStringLiteral("documents/paper.pdf");
 
     bibTeXFile = new File();
     bibTeXFile->setProperty(File::Url, QUrl::fromUserInput(QStringLiteral("https://www.example.com/bibliography/all.bib")));
-    QTest::newRow("Document URL and base URL have different protocols, relative path requested") << QUrl::fromUserInput(QStringLiteral("ftp://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::ptRelative << QStringLiteral("ftp://www.example.com/documents/paper.pdf");
+    QTest::newRow("Document URL and base URL have different protocols, relative path requested") << QUrl::fromUserInput(QStringLiteral("ftp://www.example.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::PathType::Relative << QStringLiteral("ftp://www.example.com/documents/paper.pdf");
 
     bibTeXFile = new File();
     bibTeXFile->setProperty(File::Url, QUrl::fromUserInput(QStringLiteral("https://www.example.com/bibliography/all.bib")));
-    QTest::newRow("Document URL and base URL have different hosts, relative path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example2.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::ptRelative << QStringLiteral("https://www.example2.com/documents/paper.pdf");
+    QTest::newRow("Document URL and base URL have different hosts, relative path requested") << QUrl::fromUserInput(QStringLiteral("https://www.example2.com/documents/paper.pdf")) << bibTeXFile << AssociatedFiles::PathType::Relative << QStringLiteral("https://www.example2.com/documents/paper.pdf");
 }
 
 void KBibTeXNetworkingTest::associatedFilescomputeAssociateURL()
@@ -269,7 +264,7 @@ void KBibTeXNetworkingTest::associatedFilescomputeAssociateURL()
     QFETCH(AssociatedFiles::PathType, pathType);
     QFETCH(QString, expectedResult);
 
-    const QString computedResult = AssociatedFiles::computeAssociateUrl(documentUrl, bibTeXFile, pathType);
+    const QString computedResult = AssociatedFiles::computeAssociateString(documentUrl, bibTeXFile, pathType);
     QCOMPARE(expectedResult, computedResult);
     delete bibTeXFile;
 }

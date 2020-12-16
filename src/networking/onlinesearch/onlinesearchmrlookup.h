@@ -1,7 +1,9 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
- *                 2014 Pavel Zorin-Kranich <pzorin@math.uni-bonn.de>      *
- *                 2018 Alexander Dunlap <alexander.dunlap@gmail.com>      *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *   SPDX-FileCopyrightText: 2014 Pavel Zorin-Kranich <pzorin@math.uni-bonn.de>
+ *   SPDX-FileCopyrightText: 2018 Alexander Dunlap <alexander.dunlap@gmail.com>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -36,12 +38,11 @@ class KBIBTEXNETWORKING_EXPORT OnlineSearchMRLookup : public OnlineSearchAbstrac
 public:
     explicit OnlineSearchMRLookup(QObject *parent);
 
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
+    void startSearch(const QMap<QueryKey, QString> &query, int numResults) override;
     QString label() const override;
     QUrl homepage() const override;
 
 protected:
-    QString favIconUrl() const override;
     void sanitizeEntry(QSharedPointer<Entry> entry) override;
 
 private slots:

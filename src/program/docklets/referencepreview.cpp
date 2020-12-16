@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                              and contributors                           *
  *                                                                         *
  *   Contributions to this file were made by                               *
@@ -35,14 +37,19 @@
 #include <QFontDatabase>
 #include <QComboBox>
 
+#include <kio_version.h>
 #include <KLocalizedString>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
 #include <KRun>
+#endif // KIO_VERSION >= 0x054700
 #include <KIO/CopyJob>
 #include <KJobWidgets>
 #include <KSharedConfig>
 #include <KConfigGroup>
 #include <KTextEdit>
-#include <kio_version.h>
 
 #include <Element>
 #include <Entry>
@@ -55,32 +62,36 @@
 #include <file/FileView>
 #include "logging_program.h"
 
-static const struct PreviewStyles {
+typedef struct {
     QString label, style, type;
-}
-previewStyles[] = {
-    {i18n("Source (BibTeX)"), QStringLiteral("bibtex"), QStringLiteral("exporter")},
-    {i18n("Source (RIS)"), QStringLiteral("ris"), QStringLiteral("exporter")},
-    {QStringLiteral("abbrv"), QStringLiteral("abbrv"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("acm"), QStringLiteral("acm"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("alpha"), QStringLiteral("alpha"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("apalike"), QStringLiteral("apalike"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("ieeetr"), QStringLiteral("ieeetr"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("plain"), QStringLiteral("plain"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("siam"), QStringLiteral("siam"), QStringLiteral("bibtex2html")},
-    {QStringLiteral("unsrt"), QStringLiteral("unsrt"), QStringLiteral("bibtex2html")},
-    {i18n("Standard"), QStringLiteral("standard"), QStringLiteral("xml")},
-    {i18n("Fancy"), QStringLiteral("fancy"), QStringLiteral("xml")},
-    {i18n("Wikipedia Citation"), QStringLiteral("wikipedia-cite"), QStringLiteral("plain_xml")},
-    {i18n("Abstract-only"), QStringLiteral("abstractonly"), QStringLiteral("xml")}
-};
+} PreviewStyle;
 
-Q_DECLARE_METATYPE(PreviewStyles)
+Q_DECLARE_METATYPE(PreviewStyle)
 
 class ReferencePreview::ReferencePreviewPrivate
 {
 private:
     ReferencePreview *p;
+
+    QVector<PreviewStyle> previewStyles() const {
+        static QVector<PreviewStyle> listOfStyles;
+        if (listOfStyles.isEmpty()) {
+            listOfStyles = {
+                {i18n("Source (BibTeX)"), QStringLiteral("bibtex"), QStringLiteral("exporter")},
+                {i18n("Source (RIS)"), QStringLiteral("ris"), QStringLiteral("exporter")}
+            };
+            /// Query from FileExporterBibTeX2HTML which BibTeX styles are available
+            for (const QString &bibtex2htmlStyle : FileExporterBibTeX2HTML::availableLaTeXBibliographyStyles())
+                listOfStyles.append({bibtex2htmlStyle, bibtex2htmlStyle, QStringLiteral("bibtex2html")});
+            listOfStyles.append({
+                {i18n("Standard"), QStringLiteral("standard"), QStringLiteral("xml")},
+                {i18n("Fancy"), QStringLiteral("fancy"), QStringLiteral("xml")},
+                {i18n("Wikipedia Citation"), QStringLiteral("wikipedia-cite"), QStringLiteral("plain_xml")},
+                {i18n("Abstract-only"), QStringLiteral("abstractonly"), QStringLiteral("xml")}
+            });
+        }
+        return listOfStyles;
+    }
 
 public:
     KSharedConfigPtr config;
@@ -178,7 +189,7 @@ public:
         comboBox->clear();
 
         int styleIndex = 0, c = 0;
-        for (const PreviewStyles &previewStyle : previewStyles) {
+        for (const PreviewStyle &previewStyle : previewStyles()) {
             if (!hasBibTeX2HTML && previewStyle.type.contains(QStringLiteral("bibtex2html"))) continue;
             comboBox->addItem(previewStyle.label, QVariant::fromValue(previewStyle));
             if (previousStyle == previewStyle.style)
@@ -190,7 +201,7 @@ public:
 
     void saveState() {
         KConfigGroup configGroup(config, configGroupName);
-        configGroup.writeEntry(configKeyName, comboBox->itemData(comboBox->currentIndex()).value<PreviewStyles>().style);
+        configGroup.writeEntry(configKeyName, comboBox->itemData(comboBox->currentIndex()).value<PreviewStyle>().style);
         config->sync();
     }
 };
@@ -253,7 +264,7 @@ void ReferencePreview::renderHTML()
 
     FileExporter *exporter = nullptr;
 
-    const PreviewStyles previewStyle = d->comboBox->itemData(d->comboBox->currentIndex()).value<PreviewStyles>();
+    const PreviewStyle previewStyle = d->comboBox->itemData(d->comboBox->currentIndex()).value<PreviewStyle>();
 
     if (previewStyle.type == QStringLiteral("exporter")) {
         if (previewStyle.style == QStringLiteral("bibtex")) {
@@ -281,7 +292,6 @@ void ReferencePreview::renderHTML()
         buffer.open(QBuffer::WriteOnly);
 
         bool exporterResult = false;
-        QStringList errorLog;
         QSharedPointer<const Entry> entry = d->element.dynamicCast<const Entry>();
         /** NOT USED
         if (crossRefHandling == add && !entry.isNull()) {
@@ -291,20 +301,20 @@ void ReferencePreview::renderHTML()
                 File file;
                 file.append(QSharedPointer<Entry>(new Entry(*entry)));
                 file.append(QSharedPointer<Entry>(new Entry(*crossRefEntry)));
-                exporterResult = exporter->save(&buffer, &file, &errorLog);
+                exporterResult = exporter->save(&buffer, &file);
             } else
-                exporterResult = exporter->save(&buffer, d->element, d->file, &errorLog);
+                exporterResult = exporter->save(&buffer, d->element, d->file);
         } else */
         if (crossRefHandling == merge && !entry.isNull()) {
             QSharedPointer<Entry> merged = QSharedPointer<Entry>(entry->resolveCrossref(d->file));
-            exporterResult = exporter->save(&buffer, merged, d->file, &errorLog);
+            exporterResult = exporter->save(&buffer, merged, d->file);
         } else
-            exporterResult = exporter->save(&buffer, d->element, d->file, &errorLog);
+            exporterResult = exporter->save(&buffer, d->element, d->file);
         buffer.close();
         delete exporter;
 
         buffer.open(QBuffer::ReadOnly);
-        QString text = QString::fromUtf8(buffer.readAll().constData());
+        QString text = QString::fromUtf8(buffer.readAll().constData()).trimmed();
         buffer.close();
 
         bool buttonsEnabled = true;
@@ -313,7 +323,6 @@ void ReferencePreview::renderHTML()
             /// something went wrong, no output ...
             text = d->notAvailableMessage.arg(i18n("No output generated"));
             buttonsEnabled = false;
-            qCDebug(LOG_KBIBTEX_PROGRAM) << errorLog.join(QStringLiteral("\n"));
         } else {
             /// beautify text
             text.replace(QStringLiteral("``"), QStringLiteral("&ldquo;"));
@@ -322,6 +331,19 @@ void ReferencePreview::renderHTML()
             static const QRegularExpression closingSingleQuotationRegExp(QStringLiteral("(\\S)'([ ,.;:!?<]|$)"));
             text.replace(openingSingleQuotationRegExp, QStringLiteral("\\1&lsquo;\\2"));
             text.replace(closingSingleQuotationRegExp, QStringLiteral("\\1&rsquo;\\2"));
+
+            /// Remove special comments from BibTeX code
+            int xsomethingpos = -1;
+            while ((xsomethingpos = text.indexOf(QStringLiteral("@comment{x-"))) >= 0) {
+                int endofxsomethingpos = text.indexOf(QStringLiteral("}"), xsomethingpos + 11);
+                if (endofxsomethingpos > xsomethingpos) {
+                    /// Trim empty lines around match
+                    while (xsomethingpos > 0 && text[xsomethingpos - 1] == '\n') --xsomethingpos;
+                    while (text[endofxsomethingpos + 1] == '\n') ++endofxsomethingpos;
+                    /// Clip comment out of text
+                    text = text.left(xsomethingpos) + text.mid(endofxsomethingpos + 1);
+                }
+            }
 
             if (previewStyle.style == QStringLiteral("wikipedia-cite"))
                 text.remove(QStringLiteral("\n"));
@@ -340,7 +362,9 @@ void ReferencePreview::renderHTML()
                 /// bibtex2html
 
                 /// remove "generated by" line from HTML code if BibTeX2HTML was used
-                text.remove(QRegularExpression(QStringLiteral("<hr><p><em>.*</p>")));
+                const int generatedByPos = text.indexOf(QStringLiteral("<hr><p><em>"));
+                if (generatedByPos > 0)
+                    text = text.left(generatedByPos);
                 text.remove(QRegularExpression(QStringLiteral("<[/]?(font)[^>]*>")));
                 text.remove(QRegularExpression(QStringLiteral("^.*?<td.*?</td.*?<td>")));
                 text.remove(QRegularExpression(QStringLiteral("</td>.*$")));
@@ -381,7 +405,13 @@ void ReferencePreview::openAsHTML()
 
     /// Ask KDE subsystem to open url in viewer matching mime type
     QUrl url(file.fileName());
+#if KIO_VERSION < 0x054700 // < 5.71.0
     KRun::runUrl(url, QStringLiteral("text/html"), this, KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+    KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, QStringLiteral("text/html"));
+    job->setUiDelegate(new KIO::JobUiDelegate());
+    job->start();
+#endif // KIO_VERSION < 0x054700
 }
 
 void ReferencePreview::saveAsHTML()
@@ -400,7 +430,7 @@ void ReferencePreview::linkClicked(const QUrl &url)
             int p = text.indexOf(QStringLiteral("="));
             SortFilterFileModel::FilterQuery fq;
             fq.terms << text.mid(p + 1);
-            fq.combination = SortFilterFileModel::EveryTerm;
+            fq.combination = SortFilterFileModel::FilterCombination::EveryTerm;
             fq.field = text.left(p);
             fq.searchPDFfiles = false;
             d->fileView->setFilterBarFilter(fq);

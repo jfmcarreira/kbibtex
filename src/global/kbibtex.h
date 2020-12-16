@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -41,37 +43,18 @@ public:
     static const QString extensionPostScript;
     static const QString extensionRTF;
 
-    enum Casing {
-        cLowerCase = 0,
-        cInitialCapital = 1,
-        cUpperCamelCase = 2,
-        cLowerCamelCase = 3,
-        cUpperCase = 4
-    };
+    enum class Casing { LowerCase, InitialCapital, UpperCamelCase, LowerCamelCase, UpperCase };
 
-    enum FieldInputType {
-        SingleLine = 1,
-        MultiLine = 2,
-        List = 3,
-        URL = 4,
-        Month = 5,
-        Color = 6,
-        PersonList = 7,
-        UrlList = 8,
-        KeywordList = 9,
-        CrossRef = 10,
-        StarRating = 11,
-        Edition = 12
-    };
+    enum class FieldInputType { SingleLine, MultiLine, List, Url, Month, Color, PersonList, UrlList, KeywordList, CrossRef, StarRating, Edition };
 
-    enum TypeFlag {
-        tfInvalid = 0x0,
-        tfPlainText = 0x1,
-        tfReference = 0x2,
-        tfPerson = 0x4,
-        tfKeyword = 0x8,
-        tfVerbatim = 0x10,
-        tfSource = 0x100
+    enum class TypeFlag {
+        Invalid = 0x0,
+        PlainText = 0x1,
+        Reference = 0x2,
+        Person = 0x4,
+        Keyword = 0x8,
+        Verbatim = 0x10,
+        Source = 0x100
     };
     Q_DECLARE_FLAGS(TypeFlags, TypeFlag)
 
@@ -88,23 +71,11 @@ public:
     static const QRegularExpression domainNameRegExp;
     static const QRegularExpression htmlRegExp;
     static const QString doiUrlPrefix; ///< use FileInfo::doiUrlPrefix() instead
-
-    static bool isLocalOrRelative(const QUrl &url);
-
-    /**
-     * Poor man's variant of a text-squeezing function.
-     * Effect is similar as observed in KSqueezedTextLabel:
-     * If the text is longer as n characters, the middle part
-     * will be cut away and replaced by "..." to get a
-     * string of max n characters.
-     */
-    static QString squeezeText(const QString &text, int n);
-
-    static QString leftSqueezeText(const QString &text, int n);
-
-    static int validateCurlyBracketContext(const QString &text);
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(KBibTeX::TypeFlags)
+
+KBIBTEXGLOBAL_EXPORT QDebug operator<<(QDebug dbg, const KBibTeX::TypeFlag &typeFlag);
+KBIBTEXGLOBAL_EXPORT QDebug operator<<(QDebug dbg, const KBibTeX::TypeFlags &typeFlags);
 
 #endif // KBIBTEX_GLOBAL_KBIBTEX_H

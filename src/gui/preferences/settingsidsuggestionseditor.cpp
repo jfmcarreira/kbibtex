@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -37,6 +39,7 @@
 #include <KLocalizedString>
 #include <KIconLoader>
 
+#include <IdSuggestions>
 #include "widgets/rangewidget.h"
 
 /**
@@ -131,10 +134,10 @@ public:
         labelAuthorRange->setMinimumWidth(maxWidth);
 
         comboBoxChangeCase = new QComboBox(this);
-        comboBoxChangeCase->addItem(i18n("No change"), IdSuggestions::ccNoChange);
-        comboBoxChangeCase->addItem(i18n("To upper case"), IdSuggestions::ccToUpper);
-        comboBoxChangeCase->addItem(i18n("To lower case"), IdSuggestions::ccToLower);
-        comboBoxChangeCase->addItem(i18n("To CamelCase"), IdSuggestions::ccToCamelCase);
+        comboBoxChangeCase->addItem(i18n("No change"), static_cast<int>(IdSuggestions::CaseChange::None));
+        comboBoxChangeCase->addItem(i18n("To upper case"), static_cast<int>(IdSuggestions::CaseChange::ToUpper));
+        comboBoxChangeCase->addItem(i18n("To lower case"), static_cast<int>(IdSuggestions::CaseChange::ToLower));
+        comboBoxChangeCase->addItem(i18n("To CamelCase"), static_cast<int>(IdSuggestions::CaseChange::ToCamelCase));
         formLayout->addRow(i18n("Change casing:"), comboBoxChangeCase);
         comboBoxChangeCase->setCurrentIndex(static_cast<int>(info.caseChange)); /// enum has numbers assigned to cases and combo box has same indices
 
@@ -170,11 +173,11 @@ public:
             result.append(QString::number(spinBoxLength->value()));
 
         const IdSuggestions::CaseChange caseChange = static_cast<IdSuggestions::CaseChange>(comboBoxChangeCase->currentIndex());
-        if (caseChange == IdSuggestions::ccToLower)
+        if (caseChange == IdSuggestions::CaseChange::ToLower)
             result.append(QStringLiteral("l"));
-        else if (caseChange == IdSuggestions::ccToUpper)
+        else if (caseChange == IdSuggestions::CaseChange::ToUpper)
             result.append(QStringLiteral("u"));
-        else if (caseChange == IdSuggestions::ccToCamelCase)
+        else if (caseChange == IdSuggestions::CaseChange::ToCamelCase)
             result.append(QStringLiteral("c"));
 
         if (rangeWidgetAuthor->lowerValue() > 0 || rangeWidgetAuthor->upperValue() < rangeWidgetAuthor->maximum())
@@ -342,10 +345,10 @@ public:
         checkBoxRemoveSmallWords->setChecked(removeSmallWords);
 
         comboBoxChangeCase = new QComboBox(this);
-        comboBoxChangeCase->addItem(i18n("No change"), IdSuggestions::ccNoChange);
-        comboBoxChangeCase->addItem(i18n("To upper case"), IdSuggestions::ccToUpper);
-        comboBoxChangeCase->addItem(i18n("To lower case"), IdSuggestions::ccToLower);
-        comboBoxChangeCase->addItem(i18n("To CamelCase"), IdSuggestions::ccToCamelCase);
+        comboBoxChangeCase->addItem(i18n("No change"), static_cast<int>(IdSuggestions::CaseChange::None));
+        comboBoxChangeCase->addItem(i18n("To upper case"), static_cast<int>(IdSuggestions::CaseChange::ToUpper));
+        comboBoxChangeCase->addItem(i18n("To lower case"), static_cast<int>(IdSuggestions::CaseChange::ToLower));
+        comboBoxChangeCase->addItem(i18n("To CamelCase"), static_cast<int>(IdSuggestions::CaseChange::ToCamelCase));
         formLayout->addRow(i18n("Change casing:"), comboBoxChangeCase);
         comboBoxChangeCase->setCurrentIndex(static_cast<int>(info.caseChange)); /// enum has numbers assigned to cases and combo box has same indices
 
@@ -380,11 +383,11 @@ public:
             result.append(QString::number(spinBoxLength->value()));
 
         const IdSuggestions::CaseChange caseChange = static_cast<IdSuggestions::CaseChange>(comboBoxChangeCase->currentIndex());
-        if (caseChange == IdSuggestions::ccToLower)
+        if (caseChange == IdSuggestions::CaseChange::ToLower)
             result.append(QStringLiteral("l"));
-        else if (caseChange == IdSuggestions::ccToUpper)
+        else if (caseChange == IdSuggestions::CaseChange::ToUpper)
             result.append(QStringLiteral("u"));
-        else if (caseChange == IdSuggestions::ccToCamelCase)
+        else if (caseChange == IdSuggestions::CaseChange::ToCamelCase)
             result.append(QStringLiteral("c"));
 
         if (rangeWidgetAuthor->lowerValue() > 0 || rangeWidgetAuthor->upperValue() < rangeWidgetAuthor->maximum())
@@ -426,10 +429,10 @@ public:
         checkBoxRemoveSmallWords->setChecked(removeSmallWords);
 
         comboBoxChangeCase = new QComboBox(this);
-        comboBoxChangeCase->addItem(i18n("No change"), IdSuggestions::ccNoChange);
-        comboBoxChangeCase->addItem(i18n("To upper case"), IdSuggestions::ccToUpper);
-        comboBoxChangeCase->addItem(i18n("To lower case"), IdSuggestions::ccToLower);
-        comboBoxChangeCase->addItem(i18n("To CamelCase"), IdSuggestions::ccToCamelCase);
+        comboBoxChangeCase->addItem(i18n("No change"), static_cast<int>(IdSuggestions::CaseChange::None));
+        comboBoxChangeCase->addItem(i18n("To upper case"), static_cast<int>(IdSuggestions::CaseChange::ToUpper));
+        comboBoxChangeCase->addItem(i18n("To lower case"), static_cast<int>(IdSuggestions::CaseChange::ToLower));
+        comboBoxChangeCase->addItem(i18n("To CamelCase"), static_cast<int>(IdSuggestions::CaseChange::ToCamelCase));
         formLayout->addRow(i18n("Change casing:"), comboBoxChangeCase);
         comboBoxChangeCase->setCurrentIndex(static_cast<int>(info.caseChange)); /// enum has numbers assigned to cases and combo box has same indices
 
@@ -458,11 +461,11 @@ public:
             result.append(QString::number(spinBoxLength->value()));
 
         const IdSuggestions::CaseChange caseChange = static_cast<IdSuggestions::CaseChange>(comboBoxChangeCase->currentIndex());
-        if (caseChange == IdSuggestions::ccToLower)
+        if (caseChange == IdSuggestions::CaseChange::ToLower)
             result.append(QStringLiteral("l"));
-        else if (caseChange == IdSuggestions::ccToUpper)
+        else if (caseChange == IdSuggestions::CaseChange::ToUpper)
             result.append(QStringLiteral("u"));
-        else if (caseChange == IdSuggestions::ccToCamelCase)
+        else if (caseChange == IdSuggestions::CaseChange::ToCamelCase)
             result.append(QStringLiteral("c"));
 
         const QString text = lineEditTextInBetween->text();
@@ -495,10 +498,10 @@ public:
         boxLayout->setMargin(0);
 
         comboBoxChangeCase = new QComboBox(this);
-        comboBoxChangeCase->addItem(i18n("No change"), IdSuggestions::ccNoChange);
-        comboBoxChangeCase->addItem(i18n("To upper case"), IdSuggestions::ccToUpper);
-        comboBoxChangeCase->addItem(i18n("To lower case"), IdSuggestions::ccToLower);
-        comboBoxChangeCase->addItem(i18n("To CamelCase"), IdSuggestions::ccToCamelCase);
+        comboBoxChangeCase->addItem(i18n("No change"), static_cast<int>(IdSuggestions::CaseChange::None));
+        comboBoxChangeCase->addItem(i18n("To upper case"), static_cast<int>(IdSuggestions::CaseChange::ToUpper));
+        comboBoxChangeCase->addItem(i18n("To lower case"), static_cast<int>(IdSuggestions::CaseChange::ToLower));
+        comboBoxChangeCase->addItem(i18n("To CamelCase"), static_cast<int>(IdSuggestions::CaseChange::ToCamelCase));
         formLayout->addRow(i18n("Change casing:"), comboBoxChangeCase);
         comboBoxChangeCase->setCurrentIndex(static_cast<int>(info.caseChange)); /// enum has numbers assigned to cases and combo box has same indices
 
@@ -521,11 +524,11 @@ public:
             result.append(QString::number(spinBoxLength->value()));
 
         const IdSuggestions::CaseChange caseChange = static_cast<IdSuggestions::CaseChange>(comboBoxChangeCase->currentIndex());
-        if (caseChange == IdSuggestions::ccToLower)
+        if (caseChange == IdSuggestions::CaseChange::ToLower)
             result.append(QStringLiteral("l"));
-        else if (caseChange == IdSuggestions::ccToUpper)
+        else if (caseChange == IdSuggestions::CaseChange::ToUpper)
             result.append(QStringLiteral("u"));
-        else if (caseChange == IdSuggestions::ccToCamelCase)
+        else if (caseChange == IdSuggestions::CaseChange::ToCamelCase)
             result.append(QStringLiteral("c"));
 
         return result;
@@ -707,7 +710,7 @@ public:
             info.startWord = 0;
             info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
-            info.caseChange = IdSuggestions::ccNoChange;
+            info.caseChange = IdSuggestions::CaseChange::None;
             tokenWidget = new TitleWidget(info, true, p, container);
         }
         break;
@@ -718,7 +721,7 @@ public:
             info.startWord = 0;
             info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
-            info.caseChange = IdSuggestions::ccNoChange;
+            info.caseChange = IdSuggestions::CaseChange::None;
             tokenWidget = new AuthorWidget(info, p, container);
         }
         break;
@@ -732,7 +735,7 @@ public:
             info.startWord = 0;
             info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
-            info.caseChange = IdSuggestions::ccNoChange;
+            info.caseChange = IdSuggestions::CaseChange::None;
             tokenWidget = new JournalWidget(info, true, p, container);
         }
         break;
@@ -743,7 +746,7 @@ public:
             info.startWord = 0;
             info.endWord = std::numeric_limits<int>::max();
             info.lastWord = false;
-            info.caseChange = IdSuggestions::ccNoChange;
+            info.caseChange = IdSuggestions::CaseChange::None;
             tokenWidget = new TypeWidget(info, p, container);
         }
         break;
@@ -773,12 +776,16 @@ public:
         while (!widgetList.isEmpty())
             delete widgetList.takeFirst();
 
+#if QT_VERSION >= 0x050e00
+        const QStringList tokenList = formatString.split(QStringLiteral("|"), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
         const QStringList tokenList = formatString.split(QStringLiteral("|"), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         for (const QString &token : tokenList) {
             TokenWidget *tokenWidget = nullptr;
 
             if (token[0] == 'a' || token[0] == 'A' || token[0] == 'z') {
-                struct IdSuggestions::IdSuggestionTokenInfo info = p->evalToken(token.mid(1));
+                IdSuggestions::IdSuggestionTokenInfo info = IdSuggestions::evalToken(token.mid(1));
                 /// Support deprecated 'a' and 'z' cases
                 if (token[0] == 'a')
                     info.startWord = info.endWord = 0;
@@ -798,17 +805,17 @@ public:
                 widgetList << tokenWidget;
                 containerLayout->insertWidget(containerLayout->count() - 2, tokenWidget, 1);
             } else if (token[0] == 't' || token[0] == 'T') {
-                struct IdSuggestions::IdSuggestionTokenInfo info = p->evalToken(token.mid(1));
+                IdSuggestions::IdSuggestionTokenInfo info = IdSuggestions::evalToken(token.mid(1));
                 tokenWidget = new TitleWidget(info, token[0].isUpper(), p, container);
                 widgetList << tokenWidget;
                 containerLayout->insertWidget(containerLayout->count() - 2, tokenWidget, 1);
             } else if (token[0] == 'j' || token[0] == 'J') {
-                struct IdSuggestions::IdSuggestionTokenInfo info = p->evalToken(token.mid(1));
+                IdSuggestions::IdSuggestionTokenInfo info = IdSuggestions::evalToken(token.mid(1));
                 tokenWidget = new JournalWidget(info, token[0].isUpper(), p, container);
                 widgetList << tokenWidget;
                 containerLayout->insertWidget(containerLayout->count() - 2, tokenWidget, 1);
             } else if (token[0] == 'e') {
-                struct IdSuggestions::IdSuggestionTokenInfo info = p->evalToken(token.mid(1));
+                IdSuggestions::IdSuggestionTokenInfo info = IdSuggestions::evalToken(token.mid(1));
                 tokenWidget = new TypeWidget(info, p, container);
                 widgetList << tokenWidget;
                 containerLayout->insertWidget(containerLayout->count() - 2, tokenWidget, 1);
@@ -894,8 +901,8 @@ public:
 };
 
 
-IdSuggestionsEditWidget::IdSuggestionsEditWidget(const Entry *previewEntry, QWidget *parent, Qt::WindowFlags f)
-        : QWidget(parent, f), IdSuggestions(), d(new IdSuggestionsEditWidgetPrivate(previewEntry, this))
+IdSuggestionsEditWidget::IdSuggestionsEditWidget(const Entry *previewEntry, QWidget *parent)
+        : QWidget(parent), d(new IdSuggestionsEditWidgetPrivate(previewEntry, this))
 {
     /// nothing
 }
@@ -918,14 +925,14 @@ QString IdSuggestionsEditWidget::formatString() const
 void IdSuggestionsEditWidget::updatePreview()
 {
     const QString formatString = d->apply();
-    d->labelPreview->setText(formatId(*d->previewEntry, formatString));
-    d->labelPreview->setToolTip(i18n("<qt>Structure:<ul><li>%1</li></ul>Example: %2</qt>", formatStrToHuman(formatString).join(QStringLiteral("</li><li>")), formatId(*d->previewEntry, formatString)));
+    d->labelPreview->setText(IdSuggestions::formatId(*d->previewEntry, formatString));
+    d->labelPreview->setToolTip(i18n("<qt>Structure:<ul><li>%1</li></ul>Example: %2</qt>", IdSuggestions::formatStrToHuman(formatString).join(QStringLiteral("</li><li>")), IdSuggestions::formatId(*d->previewEntry, formatString)));
 }
 
-IdSuggestionsEditDialog::IdSuggestionsEditDialog(QWidget *parent, Qt::WindowFlags flags)
-        : QDialog(parent, flags)
+IdSuggestionsEditDialog::IdSuggestionsEditDialog(QWidget *parent)
+        : QDialog(parent)
 {
-    setWindowTitle(i18n("Edit Id Suggestion"));
+    setWindowTitle(i18nc("@title:window", "Edit Id Suggestion"));
 }
 
 IdSuggestionsEditDialog::~IdSuggestionsEditDialog()

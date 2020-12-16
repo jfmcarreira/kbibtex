@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,12 +40,10 @@ public slots:
 private slots:
     void aboutToQuit();
     void onlineSearchStoppedSearch(int);
-    void onlineSearchFoundEntry();
     void progress(int, int);
-    void resetProgress();
 
 private:
-    enum MessageStatus { statusInfo, statusOk, statusError, statusAuth, statusNetwork };
+    enum class MessageStatus { Info, Ok, Error, Auth, Network };
 
     bool m_running;
     TestWidget *m_testWidget;

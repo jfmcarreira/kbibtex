@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,13 +34,13 @@
 #include <KActionMenu>
 #include <KActionCollection>
 #include <KPluginFactory>
-#include <KPluginLoader>
 #include <KLocalizedString>
 #include <KMessageBox>
 
 #include <KBibTeX>
 #include <preferences/KBibTeXPreferencesDialog>
 #include <file/FileView>
+#include <file/Clipboard>
 #include <XSLTransform>
 #include <BibliographyService>
 #include <BibUtils>
@@ -47,7 +49,6 @@
 #include "docklets/searchform.h"
 #include "docklets/searchresults.h"
 #include "docklets/elementform.h"
-#include "docklets/documentpreview.h"
 #include "docklets/statistics.h"
 #include "docklets/filesettings.h"
 #include "docklets/valuelist.h"
@@ -223,23 +224,19 @@ public:
         action = p->actionCollection()->addAction(KStandardAction::Open);
         connect(action, &QAction::triggered, p, &KBibTeXMainWindow::openDocumentDialog);
         actionClose = p->actionCollection()->addAction(KStandardAction::Close);
-        connect(actionClose, &QAction::triggered, p, &KBibTeXMainWindow::closeDocument);
+        connect(actionClose, &QAction::triggered, p, []() {
+            OpenFileInfoManager::instance().close(OpenFileInfoManager::instance().currentFile());
+        });
         actionClose->setEnabled(false);
         action = p->actionCollection()->addAction(KStandardAction::Quit);
         connect(action, &QAction::triggered, p, &KBibTeXMainWindow::queryCloseAll);
         action = p->actionCollection()->addAction(KStandardAction::Preferences);
         connect(action, &QAction::triggered, p, &KBibTeXMainWindow::showPreferences);
     }
-
-    ~KBibTeXMainWindowPrivate() {
-        elementForm->deleteLater();
-        delete mdiWidget;
-        // TODO other deletes
-    }
 };
 
 KBibTeXMainWindow::KBibTeXMainWindow(QWidget *parent)
-        : KParts::MainWindow(parent, static_cast<Qt::WindowFlags>(KDE_DEFAULT_WINDOWFLAGS)), d(new KBibTeXMainWindowPrivate(this))
+        : KParts::MainWindow(parent), d(new KBibTeXMainWindowPrivate(this))
 {
     setObjectName(QStringLiteral("KBibTeXShell"));
 
@@ -256,7 +253,7 @@ KBibTeXMainWindow::KBibTeXMainWindow(QWidget *parent)
     connect(&OpenFileInfoManager::instance(), &OpenFileInfoManager::flagsChanged, this, &KBibTeXMainWindow::documentListsChanged);
     connect(d->mdiWidget, &MDIWidget::setCaption, this, static_cast<void(KMainWindow::*)(const QString &)>(&KMainWindow::setCaption)); ///< actually: KMainWindow::setCaption
 
-    documentListsChanged(OpenFileInfo::RecentlyUsed); /// force initialization of menu of recently used files
+    documentListsChanged(OpenFileInfo::StatusFlag::RecentlyUsed); /// force initialization of menu of recently used files
 
     setupControllers();
     setupGUI(KXmlGuiWindow::Create | KXmlGuiWindow::Save | KXmlGuiWindow::Keys | KXmlGuiWindow::ToolBar);
@@ -283,22 +280,15 @@ void KBibTeXMainWindow::setupControllers()
 
 void KBibTeXMainWindow::dragEnterEvent(QDragEnterEvent *event)
 {
-    if (event->mimeData()->hasUrls())
+    if (!Clipboard::urlsToOpen(event->mimeData()).isEmpty())
         event->acceptProposedAction();
 }
 
 void KBibTeXMainWindow::dropEvent(QDropEvent *event)
 {
-    QList<QUrl> urlList = event->mimeData()->urls();
-
-    if (urlList.isEmpty()) {
-        const QUrl url(event->mimeData()->text());
-        if (url.isValid()) urlList << url;
-    }
-
-    if (!urlList.isEmpty())
-        for (const QUrl &url : const_cast<const QList<QUrl> &>(urlList))
-            openDocument(url);
+    const QSet<QUrl> urls = Clipboard::urlsToOpen(event->mimeData());
+    for (const QUrl &url : urls)
+        openDocument(url);
 }
 
 void KBibTeXMainWindow::newDocument()
@@ -347,11 +337,6 @@ void KBibTeXMainWindow::openDocument(const QUrl &url)
 {
     OpenFileInfo *openFileInfo = OpenFileInfoManager::instance().open(url);
     OpenFileInfoManager::instance().setCurrentFile(openFileInfo);
-}
-
-void KBibTeXMainWindow::closeDocument()
-{
-    OpenFileInfoManager::instance().close(OpenFileInfoManager::instance().currentFile());
 }
 
 void KBibTeXMainWindow::closeEvent(QCloseEvent *event)
@@ -422,8 +407,8 @@ void KBibTeXMainWindow::showSearchResults()
 
 void KBibTeXMainWindow::documentListsChanged(OpenFileInfo::StatusFlags statusFlags)
 {
-    if (statusFlags.testFlag(OpenFileInfo::RecentlyUsed)) {
-        const OpenFileInfoManager::OpenFileInfoList list = OpenFileInfoManager::instance().filteredItems(OpenFileInfo::RecentlyUsed);
+    if (statusFlags.testFlag(OpenFileInfo::StatusFlag::RecentlyUsed)) {
+        const OpenFileInfoManager::OpenFileInfoList list = OpenFileInfoManager::instance().filteredItems(OpenFileInfo::StatusFlag::RecentlyUsed);
         d->actionMenuRecentFilesMenu->clear();
         for (OpenFileInfo *cur : list) {
             /// Fixing bug 19511: too long filenames make menu too large,

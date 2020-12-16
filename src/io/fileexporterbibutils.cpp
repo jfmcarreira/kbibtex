@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -53,32 +55,30 @@ FileExporterBibUtils::~FileExporterBibUtils()
     delete d;
 }
 
-bool FileExporterBibUtils::save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterBibUtils::save(QIODevice *iodevice, const File *bibtexfile)
 {
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
 
     QBuffer buffer;
-    bool result = d->bibtexExporter->save(&buffer, bibtexfile, errorLog);
+    bool result = d->bibtexExporter->save(&buffer, bibtexfile);
     if (result)
-        result = convert(buffer, BibUtils::BibTeX, *iodevice, format());
+        result = convert(buffer, BibUtils::Format::BibTeX, *iodevice, format());
 
-    iodevice->close();
     return result;
 }
 
-bool FileExporterBibUtils::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterBibUtils::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile)
 {
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly))
+    if (!iodevice->isWritable() && !iodevice->isWritable())
         return false;
 
     QBuffer buffer;
-    bool result = d->bibtexExporter->save(&buffer, element, bibtexfile, errorLog);
+    bool result = d->bibtexExporter->save(&buffer, element, bibtexfile);
     if (result)
-        result = convert(buffer, BibUtils::BibTeX, *iodevice, format());
+        result = convert(buffer, BibUtils::Format::BibTeX, *iodevice, format());
 
-    iodevice->close();
     return result;
 }

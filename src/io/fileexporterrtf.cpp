@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -40,9 +42,9 @@ FileExporterRTF::~FileExporterRTF()
     /// nothing
 }
 
-bool FileExporterRTF::save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterRTF::save(QIODevice *iodevice, const File *bibtexfile)
 {
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -53,20 +55,19 @@ bool FileExporterRTF::save(QIODevice *iodevice, const File *bibtexfile, QStringL
     if (output.open(QIODevice::WriteOnly)) {
         FileExporterBibTeX bibtexExporter(this);
         bibtexExporter.setEncoding(QStringLiteral("latex"));
-        result = bibtexExporter.save(&output, bibtexfile, errorLog);
+        result = bibtexExporter.save(&output, bibtexfile);
         output.close();
     }
 
     if (result)
-        result = generateRTF(iodevice, errorLog);
+        result = generateRTF(iodevice);
 
-    iodevice->close();
     return result;
 }
 
-bool FileExporterRTF::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterRTF::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile)
 {
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -77,22 +78,21 @@ bool FileExporterRTF::save(QIODevice *iodevice, const QSharedPointer<const Eleme
     if (output.open(QIODevice::WriteOnly)) {
         FileExporterBibTeX bibtexExporter(this);
         bibtexExporter.setEncoding(QStringLiteral("latex"));
-        result = bibtexExporter.save(&output, element, bibtexfile, errorLog);
+        result = bibtexExporter.save(&output, element, bibtexfile);
         output.close();
     }
 
     if (result)
-        result = generateRTF(iodevice, errorLog);
+        result = generateRTF(iodevice);
 
-    iodevice->close();
     return result;
 }
 
-bool FileExporterRTF::generateRTF(QIODevice *iodevice, QStringList *errorLog)
+bool FileExporterRTF::generateRTF(QIODevice *iodevice)
 {
     QStringList cmdLines {QStringLiteral("latex -halt-on-error bibtex-to-rtf.tex"), QStringLiteral("bibtex bibtex-to-rtf"), QStringLiteral("latex -halt-on-error bibtex-to-rtf.tex"), QString(QStringLiteral("latex2rtf -i %1 bibtex-to-rtf.tex")).arg(Preferences::instance().laTeXBabelLanguage())};
 
-    return writeLatexFile(m_fileStem + KBibTeX::extensionTeX) && runProcesses(cmdLines, errorLog) && writeFileToIODevice(m_fileStem + KBibTeX::extensionRTF, iodevice, errorLog);
+    return writeLatexFile(m_fileStem + KBibTeX::extensionTeX) && runProcesses(cmdLines) && writeFileToIODevice(m_fileStem + KBibTeX::extensionRTF, iodevice);
 }
 
 bool FileExporterRTF::writeLatexFile(const QString &filename)
@@ -101,25 +101,59 @@ bool FileExporterRTF::writeLatexFile(const QString &filename)
     if (latexFile.open(QIODevice::WriteOnly)) {
         QTextStream ts(&latexFile);
         ts.setCodec("UTF-8");
+#if QT_VERSION >= 0x050e00
+        ts << "\\documentclass{article}" << Qt::endl;
+        ts << "\\usepackage[T1]{fontenc}" << Qt::endl;
+        ts << "\\usepackage[utf8]{inputenc}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
         ts << "\\documentclass{article}" << endl;
         ts << "\\usepackage[T1]{fontenc}" << endl;
         ts << "\\usepackage[utf8]{inputenc}" << endl;
+#endif // QT_VERSION >= 0x050e00
         if (kpsewhich(QStringLiteral("babel.sty")))
+#if QT_VERSION >= 0x050e00
+            ts << "\\usepackage[" << Preferences::instance().laTeXBabelLanguage() << "]{babel}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
             ts << "\\usepackage[" << Preferences::instance().laTeXBabelLanguage() << "]{babel}" << endl;
+#endif // QT_VERSION >= 0x050e00
         if (kpsewhich(QStringLiteral("url.sty")))
+#if QT_VERSION >= 0x050e00
+            ts << "\\usepackage{url}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
             ts << "\\usepackage{url}" << endl;
+#endif // QT_VERSION >= 0x050e00
         const QString bibliographyStyle = Preferences::instance().bibTeXBibliographyStyle();
         if (bibliographyStyle.startsWith(QStringLiteral("apacite")) && kpsewhich(QStringLiteral("apacite.sty")))
+#if QT_VERSION >= 0x050e00
+            ts << "\\usepackage[bibnewpage]{apacite}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
             ts << "\\usepackage[bibnewpage]{apacite}" << endl;
+#endif // QT_VERSION >= 0x050e00
         if (bibliographyStyle == QStringLiteral("dcu") && kpsewhich(QStringLiteral("harvard.sty")) && kpsewhich(QStringLiteral("html.sty")))
+#if QT_VERSION >= 0x050e00
+            ts << "\\usepackage{html}" << Qt::endl << "\\usepackage[dcucite]{harvard}" << Qt::endl << "\\renewcommand{\\harvardurl}{URL: \\url}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
             ts << "\\usepackage{html}" << endl << "\\usepackage[dcucite]{harvard}" << endl << "\\renewcommand{\\harvardurl}{URL: \\url}" << endl;
+#endif // QT_VERSION >= 0x050e00
         if (kpsewhich(QStringLiteral("geometry.sty")))
+#if QT_VERSION >= 0x050e00
+            ts << "\\usepackage[paper=" << pageSizeToLaTeXName(Preferences::instance().pageSize()) << "]{geometry}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
             ts << "\\usepackage[paper=" << pageSizeToLaTeXName(Preferences::instance().pageSize()) << "]{geometry}" << endl;
+#endif // QT_VERSION >= 0x050e00
+#if QT_VERSION >= 0x050e00
+        ts << "\\bibliographystyle{" << bibliographyStyle << "}" << Qt::endl;
+        ts << "\\begin{document}" << Qt::endl;
+        ts << "\\nocite{*}" << Qt::endl;
+        ts << "\\bibliography{bibtex-to-rtf}" << Qt::endl;
+        ts << "\\end{document}" << Qt::endl;
+#else // QT_VERSION < 0x050e00
         ts << "\\bibliographystyle{" << bibliographyStyle << "}" << endl;
         ts << "\\begin{document}" << endl;
         ts << "\\nocite{*}" << endl;
         ts << "\\bibliography{bibtex-to-rtf}" << endl;
         ts << "\\end{document}" << endl;
+#endif // QT_VERSION >= 0x050e00
         latexFile.close();
         return true;
     }

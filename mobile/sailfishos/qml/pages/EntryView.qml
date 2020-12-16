@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2016-2017 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2016-2017 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -44,8 +46,7 @@ Page {
             }
 
             Label {
-                //% "Author"
-                text: qsTrId("label-author")
+                text: qsTr("Author")
                 color: Theme.highlightColor
                 font.pointSize: Theme.fontSizeExtraSmall
             }
@@ -59,8 +60,7 @@ Page {
             }
 
             Label {
-                //% "Title"
-                text: qsTrId("label-title")
+                text: qsTr("Title")
                 color: Theme.highlightColor
                 font.pointSize: Theme.fontSizeExtraSmall
             }
@@ -74,8 +74,7 @@ Page {
             }
             Label {
                 visible: entryView.wherePublished.length > 0
-                //% "Publication"
-                text: qsTrId("label-publication")
+                text: qsTr("Publication")
                 color: Theme.highlightColor
                 font.pointSize: Theme.fontSizeExtraSmall
             }
@@ -89,8 +88,7 @@ Page {
                 font.pointSize: Theme.fontSizeMedium
             }
             Label {
-                //% "Year"
-                text: qsTrId("label-year")
+                text: qsTr("Year")
                 color: Theme.highlightColor
                 font.pointSize: Theme.fontSizeExtraSmall
             }
@@ -105,10 +103,8 @@ Page {
             Label {
                 visible: entryView.doi.length > 0 || entryView.url.length > 0
                 text: entryView.doi.length > 0
-                      //% "DOI"
-                      ? qsTrId("label-doi")
-                      //% "URL"
-                      : qsTrId("label-url")
+                      ? qsTr("DOI")
+                      : qsTr("URL")
                 color: Theme.highlightColor
                 font.pointSize: Theme.fontSizeExtraSmall
             }
@@ -123,8 +119,7 @@ Page {
             }
             Label {
                 visible: entryView.foundVia.length > 0
-                //% "Found via"
-                text: qsTrId("label-found-via")
+                text: qsTr("Found via")
                 color: Theme.highlightColor
                 font.pointSize: Theme.fontSizeExtraSmall
             }
@@ -142,8 +137,7 @@ Page {
         PullDownMenu {
             MenuItem {
                 id: menuItemViewOnline
-                //% "View Online"
-                text: qsTrId("pulldownmenu-view-online")
+                text: qsTr("View Online")
                 enabled: entryView.url.length > 0
                 onClicked: {
                     Qt.openUrlExternally(url)

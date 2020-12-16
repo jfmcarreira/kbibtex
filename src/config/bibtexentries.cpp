@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -117,7 +119,7 @@ const BibTeXEntries &BibTeXEntries::instance()
             ;
 
 #ifdef HAVE_KF5
-    return Preferences::instance().bibliographySystem() == Preferences::BibLaTeX ? singletonBibLaTeX : singletonBibTeX;
+    return Preferences::instance().bibliographySystem() == Preferences::BibliographySystem::BibLaTeX ? singletonBibLaTeX : singletonBibTeX;
 #else // HAVE_KF5
     return singletonBibTeX;
 #endif // HAVE_KF5
@@ -128,12 +130,12 @@ QString BibTeXEntries::format(const QString &name, KBibTeX::Casing casing) const
     QString iName = name.toLower();
 
     switch (casing) {
-    case KBibTeX::cLowerCase: return iName;
-    case KBibTeX::cUpperCase: return name.toUpper();
-    case KBibTeX::cInitialCapital:
+    case KBibTeX::Casing::LowerCase: return iName;
+    case KBibTeX::Casing::UpperCase: return name.toUpper();
+    case KBibTeX::Casing::InitialCapital:
         iName[0] = iName[0].toUpper();
         return iName;
-    case KBibTeX::cLowerCamelCase: {
+    case KBibTeX::Casing::LowerCamelCase: {
         for (const auto &ed : const_cast<const BibTeXEntries &>(*this)) {
             /// configuration file uses camel-case
             QString itName = ed.upperCamelCase.toLower();
@@ -147,7 +149,7 @@ QString BibTeXEntries::format(const QString &name, KBibTeX::Casing casing) const
         iName[0] = iName[0].toLower();
         return iName;
     }
-    case KBibTeX::cUpperCamelCase: {
+    case KBibTeX::Casing::UpperCamelCase: {
         for (const auto &ed : const_cast<const BibTeXEntries &>(*this)) {
             /// configuration file uses camel-case
             QString itName = ed.upperCamelCase.toLower();

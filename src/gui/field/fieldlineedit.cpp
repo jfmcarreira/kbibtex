@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -32,10 +34,15 @@
 #include <QMimeData>
 #include <QRegularExpression>
 
+#include <kio_version.h>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
 #include <KRun>
+#endif // KIO_VERSION >= 0x054700
 #include <KMessageBox>
 #include <KLocalizedString>
-#include <kio_version.h>
 
 #include <BibTeXFields>
 #include <Preferences>
@@ -52,20 +59,19 @@ class FieldLineEdit::FieldLineEditPrivate
 {
 private:
     FieldLineEdit *parent;
-    Value currentValue;
-    KBibTeX::TypeFlag preferredTypeFlag;
     KBibTeX::TypeFlags typeFlags;
     QPushButton *buttonOpenUrl;
 
 public:
     QMenu *menuTypes;
+    const KBibTeX::TypeFlag preferredTypeFlag;
+    KBibTeX::TypeFlag typeFlag;
     QUrl urlToOpen;
     const File *file;
     QString fieldKey;
-    KBibTeX::TypeFlag typeFlag;
 
     FieldLineEditPrivate(KBibTeX::TypeFlag ptf, KBibTeX::TypeFlags tf, FieldLineEdit *p)
-            : parent(p), preferredTypeFlag(ptf), typeFlags(tf), file(nullptr) {
+            : parent(p), typeFlags(tf), preferredTypeFlag(ptf), file(nullptr) {
         menuTypes = new QMenu(parent);
         setupMenu();
 
@@ -73,26 +79,30 @@ public:
         buttonOpenUrl->setVisible(false);
         buttonOpenUrl->setProperty("isConst", true);
         parent->appendWidget(buttonOpenUrl);
-        connect(buttonOpenUrl, &QPushButton::clicked, parent, &FieldLineEdit::slotOpenUrl);
+        connect(buttonOpenUrl, &QPushButton::clicked, parent, [this]() {
+            openUrl();
+        });
 
-        connect(p, &FieldLineEdit::textChanged, p, &FieldLineEdit::slotTextChanged);
+        connect(p, &FieldLineEdit::textChanged, p, [this](const QString & text) {
+            textChanged(text);
+        });
 
         Value value;
         typeFlag = determineTypeFlag(value, preferredTypeFlag, typeFlags);
         updateGUI(typeFlag);
     }
 
-    bool reset(const Value &value) {
+    bool reset(const Value &value, const KBibTeX::TypeFlag preferredTypeFlag) {
         bool result = false;
         QString text;
-        typeFlag = determineTypeFlag(value, typeFlag, typeFlags);
+        typeFlag = determineTypeFlag(value, preferredTypeFlag, typeFlags);
         updateGUI(typeFlag);
 
         if (!value.isEmpty()) {
-            if (typeFlag == KBibTeX::tfSource) {
+            if (typeFlag == KBibTeX::TypeFlag::Source) {
                 /// simple case: field's value is to be shown as BibTeX code, including surrounding curly braces
                 FileExporterBibTeX exporter(parent);
-                text = exporter.valueToBibTeX(value);
+                text = exporter.valueToBibTeX(value, Encoder::TargetEncoding::UTF8);
                 result = true;
             } else {
                 /// except for the source view type flag, type flag views do not support composed values,
@@ -100,31 +110,31 @@ public:
                 const QSharedPointer<ValueItem> first = value.first();
 
                 const QSharedPointer<PlainText> plainText = first.dynamicCast<PlainText>();
-                if (typeFlag == KBibTeX::tfPlainText && !plainText.isNull()) {
+                if (typeFlag == KBibTeX::TypeFlag::PlainText && !plainText.isNull()) {
                     text = plainText->text();
                     result = true;
                 } else {
                     const QSharedPointer<Person> person = first.dynamicCast<Person>();
-                    if (typeFlag == KBibTeX::tfPerson && !person.isNull()) {
+                    if (typeFlag == KBibTeX::TypeFlag::Person && !person.isNull()) {
                         text = Person::transcribePersonName(person.data(), Preferences::instance().personNameFormat());
                         result = true;
                     } else {
                         const QSharedPointer<MacroKey> macroKey = first.dynamicCast<MacroKey>();
-                        if (typeFlag == KBibTeX::tfReference && !macroKey.isNull()) {
+                        if (typeFlag == KBibTeX::TypeFlag::Reference && !macroKey.isNull()) {
                             text = macroKey->text();
                             result = true;
                         } else {
                             const QSharedPointer<Keyword> keyword = first.dynamicCast<Keyword>();
-                            if (typeFlag == KBibTeX::tfKeyword && !keyword.isNull()) {
+                            if (typeFlag == KBibTeX::TypeFlag::Keyword && !keyword.isNull()) {
                                 text = keyword->text();
                                 result = true;
                             } else {
                                 const QSharedPointer<VerbatimText> verbatimText = first.dynamicCast<VerbatimText>();
-                                if (typeFlag == KBibTeX::tfVerbatim && !verbatimText.isNull()) {
+                                if (typeFlag == KBibTeX::TypeFlag::Verbatim && !verbatimText.isNull()) {
                                     text = verbatimText->text();
                                     result = true;
                                 } else
-                                    qCWarning(LOG_KBIBTEX_GUI) << "Could not reset: " << typeFlag << "(" << (typeFlag == KBibTeX::tfSource ? "Source" : (typeFlag == KBibTeX::tfReference ? "Reference" : (typeFlag == KBibTeX::tfPerson ? "Person" : (typeFlag == KBibTeX::tfPlainText ? "PlainText" : (typeFlag == KBibTeX::tfKeyword ? "Keyword" : (typeFlag == KBibTeX::tfVerbatim ? "Verbatim" : "???")))))) << ") " << (typeFlags.testFlag(KBibTeX::tfPerson) ? "Person" : "") << (typeFlags.testFlag(KBibTeX::tfPlainText) ? "PlainText" : "") << (typeFlags.testFlag(KBibTeX::tfReference) ? "Reference" : "") << (typeFlags.testFlag(KBibTeX::tfVerbatim) ? "Verbatim" : "") << " " << typeid((void)*first).name() << " : " << PlainTextValue::text(value);
+                                    qCWarning(LOG_KBIBTEX_GUI) << "Could not reset: " << typeFlag << " " << typeid((void)*first).name() << " : " << PlainTextValue::text(value);
                             }
                         }
                     }
@@ -142,7 +152,7 @@ public:
         value.clear();
         /// Remove unnecessary white space from input
         /// Exception: source and verbatim content is kept unmodified
-        const QString text = typeFlag == KBibTeX::tfSource || typeFlag == KBibTeX::tfVerbatim ? parent->text() : parent->text().simplified();
+        const QString text = typeFlag == KBibTeX::TypeFlag::Source || typeFlag == KBibTeX::TypeFlag::Verbatim ? parent->text() : parent->text().simplified();
         if (text.isEmpty())
             return true;
 
@@ -151,24 +161,24 @@ public:
         static const QRegularExpression invalidCharsForReferenceRegExp(QStringLiteral("[^-_:/a-zA-Z0-9]"));
         if (encodedText.isEmpty())
             return true;
-        else if (typeFlag == KBibTeX::tfPlainText) {
+        else if (typeFlag == KBibTeX::TypeFlag::PlainText) {
             value.append(QSharedPointer<PlainText>(new PlainText(encodedText)));
             return true;
-        } else if (typeFlag == KBibTeX::tfReference && !encodedText.contains(invalidCharsForReferenceRegExp)) {
+        } else if (typeFlag == KBibTeX::TypeFlag::Reference && !encodedText.contains(invalidCharsForReferenceRegExp)) {
             value.append(QSharedPointer<MacroKey>(new MacroKey(encodedText)));
             return true;
-        } else if (typeFlag == KBibTeX::tfPerson) {
+        } else if (typeFlag == KBibTeX::TypeFlag::Person) {
             QSharedPointer<Person> person = FileImporterBibTeX::personFromString(encodedText);
             if (!person.isNull())
                 value.append(person);
             return true;
-        } else if (typeFlag == KBibTeX::tfKeyword) {
+        } else if (typeFlag == KBibTeX::TypeFlag::Keyword) {
             const QList<QSharedPointer<Keyword> > keywords = FileImporterBibTeX::splitKeywords(encodedText);
             for (const auto &keyword : keywords)
                 value.append(keyword);
             return true;
-        } else if (typeFlag == KBibTeX::tfSource) {
-            const QString key = typeFlags.testFlag(KBibTeX::tfPerson) ? QStringLiteral("author") : QStringLiteral("title");
+        } else if (typeFlag == KBibTeX::TypeFlag::Source) {
+            const QString key = typeFlags.testFlag(KBibTeX::TypeFlag::Person) ? QStringLiteral("author") : QStringLiteral("title");
             FileImporterBibTeX importer(parent);
             const QString fakeBibTeXFile = QString(QStringLiteral("@article{dummy, %1=%2}")).arg(key, encodedText);
 
@@ -181,7 +191,7 @@ public:
                 } else
                     qCWarning(LOG_KBIBTEX_GUI) << "Parsing " << fakeBibTeXFile << " did not result in valid entry";
             }
-        } else if (typeFlag == KBibTeX::tfVerbatim) {
+        } else if (typeFlag == KBibTeX::TypeFlag::Verbatim) {
             value.append(QSharedPointer<VerbatimText>(new VerbatimText(text)));
             return true;
         }
@@ -189,12 +199,25 @@ public:
         return false;
     }
 
+    int validateCurlyBracketContext(const QString &text) const {
+        int openingCB = 0, closingCB = 0;
+
+        for (int i = 0; i < text.length(); ++i) {
+            if (i == 0 || text[i - 1] != QLatin1Char('\\')) {
+                if (text[i] == QLatin1Char('{')) ++openingCB;
+                else if (text[i] == QLatin1Char('}')) ++closingCB;
+            }
+        }
+
+        return openingCB - closingCB;
+    }
+
     bool validate(QWidget **widgetWithIssue, QString &message) const {
         message.clear();
 
         /// Remove unnecessary white space from input
         /// Exception: source and verbatim content is kept unmodified
-        const QString text = typeFlag == KBibTeX::tfSource || typeFlag == KBibTeX::tfVerbatim ? parent->text() : parent->text().simplified();
+        const QString text = typeFlag == KBibTeX::TypeFlag::Source || typeFlag == KBibTeX::TypeFlag::Verbatim ? parent->text() : parent->text().simplified();
         if (text.isEmpty())
             return true;
 
@@ -204,16 +227,16 @@ public:
             return true;
 
         bool result = false;
-        if (typeFlag == KBibTeX::tfPlainText || typeFlag == KBibTeX::tfPerson || typeFlag == KBibTeX::tfKeyword) {
-            result = KBibTeX::validateCurlyBracketContext(text) == 0;
+        if (typeFlag == KBibTeX::TypeFlag::PlainText || typeFlag == KBibTeX::TypeFlag::Person || typeFlag == KBibTeX::TypeFlag::Keyword) {
+            result = validateCurlyBracketContext(text) == 0;
             if (!result) message = i18n("Opening and closing curly brackets do not match.");
-        } else if (typeFlag == KBibTeX::tfReference) {
+        } else if (typeFlag == KBibTeX::TypeFlag::Reference) {
             static const QRegularExpression validReferenceRegExp(QStringLiteral("^[-_:/a-zA-Z0-9]+$"));
             const QRegularExpressionMatch validReferenceMatch = validReferenceRegExp.match(text);
             result = validReferenceMatch.hasMatch() && validReferenceMatch.captured() == text;
             if (!result) message = i18n("Reference contains characters outside of the allowed set.");
-        } else if (typeFlag == KBibTeX::tfSource) {
-            const QString key = typeFlags.testFlag(KBibTeX::tfPerson) ? QStringLiteral("author") : QStringLiteral("title");
+        } else if (typeFlag == KBibTeX::TypeFlag::Source) {
+            const QString key = typeFlags.testFlag(KBibTeX::TypeFlag::Person) ? QStringLiteral("author") : QStringLiteral("title");
             FileImporterBibTeX importer(parent);
             const QString fakeBibTeXFile = QString(QStringLiteral("@article{dummy, %1=%2}")).arg(key, encodedText);
 
@@ -222,8 +245,8 @@ public:
             QSharedPointer<Entry> entry = file->first().dynamicCast<Entry>();
             result = !entry.isNull() && entry->count() == 1;
             if (!result) message = i18n("Source code could not be parsed correctly.");
-        } else if (typeFlag == KBibTeX::tfVerbatim) {
-            result = KBibTeX::validateCurlyBracketContext(text) == 0;
+        } else if (typeFlag == KBibTeX::TypeFlag::Verbatim) {
+            result = validateCurlyBracketContext(text) == 0;
             if (!result) message = i18n("Opening and closing curly brackets do not match.");
         }
 
@@ -233,8 +256,14 @@ public:
         return result;
     }
 
+    void clear() {
+        const KBibTeX::TypeFlag newTypeFlag = typeFlags.testFlag(preferredTypeFlag) ? preferredTypeFlag : KBibTeX::TypeFlag::Source;
+        if (newTypeFlag != typeFlag)
+            updateGUI(typeFlag = newTypeFlag);
+    }
+
     KBibTeX::TypeFlag determineTypeFlag(const Value &value, KBibTeX::TypeFlag preferredTypeFlag, KBibTeX::TypeFlags availableTypeFlags) {
-        KBibTeX::TypeFlag result = KBibTeX::tfSource;
+        KBibTeX::TypeFlag result = KBibTeX::TypeFlag::Source;
         if (availableTypeFlags.testFlag(preferredTypeFlag) && typeFlagSupported(value, preferredTypeFlag))
             result = preferredTypeFlag;
         else if (value.count() == 1) {
@@ -250,21 +279,21 @@ public:
     }
 
     bool typeFlagSupported(const Value &value, KBibTeX::TypeFlag typeFlag) {
-        if (value.isEmpty() || typeFlag == KBibTeX::tfSource)
+        if (value.isEmpty() || typeFlag == KBibTeX::TypeFlag::Source)
             return true;
 
         const QSharedPointer<ValueItem> first = value.first();
         if (value.count() > 1)
-            return typeFlag == KBibTeX::tfSource;
-        else if (typeFlag == KBibTeX::tfKeyword && Keyword::isKeyword(*first))
+            return typeFlag == KBibTeX::TypeFlag::Source;
+        else if (typeFlag == KBibTeX::TypeFlag::Keyword && Keyword::isKeyword(*first))
             return true;
-        else if (typeFlag == KBibTeX::tfPerson && Person::isPerson(*first))
+        else if (typeFlag == KBibTeX::TypeFlag::Person && Person::isPerson(*first))
             return true;
-        else if (typeFlag == KBibTeX::tfPlainText && PlainText::isPlainText(*first))
+        else if (typeFlag == KBibTeX::TypeFlag::PlainText && PlainText::isPlainText(*first))
             return true;
-        else if (typeFlag == KBibTeX::tfReference && MacroKey::isMacroKey(*first))
+        else if (typeFlag == KBibTeX::TypeFlag::Reference && MacroKey::isMacroKey(*first))
             return true;
-        else if (typeFlag == KBibTeX::tfVerbatim && VerbatimText::isVerbatimText(*first))
+        else if (typeFlag == KBibTeX::TypeFlag::Verbatim && VerbatimText::isVerbatimText(*first))
             return true;
         else
             return false;
@@ -274,53 +303,53 @@ public:
     void setupMenu() {
         menuTypes->clear();
 
-        if (typeFlags.testFlag(KBibTeX::tfPlainText)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfPlainText), i18n("Plain Text"));
+        if (typeFlags.testFlag(KBibTeX::TypeFlag::PlainText)) {
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::TypeFlag::PlainText), i18n("Plain Text"));
             connect(action, &QAction::triggered, parent, [this]() {
-                typeChanged(KBibTeX::tfPlainText);
+                typeChanged(KBibTeX::TypeFlag::PlainText);
             });
         }
-        if (typeFlags.testFlag(KBibTeX::tfReference)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfReference), i18n("Reference"));
+        if (typeFlags.testFlag(KBibTeX::TypeFlag::Reference)) {
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::TypeFlag::Reference), i18n("Reference"));
             connect(action, &QAction::triggered, parent, [this]() {
-                typeChanged(KBibTeX::tfReference);
+                typeChanged(KBibTeX::TypeFlag::Reference);
             });
         }
-        if (typeFlags.testFlag(KBibTeX::tfPerson)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfPerson), i18n("Person"));
+        if (typeFlags.testFlag(KBibTeX::TypeFlag::Person)) {
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::TypeFlag::Person), i18n("Person"));
             connect(action, &QAction::triggered, parent, [this]() {
-                typeChanged(KBibTeX::tfPerson);
+                typeChanged(KBibTeX::TypeFlag::Person);
             });
         }
-        if (typeFlags.testFlag(KBibTeX::tfKeyword)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfKeyword), i18n("Keyword"));
+        if (typeFlags.testFlag(KBibTeX::TypeFlag::Keyword)) {
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::TypeFlag::Keyword), i18n("Keyword"));
             connect(action, &QAction::triggered, parent, [this]() {
-                typeChanged(KBibTeX::tfKeyword);
+                typeChanged(KBibTeX::TypeFlag::Keyword);
             });
         }
-        if (typeFlags.testFlag(KBibTeX::tfSource)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfSource), i18n("Source Code"));
+        if (typeFlags.testFlag(KBibTeX::TypeFlag::Source)) {
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::TypeFlag::Source), i18n("Source Code"));
             connect(action, &QAction::triggered, parent, [this]() {
-                typeChanged(KBibTeX::tfSource);
+                typeChanged(KBibTeX::TypeFlag::Source);
             });
         }
-        if (typeFlags.testFlag(KBibTeX::tfVerbatim)) {
-            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::tfVerbatim), i18n("Verbatim Text"));
+        if (typeFlags.testFlag(KBibTeX::TypeFlag::Verbatim)) {
+            QAction *action = menuTypes->addAction(iconForTypeFlag(KBibTeX::TypeFlag::Verbatim), i18n("Verbatim Text"));
             connect(action, &QAction::triggered, parent, [this]() {
-                typeChanged(KBibTeX::tfVerbatim);
+                typeChanged(KBibTeX::TypeFlag::Verbatim);
             });
         }
     }
 
     QIcon iconForTypeFlag(KBibTeX::TypeFlag typeFlag) {
         switch (typeFlag) {
-        case KBibTeX::tfInvalid: return QIcon();
-        case KBibTeX::tfPlainText: return QIcon::fromTheme(QStringLiteral("draw-text"));
-        case KBibTeX::tfReference: return QIcon::fromTheme(QStringLiteral("emblem-symbolic-link"));
-        case KBibTeX::tfPerson: return QIcon::fromTheme(QStringLiteral("user-identity"));
-        case KBibTeX::tfKeyword: return QIcon::fromTheme(QStringLiteral("edit-find"));
-        case KBibTeX::tfSource: return QIcon::fromTheme(QStringLiteral("code-context"));
-        case KBibTeX::tfVerbatim: return QIcon::fromTheme(QStringLiteral("preferences-desktop-keyboard"));
+        case KBibTeX::TypeFlag::Invalid: return QIcon();
+        case KBibTeX::TypeFlag::PlainText: return QIcon::fromTheme(QStringLiteral("draw-text"));
+        case KBibTeX::TypeFlag::Reference: return QIcon::fromTheme(QStringLiteral("emblem-symbolic-link"));
+        case KBibTeX::TypeFlag::Person: return QIcon::fromTheme(QStringLiteral("user-identity"));
+        case KBibTeX::TypeFlag::Keyword: return QIcon::fromTheme(QStringLiteral("edit-find"));
+        case KBibTeX::TypeFlag::Source: return QIcon::fromTheme(QStringLiteral("code-context"));
+        case KBibTeX::TypeFlag::Verbatim: return QIcon::fromTheme(QStringLiteral("preferences-desktop-keyboard"));
         }
         return QIcon(); //< should never happen as switch above covers all cases
     }
@@ -329,16 +358,16 @@ public:
         parent->setFont(QFontDatabase::systemFont(QFontDatabase::GeneralFont));
         parent->setIcon(iconForTypeFlag(typeFlag));
         switch (typeFlag) {
-        case KBibTeX::tfInvalid: parent->setButtonToolTip(QString()); break;
-        case KBibTeX::tfPlainText: parent->setButtonToolTip(i18n("Plain Text")); break;
-        case KBibTeX::tfReference: parent->setButtonToolTip(i18n("Reference")); break;
-        case KBibTeX::tfPerson: parent->setButtonToolTip(i18n("Person")); break;
-        case KBibTeX::tfKeyword: parent->setButtonToolTip(i18n("Keyword")); break;
-        case KBibTeX::tfSource:
+        case KBibTeX::TypeFlag::Invalid: parent->setButtonToolTip(QString()); break;
+        case KBibTeX::TypeFlag::PlainText: parent->setButtonToolTip(i18n("Plain Text")); break;
+        case KBibTeX::TypeFlag::Reference: parent->setButtonToolTip(i18n("Reference")); break;
+        case KBibTeX::TypeFlag::Person: parent->setButtonToolTip(i18n("Person")); break;
+        case KBibTeX::TypeFlag::Keyword: parent->setButtonToolTip(i18n("Keyword")); break;
+        case KBibTeX::TypeFlag::Source:
             parent->setButtonToolTip(i18n("Source Code"));
             parent->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
             break;
-        case KBibTeX::tfVerbatim: parent->setButtonToolTip(i18n("Verbatim Text")); break;
+        case KBibTeX::TypeFlag::Verbatim: parent->setButtonToolTip(i18n("Verbatim Text")); break;
         }
     }
 
@@ -348,13 +377,19 @@ public:
             QMimeType mimeType = FileInfo::mimeTypeForUrl(urlToOpen);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
             KRun::runUrl(urlToOpen, mimeTypeName, parent, KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+            KIO::OpenUrlJob *job = new KIO::OpenUrlJob(urlToOpen, mimeTypeName);
+            job->setUiDelegate(new KIO::JobUiDelegate());
+            job->start();
+#endif // KIO_VERSION < 0x054700
         }
     }
 
     bool convertValueType(Value &value, KBibTeX::TypeFlag destType) {
         if (value.isEmpty()) return true; /// simple case
-        if (destType == KBibTeX::tfSource) return true; /// simple case
+        if (destType == KBibTeX::TypeFlag::Source) return true; /// simple case
 
         bool result = true;
         const EncoderLaTeX &encoder = EncoderLaTeX::instance();
@@ -363,7 +398,7 @@ public:
 
         const QSharedPointer<PlainText> plainText = first.dynamicCast<PlainText>();
         if (!plainText.isNull())
-            rawText = encoder.encode(plainText->text(), Encoder::TargetEncodingASCII);
+            rawText = encoder.encode(plainText->text(), Encoder::TargetEncoding::ASCII);
         else {
             const QSharedPointer<VerbatimText> verbatimText = first.dynamicCast<VerbatimText>();
             if (!verbatimText.isNull())
@@ -375,11 +410,11 @@ public:
                 else {
                     const QSharedPointer<Person> person = first.dynamicCast<Person>();
                     if (!person.isNull())
-                        rawText = encoder.encode(QString(QStringLiteral("%1 %2")).arg(person->firstName(), person->lastName()), Encoder::TargetEncodingASCII); // FIXME proper name conversion
+                        rawText = encoder.encode(QString(QStringLiteral("%1 %2")).arg(person->firstName(), person->lastName()), Encoder::TargetEncoding::ASCII); // FIXME proper name conversion
                     else {
                         const QSharedPointer<Keyword> keyword = first.dynamicCast<Keyword>();
                         if (!keyword.isNull())
-                            rawText = encoder.encode(keyword->text(), Encoder::TargetEncodingASCII);
+                            rawText = encoder.encode(keyword->text(), Encoder::TargetEncoding::ASCII);
                         else {
                             // TODO case missed?
                             result = false;
@@ -390,19 +425,19 @@ public:
         }
 
         switch (destType) {
-        case KBibTeX::tfPlainText:
+        case KBibTeX::TypeFlag::PlainText:
             value.clear();
             value.append(QSharedPointer<PlainText>(new PlainText(encoder.decode(rawText))));
             break;
-        case KBibTeX::tfVerbatim:
+        case KBibTeX::TypeFlag::Verbatim:
             value.clear();
             value.append(QSharedPointer<VerbatimText>(new VerbatimText(rawText)));
             break;
-        case KBibTeX::tfPerson:
+        case KBibTeX::TypeFlag::Person:
             value.clear();
             value.append(QSharedPointer<Person>(FileImporterBibTeX::splitName(encoder.decode(rawText))));
             break;
-        case KBibTeX::tfReference: {
+        case KBibTeX::TypeFlag::Reference: {
             MacroKey *macroKey = new MacroKey(rawText);
             if (macroKey->isValid()) {
                 value.clear();
@@ -413,7 +448,7 @@ public:
             }
         }
         break;
-        case KBibTeX::tfKeyword:
+        case KBibTeX::TypeFlag::Keyword:
             value.clear();
             value.append(QSharedPointer<Keyword>(new Keyword(encoder.decode(rawText))));
             break;
@@ -428,7 +463,7 @@ public:
 
     void updateURL(const QString &text) {
         QSet<QUrl> urls;
-        FileInfo::urlsInText(text, FileInfo::TestExistenceYes, file != nullptr && file->property(File::Url).toUrl().isValid() ? QUrl(file->property(File::Url).toUrl()).path() : QString(), urls);
+        FileInfo::urlsInText(text, FileInfo::TestExistence::Yes, file != nullptr && file->property(File::Url).toUrl().isValid() ? QUrl(file->property(File::Url).toUrl()).path() : QString(), urls);
         QSet<QUrl>::ConstIterator urlsIt = urls.constBegin();
         if (urlsIt != urls.constEnd() && (*urlsIt).isValid())
             urlToOpen = (*urlsIt);
@@ -450,8 +485,8 @@ public:
         apply(value);
 
         if (convertValueType(value, newTypeFlag)) {
-            typeFlag = newTypeFlag;
-            reset(value);
+            reset(value, newTypeFlag);
+            QMetaObject::invokeMethod(parent, "modified", Qt::DirectConnection, QGenericReturnArgument());
         } else
             KMessageBox::error(parent, i18n("The current text cannot be used as value of type '%1'.\n\nSwitching back to type '%2'.", BibTeXFields::typeFlagToString(newTypeFlag), BibTeXFields::typeFlagToString(typeFlag)));
     }
@@ -479,12 +514,18 @@ bool FieldLineEdit::apply(Value &value) const
 
 bool FieldLineEdit::reset(const Value &value)
 {
-    return d->reset(value);
+    return d->reset(value, d->preferredTypeFlag);
 }
 
 bool FieldLineEdit::validate(QWidget **widgetWithIssue, QString &message) const
 {
     return d->validate(widgetWithIssue, message);
+}
+
+void FieldLineEdit::clear()
+{
+    MenuLineEdit::clear();
+    d->clear();
 }
 
 void FieldLineEdit::setReadOnly(bool isReadOnly)
@@ -507,16 +548,6 @@ void FieldLineEdit::setFieldKey(const QString &fieldKey)
     d->fieldKey = fieldKey;
 }
 
-void FieldLineEdit::slotOpenUrl()
-{
-    d->openUrl();
-}
-
-void FieldLineEdit::slotTextChanged(const QString &text)
-{
-    d->textChanged(text);
-}
-
 void FieldLineEdit::dragEnterEvent(QDragEnterEvent *event)
 {
     if (event->mimeData()->hasFormat(QStringLiteral("text/plain")) || event->mimeData()->hasFormat(QStringLiteral("text/x-bibtex")))
@@ -525,7 +556,8 @@ void FieldLineEdit::dragEnterEvent(QDragEnterEvent *event)
 
 void FieldLineEdit::dropEvent(QDropEvent *event)
 {
-    const QString clipboardText = event->mimeData()->text();
+    const QString clipboardText = QString::fromUtf8(event->mimeData()->data(QStringLiteral("text/plain")));
+    event->acceptProposedAction();
     if (clipboardText.isEmpty()) return;
 
     bool success = false;
@@ -533,6 +565,7 @@ void FieldLineEdit::dropEvent(QDropEvent *event)
         FileImporterBibTeX importer(this);
         QScopedPointer<File> file(importer.fromString(clipboardText));
         const QSharedPointer<Entry> entry = (!file.isNull() && file->count() == 1) ? file->first().dynamicCast<Entry>() : QSharedPointer<Entry>();
+
         if (!entry.isNull() && d->fieldKey == Entry::ftCrossRef) {
             /// handle drop on crossref line differently (use dropped entry's id)
             Value v;
@@ -549,7 +582,8 @@ void FieldLineEdit::dropEvent(QDropEvent *event)
     }
 
     if (!success) {
-        /// fall-back case: just copy whole text into edit widget
+        /// In case above cases were not met and thus 'success' is still false,
+        /// clear this line edit and use the clipboad text as its content
         setText(clipboardText);
         emit textChanged(clipboardText);
     }

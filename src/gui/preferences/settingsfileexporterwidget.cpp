@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -99,7 +101,7 @@ public:
         int row = GUIHelper::selectValue(comboBoxCopyReferenceCmd->model(), QString(), Qt::UserRole);
         comboBoxCopyReferenceCmd->setCurrentIndex(row);
 
-        const int index = qMax(0, comboBoxBackupScope->findData(Preferences::defaultBackupScope));
+        const int index = qMax(0, comboBoxBackupScope->findData(static_cast<int>(Preferences::defaultBackupScope)));
         comboBoxBackupScope->setCurrentIndex(index);
         spinboxNumberOfBackups->setValue(qMax(0, qMin(spinboxNumberOfBackups->maximum(), Preferences::defaultNumberOfBackups)));
 
@@ -212,5 +214,5 @@ void SettingsFileExporterWidget::automaticLyXDetectionToggled(bool isChecked)
 
 void SettingsFileExporterWidget::updateGUI()
 {
-    d->spinboxNumberOfBackups->setEnabled(d->comboBoxBackupScope->itemData(d->comboBoxBackupScope->currentIndex()).toInt() != static_cast<int>(Preferences::NoBackup));
+    d->spinboxNumberOfBackups->setEnabled(d->comboBoxBackupScope->itemData(d->comboBoxBackupScope->currentIndex()).toInt() != static_cast<int>(Preferences::BackupScope::None));
 }

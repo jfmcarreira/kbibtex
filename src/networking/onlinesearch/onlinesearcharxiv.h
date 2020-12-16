@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,7 +40,7 @@ public:
 #ifdef HAVE_QTWIDGETS
     void startSearchFromForm() override;
 #endif // HAVE_QTWIDGETS
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
+    void startSearch(const QMap<QueryKey, QString> &query, int numResults) override;
     QString label() const override;
 #ifdef HAVE_QTWIDGETS
     OnlineSearchAbstract::Form *customWidget(QWidget *parent) override;
@@ -46,7 +48,6 @@ public:
     QUrl homepage() const override;
 
 protected:
-    QString favIconUrl() const override;
     void sanitizeEntry(QSharedPointer<Entry> entry) override;
 
 private:

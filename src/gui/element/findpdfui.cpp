@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -37,11 +39,16 @@
 #include <QMimeType>
 #include <QTemporaryFile>
 
+#include <kio_version.h>
 #include <KLocalizedString>
 #include <KIconLoader>
 #include <KSqueezedTextLabel>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
 #include <KRun>
-#include <kio_version.h>
+#endif // KIO_VERSION >= 0x054700
 
 #include <Preferences>
 #include <FileInfo>
@@ -203,7 +210,7 @@ void PDFItemDelegate::updateItemWidgets(const QList<QWidget *> widgets, const QS
             radioButton->move(option.rect.width() - margin - (3 - i) * (buttonWidth + margin), option.rect.height() - margin - h);
             radioButton->resize(buttonWidth, h);
             bool ok = false;
-            radioButton->setChecked(i + FindPDF::NoDownload == index.data(PDFListModel::DownloadModeRole).toInt(&ok) && ok);
+            radioButton->setChecked(i + static_cast<int>(FindPDF::DownloadMode::No) == index.data(PDFListModel::DownloadModeRole).toInt(&ok) && ok);
         }
     }
 }
@@ -238,13 +245,26 @@ void PDFItemDelegate::slotViewPDF()
             QMimeType mimeType = FileInfo::mimeTypeForUrl(tempUrl);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
             KRun::runUrl(tempUrl, mimeTypeName, itemView(), KRun::RunFlags(), url.toDisplayString());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+            KIO::OpenUrlJob *job = new KIO::OpenUrlJob(tempUrl, mimeTypeName);
+            job->setUiDelegate(new KIO::JobUiDelegate());
+            job->setSuggestedFileName(url.toDisplayString());
+            job->start();
+#endif // KIO_VERSION < 0x054700
         } else if (url.isValid()) {
             /// Guess mime type for url to open
             QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
             KRun::runUrl(url, mimeTypeName, itemView(), KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+            KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mimeTypeName);
+            job->setUiDelegate(new KIO::JobUiDelegate());
+            job->start();
+#endif // KIO_VERSION < 0x054700
         }
     }
 }
@@ -257,7 +277,7 @@ void PDFItemDelegate::slotRadioNoDownloadToggled(bool checked)
     QModelIndex index = focusedIndex();
 
     if (index.isValid() && checked) {
-        m_parent->model()->setData(index, FindPDF::NoDownload, PDFListModel::DownloadModeRole);
+        m_parent->model()->setData(index, static_cast<int>(FindPDF::DownloadMode::No), PDFListModel::DownloadModeRole);
     }
 }
 
@@ -269,7 +289,7 @@ void PDFItemDelegate::slotRadioDownloadToggled(bool checked)
     QModelIndex index = focusedIndex();
 
     if (index.isValid() && checked) {
-        m_parent->model()->setData(index, FindPDF::Download, PDFListModel::DownloadModeRole);
+        m_parent->model()->setData(index, static_cast<int>(FindPDF::DownloadMode::PDFfile), PDFListModel::DownloadModeRole);
     }
 }
 
@@ -281,7 +301,7 @@ void PDFItemDelegate::slotRadioURLonlyToggled(bool checked)
     QModelIndex index = focusedIndex();
 
     if (index.isValid() && checked) {
-        m_parent->model()->setData(index, FindPDF::URLonly, PDFListModel::DownloadModeRole);
+        m_parent->model()->setData(index, static_cast<int>(FindPDF::DownloadMode::URLonly), PDFListModel::DownloadModeRole);
     }
 }
 
@@ -315,7 +335,7 @@ QVariant PDFListModel::data(const QModelIndex &index, int role) const
             else
                 return QVariant();
         } else if (role == DownloadModeRole)
-            return m_resultList[index.row()].downloadMode;
+            return static_cast<int>(m_resultList[index.row()].downloadMode);
         else if (role == Qt::DecorationRole) {
             /// make an educated guess on the icon, based on URL or path
             QString iconName = FileInfo::mimeTypeForUrl(m_resultList[index.row()].url).iconName();
@@ -417,7 +437,7 @@ void FindPDFUI::interactiveFindPDF(Entry &entry, const File &bibtexFile, QWidget
 {
     QPointer<QDialog> dlg = new QDialog(parent);
     QPointer<FindPDFUI> widget = new FindPDFUI(entry, dlg);
-    dlg->setWindowTitle(i18n("Find PDF"));
+    dlg->setWindowTitle(i18nc("@title:window", "Find PDF"));
     QBoxLayout *layout = new QVBoxLayout(dlg);
     layout->addWidget(widget);
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Abort | QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, dlg);
@@ -444,13 +464,13 @@ void FindPDFUI::apply(Entry &entry, const File &bibtexFile)
         FindPDF::DownloadMode downloadMode = static_cast<FindPDF::DownloadMode>(model->data(model->index(i, 0), PDFListModel::DownloadModeRole).toInt(&ok));
         if (!ok) {
             qCDebug(LOG_KBIBTEX_GUI) << "Could not interprete download mode";
-            downloadMode = FindPDF::NoDownload;
+            downloadMode = FindPDF::DownloadMode::No;
         }
 
         QUrl url = model->data(model->index(i, 0), PDFListModel::URLRole).toUrl();
         QString tempfileName = model->data(model->index(i, 0), PDFListModel::TempFileNameRole).toString();
 
-        if (downloadMode == FindPDF::URLonly && url.isValid()) {
+        if (downloadMode == FindPDF::DownloadMode::URLonly && url.isValid()) {
             bool alreadyContained = false;
             for (QMap<QString, Value>::ConstIterator it = entry.constBegin(); !alreadyContained && it != entry.constEnd(); ++it)
                 // FIXME this will terribly break if URLs in an entry's URL field are separated with semicolons
@@ -469,7 +489,7 @@ void FindPDFUI::apply(Entry &entry, const File &bibtexFile)
                         }
                     }
             }
-        } else if (downloadMode == FindPDF::Download && !tempfileName.isEmpty()) {
+        } else if (downloadMode == FindPDF::DownloadMode::PDFfile && !tempfileName.isEmpty()) {
             QUrl startUrl = bibtexFile.property(File::Url, QUrl()).toUrl();
             const QString absoluteFilename = QFileDialog::getSaveFileName(this, i18n("Save URL '%1'", url.url(QUrl::PreferLocalFile)), startUrl.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash).path(), QStringLiteral("application/pdf"));
             if (!absoluteFilename.isEmpty()) {
@@ -485,7 +505,7 @@ void FindPDFUI::apply(Entry &entry, const File &bibtexFile)
                 if (!alreadyContained) {
                     Value value;
                     value.append(QSharedPointer<VerbatimText>(new VerbatimText(visibleFilename)));
-                    const QString fieldNameStem = Preferences::instance().bibliographySystem() == Preferences::BibTeX ? Entry::ftLocalFile : Entry::ftFile;
+                    const QString fieldNameStem = Preferences::instance().bibliographySystem() == Preferences::BibliographySystem::BibTeX ? Entry::ftLocalFile : Entry::ftFile;
                     if (!entry.contains(fieldNameStem))
                         entry.insert(fieldNameStem, value);
                     else
@@ -527,8 +547,4 @@ void FindPDFUI::searchProgress(int visitedPages, int runningJobs, int foundDocum
 void FindPDFUI::stopSearch() {
     d->findpdf->abort();
     searchFinished();
-}
-
-void FindPDFUI::abort() {
-    d->findpdf->abort();
 }

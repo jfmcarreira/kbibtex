@@ -14,8 +14,8 @@
      Maintain original HTML tags
 -->
 <xsl:template match="a|abbr|acronym|address|applet|b|big|blockquote|br|cite|code|del|dfn|div|em|hr|i|kbd|p|param|pre|q|quote|samp|script|span|small|strike|strong|sub|sup|tt|var|button|fieldset|form|input|label|legend|object|option|optgroup|select|caption|col|colgroup|table|tbody|td|tfoot|th|thead|tr|dl|dd|dt|ol|ul|li|img|quote|quotation" xmlns:html="http://www.w3.org/1999/XSL/some">
-<xsl:copy>
-<xsl:copy-of select="@*" />
+<xsl:copy copy-namespaces="no">
+<xsl:copy-of copy-namespaces="no" select="@*" />
 <xsl:apply-templates />
 </xsl:copy>
 </xsl:template>
@@ -131,8 +131,8 @@
 <xsl:if test="string-length(year)>0">
 <xsl:if test="string-length(month)>0"><xsl:value-of select="month" /><xsl:text> </xsl:text></xsl:if>
 <xsl:apply-templates select="year" />
-<xsl:apply-templates select="pages" />
 </xsl:if>
+<xsl:apply-templates select="pages" />
 <xsl:apply-templates select="note" />
 </div>
 </xsl:if>
@@ -150,7 +150,7 @@
 <meta http-equiv="content-type" content="text/html; charset=utf-8" />
 </head>
 <body style="margin:0px; padding: 0px;">
-<xsl:apply-templates select="entry" />
+<xsl:apply-templates />
 </body>
 </html>
 </xsl:template>

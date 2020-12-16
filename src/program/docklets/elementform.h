@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -36,7 +38,6 @@ public:
 
 public slots:
     void setElement(QSharedPointer<Element>, const File *);
-    void refreshElement();
 
 signals:
     void elementModified();
@@ -49,8 +50,6 @@ private slots:
     void modified(bool);
     void apply();
     bool validateAndOnlyThenApply();
-    void reset();
-    void visibilityChanged(bool);
     void autoApplyToggled(bool);
 };
 

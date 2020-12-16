@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -49,29 +51,29 @@ public:
             qCWarning(LOG_KBIBTEX_NETWORKING) << "Failed to initialize XSL transformation based on file '" << xsltFilenameBase << "'";
     }
 
-    QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
+    QUrl buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults) {
         QUrl queryUrl = apiUrl;
         QUrlQuery q(queryUrl.query());
 
         /// Free text
-        const QStringList freeTextFragments = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyFreeText]);
+        const QStringList freeTextFragments = OnlineSearchAbstract::splitRespectingQuotationMarks(query[QueryKey::FreeText]);
         if (!freeTextFragments.isEmpty())
             q.addQueryItem(QStringLiteral("querytext"), QStringLiteral("\"") + freeTextFragments.join(QStringLiteral("\"+\"")) + QStringLiteral("\""));
 
         /// Title
-        const QStringList title = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyTitle]);
+        const QStringList title = OnlineSearchAbstract::splitRespectingQuotationMarks(query[QueryKey::Title]);
         if (!title.isEmpty())
             q.addQueryItem(QStringLiteral("article_title"), QStringLiteral("\"") + title.join(QStringLiteral("\"+\"")) + QStringLiteral("\""));
 
         /// Author
-        const QStringList authors = OnlineSearchAbstract::splitRespectingQuotationMarks(query[queryKeyAuthor]);
+        const QStringList authors = OnlineSearchAbstract::splitRespectingQuotationMarks(query[QueryKey::Author]);
         if (!authors.isEmpty())
             q.addQueryItem(QStringLiteral("author"), QStringLiteral("\"") + authors.join(QStringLiteral("\"+\"")) + QStringLiteral("\""));
 
         /// Year
-        if (!query[queryKeyYear].isEmpty()) {
-            q.addQueryItem(QStringLiteral("start_year"), query[queryKeyYear]);
-            q.addQueryItem(QStringLiteral("end_year"), query[queryKeyYear]);
+        if (!query[QueryKey::Year].isEmpty()) {
+            q.addQueryItem(QStringLiteral("start_year"), query[QueryKey::Year]);
+            q.addQueryItem(QStringLiteral("end_year"), query[QueryKey::Year]);
         }
 
         /// Sort order of results: newest publications first
@@ -101,7 +103,7 @@ OnlineSearchIEEEXplore::~OnlineSearchIEEEXplore()
     delete d;
 }
 
-void OnlineSearchIEEEXplore::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchIEEEXplore::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     m_hasBeenCanceled = false;
     emit progress(curStep = 0, numSteps = 1);
@@ -186,11 +188,6 @@ QString OnlineSearchIEEEXplore::label() const
     //= onlinesearch-ieeexplore-label
     return QObject::tr("IEEEXplore");
 #endif // HAVE_KF5
-}
-
-QString OnlineSearchIEEEXplore::favIconUrl() const
-{
-    return QStringLiteral("http://ieeexplore.ieee.org/favicon.ico");
 }
 
 QUrl OnlineSearchIEEEXplore::homepage() const

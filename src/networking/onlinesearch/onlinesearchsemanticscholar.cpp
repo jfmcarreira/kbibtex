@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -121,16 +123,21 @@ public:
     }
 #endif // HAVE_QTWIDGETS
 
-    QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
+    QUrl buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults) {
         Q_UNUSED(numResults)
 
-        const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(query[queryKeyFreeText]);
+        const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(query[QueryKey::FreeText]);
         if (doiRegExpMatch.hasMatch())
             return QUrl(QStringLiteral("https://api.semanticscholar.org/v1/paper/") + doiRegExpMatch.captured(0));
         else {
-            const QRegularExpressionMatch arXivRegExpMatch = KBibTeX::arXivRegExpWithoutPrefix.match(query[queryKeyFreeText]);
+            const QRegularExpressionMatch arXivRegExpMatch = KBibTeX::arXivRegExpWithPrefix.match(query[QueryKey::FreeText]);
             if (arXivRegExpMatch.hasMatch())
                 return QUrl(QStringLiteral("https://api.semanticscholar.org/v1/paper/") + arXivRegExpMatch.captured(0));
+            else {
+                const QRegularExpressionMatch arXivRegExpMatch = KBibTeX::arXivRegExpWithoutPrefix.match(query[QueryKey::FreeText]);
+                if (arXivRegExpMatch.hasMatch())
+                    return QUrl(QStringLiteral("https://api.semanticscholar.org/v1/paper/arXiv:") + arXivRegExpMatch.captured(0));
+            }
         }
         return QUrl();
     }
@@ -208,7 +215,7 @@ void OnlineSearchSemanticScholar::startSearchFromForm()
 }
 #endif // HAVE_QTWIDGETS
 
-void OnlineSearchSemanticScholar::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchSemanticScholar::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     m_hasBeenCanceled = false;
     emit progress(curStep = 0, numSteps = 1);
@@ -244,11 +251,6 @@ QUrl OnlineSearchSemanticScholar::homepage() const
     return QUrl(QStringLiteral("https://www.semanticscholar.org/"));
 }
 
-QString OnlineSearchSemanticScholar::favIconUrl() const
-{
-    return QStringLiteral("https://www.semanticscholar.org/img/favicon.png");
-}
-
 void OnlineSearchSemanticScholar::downloadDone()
 {
     emit progress(++curStep, numSteps);
@@ -266,10 +268,7 @@ void OnlineSearchSemanticScholar::downloadDone()
             connect(newReply, &QNetworkReply::finished, this, &OnlineSearchSemanticScholar::downloadDone);
         } else {
             QJsonParseError parseError;
-            const auto buffer = reply->readAll();
-            const QString jsonText = QString::fromUtf8(buffer);
-            dumpToFile(QStringLiteral("semanticscholar.json"), jsonText);
-            const QJsonDocument document = QJsonDocument::fromJson(buffer, &parseError);
+            const QJsonDocument document = QJsonDocument::fromJson(reply->readAll(), &parseError);
             if (parseError.error == QJsonParseError::NoError) {
                 if (document.isObject()) {
                     Entry *entry = d->entryFromJsonObject(document.object());

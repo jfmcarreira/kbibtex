@@ -24,13 +24,13 @@ SOURCES += src/main.cpp src/searchenginelist.cpp \
     ../../src/io/encoderlatex.cpp \
     ../../src/io/fileimporter.cpp \
     ../../src/io/fileimporterbibtex.cpp \
-    ../../src/io/textencoder.cpp ../../src/io/xsltransform.cpp \
+    ../../src/io/xsltransform.cpp \
     ../../src/config/preferences.cpp \
     ../../src/config/bibtexfields.cpp \
     ../../src/config/bibtexentries.cpp \
-    ../../src/config/logging_config.cpp \
-    ../../src/networking/logging_networking.cpp \
-    ../../src/data/logging_data.cpp ../../src/io/logging_io.cpp
+    $${OUT_PWD}/src/config/logging_config.cpp \
+    $${OUT_PWD}/src/networking/logging_networking.cpp \
+    $${OUT_PWD}/src/data/logging_data.cpp $${OUT_PWD}/src/io/logging_io.cpp
 
 HEADERS += src/bibliographymodel.h src/searchenginelist.h \
     src/kbibtexnamespace.h ../../src/data/entry.h \
@@ -53,11 +53,11 @@ HEADERS += src/bibliographymodel.h src/searchenginelist.h \
     ../../src/io/encoderxml.h ../../src/io/encoder.h \
     ../../src/io/encoderlatex.h ../../src/io/fileimporter.h \
     ../../src/io/fileimporterbibtex.h \
-    ../../src/io/textencoder.h ../../src/io/xsltransform.h \
+    ../../src/io/xsltransform.h \
     ../../src/config/preferences.h \
     ../../src/config/bibtexfields.h ../../src/config/bibtexentries.h
 
-OTHER_FILES += qml/pages/SearchForm.qml qml/pages/EntryView.qml \
+DISTFILES += qml/pages/SearchForm.qml qml/pages/EntryView.qml \
     qml/pages/AboutPage.qml qml/pages/BibliographyListView.qml \
     qml/cover/CoverPage.qml qml/BibSearch.qml \
     qml/pages/AboutPage.qml qml/pages/SearchEngineListView.qml \
@@ -74,18 +74,13 @@ DEFINES += KBIBTEXGLOBAL_EXPORT= KBIBTEXCONFIG_EXPORT= KBIBTEXDATA_EXPORT= KBIBT
 
 INCLUDEPATH +=  ../../src/global $${OUT_PWD}/src/global ../../src/config $${OUT_PWD}/src/config ../../src/data $${OUT_PWD}/src/data ../../src/io $${OUT_PWD}/src/io ../../src/networking ../../src/networking/onlinesearch $${OUT_PWD}/src/networking
 
-CONFIG += sailfishapp_i18n sailfishapp_i18n_idbased
+# Do not forget to run  lupdate bibsearch.pro && lrelease bibsearch.pro  to update .qm files
 
 TRANSLATIONS += \
     translations/$${TARGET}-de.ts \
     translations/$${TARGET}-en.ts
+CODECFORTR = UTF-8
 
-DISTFILES += \
-    qml/pages/BibliographyListView.qml \
-    qml/pages/EntryView.qml \
-    qml/pages/SearchForm.qml \
-    qml/pages/SettingsPage.qml \
-    qml/pages/AboutPage.qml
 
 xslt.files = ../../xslt/pam2bibtex.xsl ../../xslt/ieeexploreapiv1-to-bibtex.xsl \
     ../../xslt/arxiv2bibtex.xsl ../../xslt/pubmed2bibtex.xsl

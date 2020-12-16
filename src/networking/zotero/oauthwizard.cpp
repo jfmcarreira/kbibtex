@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -30,9 +32,14 @@
 #include <QRegularExpression>
 #include <QtNetworkAuth>
 
-#include <KLocalizedString>
-#include <KRun>
 #include <kio_version.h>
+#include <KLocalizedString>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
+#include <KRun>
+#endif // KIO_VERSION >= 0x054700
 
 #include "internalnetworkaccessmanager.h"
 #include "logging_networking.h"
@@ -69,7 +76,7 @@ public:
         /// If the correct URL with an authorization token is requested from this
         /// local webserver, the credentials will be stored and this wizard dialog
         /// be closed.
-        const quint16 port = static_cast<quint16>(qrand() % 50000) + 15000;
+        const quint16 port = static_cast<quint16>(QRandomGenerator::global()->bounded(1025, 65533) & 0xffff);
         QOAuthHttpServerReplyHandler *replyHandler = new QOAuthHttpServerReplyHandler(port, parent);
         replyHandler->setCallbackPath("kbibtex-zotero-oauth");
         replyHandler->setCallbackText(i18n("<html><head><title>KBibTeX authorized to use Zotero</title></head><body><p>KBibTeX got successfully authorized to read your Zotero database.</p></body></html>"));
@@ -143,18 +150,24 @@ public:
         buttonOpenAuthorizationUrl = new QPushButton(QIcon::fromTheme(QStringLiteral("document-open-remote")), i18n("Open URL"), p);
         gridLayout->addWidget(buttonOpenAuthorizationUrl, 3, 2, 1, 1);
         connect(buttonOpenAuthorizationUrl, &QPushButton::clicked, p, [this]() {
+#if KIO_VERSION < 0x054700 // < 5.71.0
             KRun::runUrl(QUrl(lineEditAuthorizationUrl->text()), QStringLiteral("text/html"), p, KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+            KIO::OpenUrlJob *job = new KIO::OpenUrlJob(QUrl(lineEditAuthorizationUrl->text()), QStringLiteral("text/html"));
+            job->setUiDelegate(new KIO::JobUiDelegate());
+            job->start();
+#endif // KIO_VERSION < 0x054700
         });
 
         gridLayout->setRowMinimumHeight(4, p->fontMetrics().xHeight() * 2);
         QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Close, Qt::Horizontal, p);
         gridLayout->addWidget(buttonBox, 5, 0, 1, 3);
-        connect(buttonBox, &QDialogButtonBox::clicked, [this, buttonBox](QAbstractButton *button) {
+        connect(buttonBox, &QDialogButtonBox::clicked, p, [this, buttonBox](QAbstractButton *button) {
             if (button == buttonBox->button(QDialogButtonBox::Close))
                 p->reject();
         });
 
-        p->setWindowTitle(i18n("Zotero OAuth Key Exchange"));
+        p->setWindowTitle(i18nc("@title:window", "Zotero OAuth Key Exchange"));
     }
 };
 
@@ -190,5 +203,3 @@ QString OAuthWizard::apiKey() const
 {
     return d->apiKey;
 }
-
-#include "oauthwizard.moc"

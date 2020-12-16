@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -35,7 +37,9 @@
 #include <QTemporaryFile>
 #include <QTimer>
 #include <QStandardPaths>
+#include <QFlags>
 
+#include <kio_version.h>
 #include <KMessageBox> // FIXME deprecated
 #include <KLocalizedString>
 #include <KActionCollection>
@@ -43,13 +47,17 @@
 #include <KActionMenu>
 #include <KSelectAction>
 #include <KToggleAction>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
 #include <KRun>
+#endif // KIO_VERSION >= 0x054700
 #include <KPluginFactory>
 #include <KIO/StatJob>
 #include <KIO/CopyJob>
 #include <KIO/Job>
 #include <KJobWidgets>
-#include <kio_version.h>
 
 #include <Preferences>
 #include <File>
@@ -113,6 +121,8 @@ private:
     }
 
 public:
+    enum FileScope { scopeAllElements, scopeSelectedElements };
+
     File *bibTeXFile;
     PartWidget *partWidget;
     FileModel *model;
@@ -157,6 +167,13 @@ public:
         QAction *saveCopyAsAction = new QAction(QIcon::fromTheme(QStringLiteral("document-save")), i18n("Save Copy As..."), p);
         p->actionCollection()->addAction(QStringLiteral("file_save_copy_as"), saveCopyAsAction);
         connect(saveCopyAsAction, &QAction::triggered, p, &KBibTeXPart::documentSaveCopyAs);
+        /// "Save selection" action
+        QAction *saveSelectionAction = new QAction(QIcon::fromTheme(QStringLiteral("document-save")), i18n("Save Selection..."), p);
+        p->actionCollection()->addAction(QStringLiteral("file_save_selection"), saveSelectionAction);
+        connect(saveSelectionAction, &QAction::triggered, p, &KBibTeXPart::documentSaveSelection);
+        /// Enable "save selection" action only if there is something selected
+        connect(partWidget->fileView(), &BasicFileView::hasSelectionChanged, saveSelectionAction, &QAction::setEnabled);
+        saveSelectionAction->setEnabled(false);
 
         /// Filter bar widget
         QAction *filterWidgetAction = new QAction(i18n("Filter"), p);
@@ -216,17 +233,20 @@ public:
         Clipboard *clipboard = new Clipboard(partWidget->fileView());
 
         /// Actions to cut and copy selected elements as BibTeX code
-        editCutAction = p->actionCollection()->addAction(KStandardAction::Cut, clipboard, SLOT(cut()));
-        editCopyAction = p->actionCollection()->addAction(KStandardAction::Copy, clipboard, SLOT(copy()));
+        editCutAction = p->actionCollection()->addAction(KStandardAction::Cut);
+        connect(editCutAction, &QAction::triggered, clipboard, &Clipboard::cut);
+        editCopyAction = p->actionCollection()->addAction(KStandardAction::Copy);
+        connect(editCopyAction, &QAction::triggered, clipboard, &Clipboard::copy);
 
-        /// Action to copy references, e.g. '\cite{fordfulkerson1959}'
+        /// Action to copy references, e.g. '\\cite{fordfulkerson1959}'
         editCopyReferencesAction = new QAction(QIcon::fromTheme(QStringLiteral("edit-copy")), i18n("Copy References"), p);
         p->actionCollection()->setDefaultShortcut(editCopyReferencesAction, Qt::CTRL + Qt::SHIFT + Qt::Key_C);
         p->actionCollection()->addAction(QStringLiteral("edit_copy_references"), editCopyReferencesAction);
         connect(editCopyReferencesAction, &QAction::triggered, clipboard, &Clipboard::copyReferences);
 
         /// Action to paste BibTeX code
-        editPasteAction = p->actionCollection()->addAction(KStandardAction::Paste, clipboard, SLOT(paste()));
+        action = editPasteAction = p->actionCollection()->addAction(KStandardAction::Paste);
+        connect(action, &QAction::triggered, clipboard, &Clipboard::paste);
 
         /// Action to delete selected rows/elements
         editDeleteAction = new QAction(QIcon::fromTheme(QStringLiteral("edit-table-delete-row")), i18n("Delete"), p);
@@ -262,9 +282,8 @@ public:
     }
 
     FileImporter *fileImporterFactory(const QUrl &url) {
-        QString ending = url.path().toLower();
-        const auto pos = ending.lastIndexOf(QStringLiteral("."));
-        ending = ending.mid(pos + 1);
+        const QFileInfo filenameInfo(url.fileName());
+        const QString ending = filenameInfo.completeSuffix();
 
         if (ending == QStringLiteral("pdf")) {
             return new FileImporterPDF(p);
@@ -272,11 +291,11 @@ public:
             return new FileImporterRIS(p);
         } else if (BibUtils::available() && ending == QStringLiteral("isi")) {
             FileImporterBibUtils *fileImporterBibUtils = new FileImporterBibUtils(p);
-            fileImporterBibUtils->setFormat(BibUtils::ISI);
+            fileImporterBibUtils->setFormat(BibUtils::Format::ISI);
             return fileImporterBibUtils;
         } else {
             FileImporterBibTeX *fileImporterBibTeX = new FileImporterBibTeX(p);
-            fileImporterBibTeX->setCommentHandling(FileImporterBibTeX::KeepComments);
+            fileImporterBibTeX->setCommentHandling(FileImporterBibTeX::CommentHandling::Keep);
             return fileImporterBibTeX;
         }
     }
@@ -294,14 +313,14 @@ public:
             return new FileExporterPS(p);
         } else if (BibUtils::available() && ending == QStringLiteral("isi")) {
             FileExporterBibUtils *fileExporterBibUtils = new FileExporterBibUtils(p);
-            fileExporterBibUtils->setFormat(BibUtils::ISI);
+            fileExporterBibUtils->setFormat(BibUtils::Format::ISI);
             return fileExporterBibUtils;
         } else if (ending == QStringLiteral("rtf")) {
             return new FileExporterRTF(p);
         } else if (ending == QStringLiteral("html") || ending == QStringLiteral("htm")) {
             return new FileExporterBibTeX2HTML(p);
         } else if (ending == QStringLiteral("bbl")) {
-            return new FileExporterBibTeXOutput(FileExporterBibTeXOutput::BibTeXBlockList, p);
+            return new FileExporterBibTeXOutput(FileExporterBibTeXOutput::OutputType::BibTeXBlockList, p);
         } else {
             return new FileExporterBibTeX(p);
         }
@@ -392,15 +411,19 @@ public:
         const int numberOfBackups = Preferences::instance().numberOfBackups();
 
         /// Stop right here if no backup is requested
-        if (Preferences::instance().backupScope() == Preferences::NoBackup)
+        if (Preferences::instance().backupScope() == Preferences::BackupScope::None)
             return;
 
         /// For non-local files, proceed only if backups to remote storage is allowed
-        if (Preferences::instance().backupScope() != Preferences::BothLocalAndRemote && !url.isLocalFile())
+        if (Preferences::instance().backupScope() != Preferences::BackupScope::BothLocalAndRemote && !url.isLocalFile())
             return;
 
         /// Do not make backup copies if destination file does not exist yet
+#if KIO_VERSION >= 0x054500 // >= 5.69.0
+        KIO::StatJob *statJob = KIO::statDetails(url, KIO::StatJob::DestinationSide, KIO::StatNoDetails /** not details necessary, just need to know if file exists */, KIO::HideProgressInfo);
+#else // KIO_VERSION < 0x054500 // < 5.69.0
         KIO::StatJob *statJob = KIO::stat(url, KIO::StatJob::DestinationSide, 0 /** not details necessary, just need to know if file exists */, KIO::HideProgressInfo);
+#endif // KIO_VERSION
         KJobWidgets::setWindow(statJob, p->widget());
         statJob->exec();
         if (statJob->error() == KIO::ERR_DOES_NOT_EXIST)
@@ -419,7 +442,11 @@ public:
             QUrl olderBackupUrl = url;
             constructBackupUrl(level, olderBackupUrl);
 
+#if KIO_VERSION >= 0x054500 // >= 5.69.0
+            statJob = KIO::statDetails(newerBackupUrl, KIO::StatJob::DestinationSide, KIO::StatNoDetails /** not details necessary, just need to know if file exists */, KIO::HideProgressInfo);
+#else // KIO_VERSION < 0x054500 // < 5.69.0
             statJob = KIO::stat(newerBackupUrl, KIO::StatJob::DestinationSide, 0 /** not details necessary, just need to know if file exists */, KIO::HideProgressInfo);
+#endif // KIO_VERSION
             KJobWidgets::setWindow(statJob, p->widget());
             if (statJob->exec() && statJob->error() == KIO::Job::NoError) {
                 KIO::CopyJob *moveJob = nullptr; ///< guaranteed to be initialized in either branch of the following code
@@ -464,26 +491,47 @@ public:
             KMessageBox::error(p->widget(), i18n("Could not create backup copies of document '%1'.", url.url(QUrl::PreferLocalFile)), i18n("Backup copies"));
     }
 
-    QUrl getSaveFilename(bool mustBeImportable = true) {
-        QString startDir = p->url().isValid() ? p->url().path() : QString();
+    /**
+     * Options to tell @see getSaveFileame how to prepare the file-save dialog.
+     */
+    enum GetSaveFilenameOption {
+        gsfoImportableFiletype = 0x01, ///< List of available mime types to save as may onlz include mime types which can be loaded/imported, too
+        gsfoCurrentFilenameReused = 0x02 ///< Propose the current filename as the default suggestion (file extension may get adjusted, though)
+    };
+
+    /**
+     * Prepare and show a file-save dialog to the user. The dialog is prepared
+     * as requested by the options, which are an OR combination of flags from
+     * @see GetSaveFilenameOption
+     * @param options OR combination of flags from @see GetSaveFilenameOption enum
+     * @return Valid URL if querying filename in file-save dialog succeeded, invalid URL otherwise
+     */
+    QUrl getSaveFilename(const int options) const {
+        const QString startDir = p->url().isValid() ? ((options & GetSaveFilenameOption::gsfoCurrentFilenameReused) > 0 ? p->url().path() : QFileInfo(p->url().path()).absolutePath()) : QString();
         QString supportedMimeTypes = QStringLiteral("text/x-bibtex text/x-research-info-systems");
         if (BibUtils::available())
             supportedMimeTypes += QStringLiteral(" application/x-isi-export-format application/x-endnote-refer");
-        if (!mustBeImportable && !QStandardPaths::findExecutable(QStringLiteral("pdflatex")).isEmpty())
-            supportedMimeTypes += QStringLiteral(" application/pdf");
-        if (!mustBeImportable && !QStandardPaths::findExecutable(QStringLiteral("dvips")).isEmpty())
-            supportedMimeTypes += QStringLiteral(" application/postscript");
-        if (!mustBeImportable)
-            supportedMimeTypes += QStringLiteral(" text/html");
-        if (!mustBeImportable && !QStandardPaths::findExecutable(QStringLiteral("latex2rtf")).isEmpty())
-            supportedMimeTypes += QStringLiteral(" application/rtf");
+        if ((options & GetSaveFilenameOption::gsfoImportableFiletype) == 0) {
+            if (!QStandardPaths::findExecutable(QStringLiteral("pdflatex")).isEmpty())
+                supportedMimeTypes += QStringLiteral(" application/pdf");
+            if (!QStandardPaths::findExecutable(QStringLiteral("dvips")).isEmpty())
+                supportedMimeTypes += QStringLiteral(" application/postscript");
+            supportedMimeTypes += QStringLiteral(" text/html application/xml");
+            if (!QStandardPaths::findExecutable(QStringLiteral("latex2rtf")).isEmpty())
+                supportedMimeTypes += QStringLiteral(" application/rtf");
+        }
 
         QPointer<QFileDialog> saveDlg = new QFileDialog(p->widget(), i18n("Save file") /* TODO better text */, startDir, supportedMimeTypes);
         /// Setting list of mime types for the second time,
         /// essentially calling this function only to set the "default mime type" parameter
+#if QT_VERSION >= 0x050e00
+        saveDlg->setMimeTypeFilters(supportedMimeTypes.split(QLatin1Char(' '), Qt::SkipEmptyParts));
+#else // QT_VERSION < 0x050e00
         saveDlg->setMimeTypeFilters(supportedMimeTypes.split(QLatin1Char(' '), QString::SkipEmptyParts));
+#endif // QT_VERSION >= 0x050e00
         /// Setting the dialog into "Saving" mode make the "add extension" checkbox available
         saveDlg->setAcceptMode(QFileDialog::AcceptSave);
+        /// Mime type 'text/x-bibtex' is guaranteed to be pre-selected, so set default filename suffix accordingly
         saveDlg->setDefaultSuffix(QStringLiteral("bib"));
         saveDlg->setFileMode(QFileDialog::AnyFile);
         if (saveDlg->exec() != QDialog::Accepted)
@@ -503,7 +551,7 @@ public:
 
             if (FileExporterBibTeX::isFileExporterBibTeX(*exporter)) {
                 QPointer<QDialog> dlg = new QDialog(p->widget());
-                dlg->setWindowTitle(i18n("BibTeX File Settings"));
+                dlg->setWindowTitle(i18nc("@title:window", "BibTeX File Settings"));
                 QBoxLayout *layout = new QVBoxLayout(dlg);
                 FileSettingsWidget *settingsWidget = new FileSettingsWidget(dlg);
                 layout->addWidget(settingsWidget);
@@ -520,7 +568,7 @@ public:
                 delete dlg;
             } else if ((fet = qobject_cast<FileExporterToolchain *>(exporter)) != nullptr) {
                 QPointer<QDialog> dlg = new QDialog(p->widget());
-                dlg->setWindowTitle(i18n("PDF/PostScript File Settings"));
+                dlg->setWindowTitle(i18nc("@title:window", "PDF/PostScript File Settings"));
                 QBoxLayout *layout = new QVBoxLayout(dlg);
                 SettingsFileExporterPDFPSWidget *settingsWidget = new SettingsFileExporterPDFPSWidget(dlg);
                 layout->addWidget(settingsWidget);
@@ -539,25 +587,51 @@ public:
         return exporter;
     }
 
-    bool saveFile(QFile &file, FileExporter *exporter, QStringList *errorLog = nullptr) {
+    bool saveFile(QFile &file, const FileScope fileScope, FileExporter *exporter) {
         SortFilterFileModel *model = qobject_cast<SortFilterFileModel *>(partWidget->fileView()->model());
         Q_ASSERT_X(model != nullptr, "FileExporter *KBibTeXPart::KBibTeXPartPrivate:saveFile(...)", "SortFilterFileModel *model from editor->model() is invalid");
+        Q_ASSERT_X(model->fileSourceModel()->bibliographyFile() == bibTeXFile, "FileExporter *KBibTeXPart::KBibTeXPartPrivate:saveFile(...)", "SortFilterFileModel's BibTeX File does not match Part's BibTeX File");
 
-        return exporter->save(&file, model->fileSourceModel()->bibliographyFile(), errorLog);
+        switch (fileScope) {
+        case scopeAllElements: {
+            /// Save complete file
+            return exporter->save(&file, bibTeXFile);
+        } ///< no break required as there is an unconditional 'return' further above
+        case scopeSelectedElements: {
+            /// Save only selected elements
+            const auto &list = partWidget->fileView()->selectionModel()->selectedRows();
+            if (list.isEmpty()) return false; /// Empty selection? Abort here
+
+            File fileWithSelectedElements;
+            for (const QModelIndex &indexInSelection : list) {
+                const QModelIndex &indexInFileModel = model->mapToSource(indexInSelection);
+                const int row = indexInFileModel.row();
+                const QSharedPointer<Element> &element = (*bibTeXFile)[row];
+                fileWithSelectedElements << element;
+            }
+            return exporter->save(&file, &fileWithSelectedElements);
+        } ///< no break required as there is an unconditional 'return' further above
+        }
+
+        /// Above switch should cover all cases and each case should
+        /// invoke 'return'. Thus, this code here should never be reached.
+        return false;
     }
 
-    bool saveFile(const QUrl &url) {
+    bool saveFile(const QUrl &url, const FileScope &fileScope = scopeAllElements) {
         bool result = false;
-        Q_ASSERT_X(url.isValid(), "bool KBibTeXPart::KBibTeXPartPrivate:saveFile(const QUrl &url)", "url must be valid");
+        Q_ASSERT_X(url.isValid(), "bool KBibTeXPart::KBibTeXPartPrivate:saveFile(const QUrl &url, const FileScope&)", "url must be valid");
 
         /// Extract filename extension (e.g. 'bib') to determine which FileExporter to use
-        static const QRegularExpression suffixRegExp(QStringLiteral("\\.([^.]{1,4})$"));
-        const QRegularExpressionMatch suffixRegExpMatch = suffixRegExp.match(url.fileName());
-        const QString ending = suffixRegExpMatch.hasMatch() ? suffixRegExpMatch.captured(1) : QStringLiteral("bib");
+        const QFileInfo filenameInfo(url.fileName());
+        const QString ending = filenameInfo.completeSuffix();
         FileExporter *exporter = saveFileExporter(ending);
-
-        /// String list to collect error message from FileExporer
         QStringList errorLog;
+        QObject::connect(exporter, &FileExporter::message, p, [&errorLog](const FileExporter::MessageSeverity severity, const QString & messageText) {
+            if (severity >= FileExporter::MessageSeverity::Warning)
+                errorLog.append(messageText);
+        });
+
         qApp->setOverrideCursor(Qt::WaitCursor);
 
         if (url.isLocalFile()) {
@@ -576,9 +650,12 @@ public:
 
                 QFile file(filename);
                 if (file.open(QIODevice::WriteOnly)) {
-                    result = saveFile(file, exporter, &errorLog);
+                    result = saveFile(file, fileScope, exporter);
                     file.close();
-                }
+                    if (!result)
+                        qCWarning(LOG_KBIBTEX_PART) << "Could not write bibliographic data to file.";
+                } else
+                    qCWarning(LOG_KBIBTEX_PART) << QString(QStringLiteral("Could not open local file '%1' for writing.")).arg(filename);
             }
         } else {
             /// URL points to a remote location
@@ -587,7 +664,7 @@ public:
             QTemporaryFile temporaryFile(QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QDir::separator() + QStringLiteral("kbibtex_savefile_XXXXXX") + ending);
             temporaryFile.setAutoRemove(true);
             if (temporaryFile.open()) {
-                result = saveFile(temporaryFile, exporter, &errorLog);
+                result = saveFile(temporaryFile, fileScope, exporter);
 
                 /// Close/flush temporary file
                 temporaryFile.close();
@@ -599,8 +676,12 @@ public:
                     KIO::CopyJob *copyJob = KIO::copy(QUrl::fromLocalFile(temporaryFile.fileName()), url, KIO::HideProgressInfo | KIO::Overwrite);
                     KJobWidgets::setWindow(copyJob, p->widget());
                     result &= copyJob->exec() && copyJob->error() == KIO::Job::NoError;
-                }
-            }
+                    if (!result)
+                        qCWarning(LOG_KBIBTEX_PART) << QString(QStringLiteral("Failed to upload temporary file to final destination '%1'")).arg(url.toDisplayString());
+                } else
+                    qCWarning(LOG_KBIBTEX_PART) << QStringLiteral("Could not write bibliographic data to temporary file.");
+            } else
+                qCWarning(LOG_KBIBTEX_PART) << QStringLiteral("Could not open temporary file for writing.");
         }
 
         qApp->restoreOverrideCursor();
@@ -611,12 +692,15 @@ public:
             QString msg = i18n("Saving the bibliography to file '%1' failed.", url.toDisplayString());
             if (errorLog.isEmpty())
                 KMessageBox::error(p->widget(), msg, i18n("Saving bibliography failed"));
+            else if (errorLog.size() == 1)
+                KMessageBox::error(p->widget(), msg, i18n("Saving bibliography failed:") + QStringLiteral("\n\n") + errorLog.first());
             else {
                 msg += QLatin1String("\n\n");
                 msg += i18n("The following output was generated by the export filter:");
                 KMessageBox::errorList(p->widget(), msg, errorLog, i18n("Saving bibliography failed"));
             }
-        }
+        } else
+            bibTeXFile->setProperty(File::Url, url);
         return result;
     }
 
@@ -630,16 +714,13 @@ public:
         viewDocumentMenu->clear();
         int result = 0; ///< Initially, no references are known
 
-        File *bibliographyFile = partWidget != nullptr && partWidget->fileView() != nullptr && partWidget->fileView()->fileModel() != nullptr ? partWidget->fileView()->fileModel()->bibliographyFile() : nullptr;
-        if (bibliographyFile == nullptr) return result;
-
         /// Retrieve Entry object of currently selected line
         /// in main list view
         QSharedPointer<const Entry> entry = partWidget->fileView()->currentElement().dynamicCast<const Entry>();
         /// Test and continue if there was an Entry to retrieve
         if (!entry.isNull()) {
             /// Get list of URLs associated with this entry
-            const auto urlList = FileInfo::entryUrls(entry, bibliographyFile->property(File::Url).toUrl(), FileInfo::TestExistenceYes);
+            const auto urlList = FileInfo::entryUrls(entry, bibTeXFile->property(File::Url).toUrl(), FileInfo::TestExistence::Yes);
             if (!urlList.isEmpty()) {
                 /// Memorize first action, necessary to set menu title
                 QAction *firstAction = nullptr;
@@ -652,6 +733,7 @@ public:
                     const QFileInfo fi(url.toLocalFile());
                     const QString label = QString(QStringLiteral("%1 [%2]")).arg(fi.fileName(), fi.absolutePath());
                     QAction *action = new QAction(QIcon::fromTheme(FileInfo::mimeTypeForUrl(url).iconName()), label, p);
+                    action->setData(QUrl::fromLocalFile(fi.absoluteFilePath()));
                     action->setToolTip(fi.absoluteFilePath());
                     /// Open URL when action is triggered
                     connect(action, &QAction::triggered, p, [this, fi]() {
@@ -676,6 +758,7 @@ public:
                     /// Build a nice menu item (label, icon, ...)
                     const QString prettyUrl = url.toDisplayString();
                     QAction *action = new QAction(QIcon::fromTheme(FileInfo::mimeTypeForUrl(url).iconName()), prettyUrl, p);
+                    action->setData(url);
                     action->setToolTip(prettyUrl);
                     /// Open URL when action is triggered
                     connect(action, &QAction::triggered, p, [this, url]() {
@@ -703,10 +786,10 @@ public:
         disconnect(partWidget->fileView(), &FileView::elementExecuted, partWidget->fileView(), &FileView::editElement);
         disconnect(partWidget->fileView(), &FileView::elementExecuted, p, &KBibTeXPart::elementViewDocument);
         switch (Preferences::instance().fileViewDoubleClickAction()) {
-        case Preferences::ActionOpenEditor:
+        case Preferences::FileViewDoubleClickAction::OpenEditor:
             connect(partWidget->fileView(), &FileView::elementExecuted, partWidget->fileView(), &FileView::editElement);
             break;
-        case Preferences::ActionViewDocument:
+        case Preferences::FileViewDoubleClickAction::ViewDocument:
             connect(partWidget->fileView(), &FileView::elementExecuted, p, &KBibTeXPart::elementViewDocument);
             break;
         }
@@ -717,7 +800,13 @@ public:
         const QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
         const QString mimeTypeName = mimeType.name();
         /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
         KRun::runUrl(url, mimeTypeName, p->widget(), KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+        KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mimeTypeName);
+        job->setUiDelegate(new KIO::JobUiDelegate());
+        job->start();
+#endif // KIO_VERSION < 0x054700
     }
 
 };
@@ -811,7 +900,7 @@ bool KBibTeXPart::documentSave()
 bool KBibTeXPart::documentSaveAs()
 {
     d->isSaveAsOperation = true;
-    QUrl newUrl = d->getSaveFilename();
+    QUrl newUrl = d->getSaveFilename(KBibTeXPartPrivate::gsfoCurrentFilenameReused | KBibTeXPartPrivate::gsfoImportableFiletype);
     if (!newUrl.isValid())
         return false;
 
@@ -826,23 +915,34 @@ bool KBibTeXPart::documentSaveAs()
         qCWarning(LOG_KBIBTEX_PART) << "Not removing" << url().url(QUrl::PreferLocalFile) << "from fileSystemWatcher";
 
     // TODO how does SaveAs dialog know which mime types to support?
-    if (KParts::ReadWritePart::saveAs(newUrl)) {
-        // FIXME d->model->bibliographyFile()->setProperty(File::Url, newUrl);
+    if (KParts::ReadWritePart::saveAs(newUrl))
         return true;
-    } else
+    else
         return false;
 }
 
 bool KBibTeXPart::documentSaveCopyAs()
 {
     d->isSaveAsOperation = true;
-    QUrl newUrl = d->getSaveFilename(false);
+    QUrl newUrl = d->getSaveFilename(KBibTeXPartPrivate::gsfoCurrentFilenameReused);
     if (!newUrl.isValid() || newUrl == url())
         return false;
 
     /// difference from KParts::ReadWritePart::saveAs:
     /// current document's URL won't be changed
     return d->saveFile(newUrl);
+}
+
+bool KBibTeXPart::documentSaveSelection()
+{
+    d->isSaveAsOperation = true;
+    const QUrl newUrl = d->getSaveFilename(~KBibTeXPartPrivate::gsfoCurrentFilenameReused);
+    if (!newUrl.isValid() || newUrl == url())
+        return false;
+
+    /// difference from KParts::ReadWritePart::saveAs:
+    /// current document's URL won't be changed
+    return d->saveFile(newUrl, KBibTeXPartPrivate::scopeSelectedElements);
 }
 
 void KBibTeXPart::elementViewDocument()
@@ -853,7 +953,8 @@ void KBibTeXPart::elementViewDocument()
     /// Go through all actions (i.e. document URLs) for this element
     for (const QAction *action : actionList) {
         /// Make URL from action's data ...
-        QUrl tmpUrl = QUrl(action->data().toString());
+        const QUrl tmpUrl = action->data().toUrl();
+        if (!tmpUrl.isValid()) continue;
         /// ... but skip this action if the URL is invalid
         if (!tmpUrl.isValid()) continue;
         if (tmpUrl.isLocalFile()) {
@@ -873,7 +974,13 @@ void KBibTeXPart::elementViewDocument()
         QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
         const QString mimeTypeName = mimeType.name();
         /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
         KRun::runUrl(url, mimeTypeName, widget(), KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+        KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mimeTypeName);
+        job->setUiDelegate(new KIO::JobUiDelegate());
+        job->start();
+#endif // KIO_VERSION < 0x054700
     }
 }
 
@@ -1042,5 +1149,3 @@ void KBibTeXPart::fileExternallyChange(const QString &path)
             qCWarning(LOG_KBIBTEX_PART) << "path is Empty";
     }
 }
-
-#include "part.moc"

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -22,6 +24,8 @@
 #include <QVector>
 
 #include <KBibTeX>
+
+#include "preferences.h"
 
 #ifdef HAVE_KF5
 #include "kbibtexconfig_export.h"
@@ -62,7 +66,7 @@ public:
      * @param casing can be any of the predefined formats such as lower camel case or upper case
      * @return returns the formatted entry name if possible or the "name" parameter's value as fall-back
      */
-    QString format(const QString &name, KBibTeX::Casing casing) const;
+    QString format(const QString &name, KBibTeX::Casing casing = Preferences::instance().bibTeXKeywordCasing()) const;
 
     /**
      * Returns the given entry name's i18n'ized, human-readable label,
@@ -73,6 +77,8 @@ public:
     QString label(const QString &name) const;
 
 private:
+    Q_DISABLE_COPY(BibTeXEntries)
+
     explicit BibTeXEntries(const QVector<EntryDescription> &other);
 
     class BibTeXEntriesPrivate;

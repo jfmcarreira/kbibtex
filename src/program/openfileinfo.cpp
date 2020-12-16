@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -59,7 +61,7 @@ public:
     QUrl url;
 
     OpenFileInfoPrivate(OpenFileInfoManager *openFileInfoManager, const QUrl &url, const QString &mimeType, OpenFileInfo *p)
-        :  m_counter(-1), p(p), part(nullptr), internalServicePtr(KService::Ptr()), internalWidgetParent(nullptr), flags(nullptr) {
+        :  m_counter(-1), p(p), part(nullptr), internalServicePtr(KService::Ptr()), internalWidgetParent(nullptr) {
         this->openFileInfoManager = openFileInfoManager;
         this->url = url;
         if (this->url.isValid() && this->url.scheme().isEmpty())
@@ -77,7 +79,7 @@ public:
     }
 
     KParts::ReadOnlyPart *createPart(QWidget *newWidgetParent, KService::Ptr newServicePtr = KService::Ptr()) {
-        if (!p->flags().testFlag(OpenFileInfo::Open)) {
+        if (!p->flags().testFlag(OpenFileInfo::StatusFlag::Open)) {
             qCWarning(LOG_KBIBTEX_PROGRAM) << "Cannot create part for a file which is not open";
             return nullptr;
         }
@@ -111,12 +113,12 @@ public:
             qCDebug(LOG_KBIBTEX_PROGRAM) << "XDG_DATA_DIRS=" << getenv("XDG_DATA_DIRS");
             qCDebug(LOG_KBIBTEX_PROGRAM) << "QT_PLUGIN_PATH=" << getenv("QT_PLUGIN_PATH");
             qCDebug(LOG_KBIBTEX_PROGRAM) << "KDEDIRS=" << getenv("KDEDIRS");
-            qCCritical(LOG_KBIBTEX_PROGRAM) << "Cannot find service to handle mimetype " << mimeType << endl;
+            qCCritical(LOG_KBIBTEX_PROGRAM) << "Cannot find service to handle mimetype " << mimeType;
             return nullptr;
         }
 
         QString errorString;
-        part = newServicePtr->createInstance<KParts::ReadWritePart>(newWidgetParent, (QObject *)newWidgetParent, QVariantList(), &errorString);
+        part = newServicePtr->createInstance<KParts::ReadWritePart>(newWidgetParent, qobject_cast<QObject *>(newWidgetParent), QVariantList(), &errorString);
         if (part == nullptr) {
             qCDebug(LOG_KBIBTEX_PROGRAM) << "PATH=" << getenv("PATH");
             qCDebug(LOG_KBIBTEX_PROGRAM) << "LD_LIBRARY_PATH=" << getenv("LD_LIBRARY_PATH");
@@ -125,7 +127,7 @@ public:
             qCDebug(LOG_KBIBTEX_PROGRAM) << "KDEDIRS=" << getenv("KDEDIRS");
             qCWarning(LOG_KBIBTEX_PROGRAM) << "Could not instantiate read-write part for service" << newServicePtr->name() << "(mimeType=" << mimeType << ", library=" << newServicePtr->library() << ", error msg=" << errorString << ")";
             /// creating a read-write part failed, so maybe it is read-only (like Okular's PDF viewer)?
-            part = newServicePtr->createInstance<KParts::ReadOnlyPart>(newWidgetParent, (QObject *)newWidgetParent, QVariantList(), &errorString);
+            part = newServicePtr->createInstance<KParts::ReadOnlyPart>(newWidgetParent, qobject_cast<QObject *>(newWidgetParent), QVariantList(), &errorString);
         }
         if (part == nullptr) {
             /// still cannot create part, must be error
@@ -137,13 +139,13 @@ public:
             /// open URL in part
             part->openUrl(url);
             /// update document list widget accordingly
-            p->addFlags(OpenFileInfo::RecentlyUsed);
-            p->addFlags(OpenFileInfo::HasName);
+            p->addFlags(OpenFileInfo::StatusFlag::RecentlyUsed);
+            p->addFlags(OpenFileInfo::StatusFlag::HasName);
         } else {
             /// initialize part with empty document
             part->openUrl(QUrl());
         }
-        p->addFlags(OpenFileInfo::Open);
+        p->addFlags(OpenFileInfo::StatusFlag::Open);
 
         internalServicePtr = newServicePtr;
         internalWidgetParent = newWidgetParent;
@@ -191,7 +193,7 @@ void OpenFileInfo::setUrl(const QUrl &url)
     if (d->url.scheme().isEmpty())
         qCWarning(LOG_KBIBTEX_PROGRAM) << "No scheme specified for URL" << d->url.toDisplayString();
     d->mimeType = FileInfo::mimeTypeForUrl(url).name();
-    addFlags(OpenFileInfo::HasName);
+    addFlags(OpenFileInfo::StatusFlag::HasName);
 }
 
 QUrl OpenFileInfo::url() const
@@ -270,9 +272,9 @@ OpenFileInfo::StatusFlags OpenFileInfo::flags() const
 void OpenFileInfo::setFlags(StatusFlags statusFlags)
 {
     /// disallow files without name or valid url to become favorites
-    if (!d->url.isValid() || !d->flags.testFlag(HasName)) statusFlags &= ~Favorite;
+    if (!d->url.isValid() || !d->flags.testFlag(StatusFlag::HasName)) statusFlags &= ~static_cast<int>(StatusFlag::Favorite);
     /// files that got opened are by definition recently used files
-    if (!d->url.isValid() && d->flags.testFlag(Open)) statusFlags &= RecentlyUsed;
+    if (!d->url.isValid() && d->flags.testFlag(StatusFlag::Open)) statusFlags &= StatusFlag::RecentlyUsed;
 
     bool hasChanged = d->flags != statusFlags;
     d->flags = statusFlags;
@@ -283,7 +285,7 @@ void OpenFileInfo::setFlags(StatusFlags statusFlags)
 void OpenFileInfo::addFlags(StatusFlags statusFlags)
 {
     /// disallow files without name or valid url to become favorites
-    if (!d->url.isValid() || !d->flags.testFlag(HasName)) statusFlags &= ~Favorite;
+    if (!d->url.isValid() || !d->flags.testFlag(StatusFlag::HasName)) statusFlags &= ~static_cast<int>(StatusFlag::Favorite);
 
     bool hasChanged = (~d->flags & statusFlags) > 0;
     d->flags |= statusFlags;
@@ -307,7 +309,7 @@ QDateTime OpenFileInfo::lastAccess() const
 void OpenFileInfo::setLastAccess(const QDateTime &dateTime)
 {
     d->lastAccessDateTime = dateTime;
-    emit flagsChanged(OpenFileInfo::RecentlyUsed);
+    emit flagsChanged(OpenFileInfo::StatusFlag::RecentlyUsed);
 }
 
 KService::List OpenFileInfo::listOfServices()
@@ -418,22 +420,35 @@ public:
         return left->lastAccess() > right->lastAccess(); /// reverse sorting!
     }
 
-    void readConfig() {
-        readConfig(OpenFileInfo::RecentlyUsed, configGroupNameRecentlyUsed, maxNumRecentlyUsedFiles);
-        readConfig(OpenFileInfo::Favorite, configGroupNameFavorites, maxNumFavoriteFiles);
-        readConfig(OpenFileInfo::Open, configGroupNameOpen, maxNumOpenFiles);
+    void readConfig(QUrl &recentlyOpenURL) {
+        readConfig(OpenFileInfo::StatusFlag::RecentlyUsed, configGroupNameRecentlyUsed, maxNumRecentlyUsedFiles);
+        readConfig(OpenFileInfo::StatusFlag::Favorite, configGroupNameFavorites, maxNumFavoriteFiles);
+        readConfig(OpenFileInfo::StatusFlag::Open, configGroupNameOpen, maxNumOpenFiles);
+
+        KSharedConfigPtr config = KSharedConfig::openConfig(QStringLiteral("kbibtexrc"));
+        KConfigGroup cg(config, configGroupNameOpen);
+        static const QString recentlyOpenURLkey = OpenFileInfo::OpenFileInfoPrivate::keyURL + QStringLiteral("-current");
+        recentlyOpenURL = cg.hasKey(recentlyOpenURLkey) ? QUrl(cg.readEntry(recentlyOpenURLkey)) : QUrl();
     }
 
     void writeConfig() {
-        writeConfig(OpenFileInfo::RecentlyUsed, configGroupNameRecentlyUsed, maxNumRecentlyUsedFiles);
-        writeConfig(OpenFileInfo::Favorite, configGroupNameFavorites, maxNumFavoriteFiles);
-        writeConfig(OpenFileInfo::Open, configGroupNameOpen, maxNumOpenFiles);
+        writeConfig(OpenFileInfo::StatusFlag::RecentlyUsed, configGroupNameRecentlyUsed, maxNumRecentlyUsedFiles);
+        writeConfig(OpenFileInfo::StatusFlag::Favorite, configGroupNameFavorites, maxNumFavoriteFiles);
+        writeConfig(OpenFileInfo::StatusFlag::Open, configGroupNameOpen, maxNumOpenFiles);
+
+        KSharedConfigPtr config = KSharedConfig::openConfig(QStringLiteral("kbibtexrc"));
+        KConfigGroup cg(config, configGroupNameOpen);
+        static const QString recentlyOpenURLkey = OpenFileInfo::OpenFileInfoPrivate::keyURL + QStringLiteral("-current");
+        if (currentFileInfo != nullptr && currentFileInfo->url().isValid())
+            /// If there is a currently active and open file, remember that file's URL
+            cg.writeEntry(recentlyOpenURLkey, currentFileInfo->url().url(QUrl::PreferLocalFile));
+        else
+            cg.deleteEntry(recentlyOpenURLkey);
     }
 
     void readConfig(OpenFileInfo::StatusFlag statusFlag, const QString &configGroupName, int maxNumFiles) {
         KSharedConfigPtr config = KSharedConfig::openConfig(QStringLiteral("kbibtexrc"));
 
-        bool isFirst = true;
         KConfigGroup cg(config, configGroupName);
         for (int i = 0; i < maxNumFiles; ++i) {
             QUrl fileUrl = QUrl(cg.readEntry(QString(QStringLiteral("%1-%2")).arg(OpenFileInfo::OpenFileInfoPrivate::keyURL).arg(i), ""));
@@ -452,13 +467,8 @@ public:
                 ofi = p->open(fileUrl);
             }
             ofi->addFlags(statusFlag);
-            ofi->addFlags(OpenFileInfo::HasName);
+            ofi->addFlags(OpenFileInfo::StatusFlag::HasName);
             ofi->setLastAccess(QDateTime::fromString(cg.readEntry(QString(QStringLiteral("%1-%2")).arg(OpenFileInfo::OpenFileInfoPrivate::keyLastAccess).arg(i), ""), OpenFileInfo::OpenFileInfoPrivate::dateTimeFormat));
-            if (isFirst) {
-                isFirst = false;
-                if (statusFlag == OpenFileInfo::Open)
-                    p->setCurrentFile(ofi);
-            }
         }
     }
 
@@ -492,7 +502,28 @@ const int OpenFileInfoManager::OpenFileInfoManagerPrivate::maxNumOpenFiles = 16;
 OpenFileInfoManager::OpenFileInfoManager(QObject *parent)
         : QObject(parent), d(new OpenFileInfoManagerPrivate(this))
 {
-    QTimer::singleShot(300, this, &OpenFileInfoManager::delayedReadConfig);
+    QUrl recentlyOpenURL;
+    d->readConfig(recentlyOpenURL);
+
+    QTimer::singleShot(250, this, [this, recentlyOpenURL]() {
+        /// In case there is at least one file marked as 'open' but it is not yet actually open,
+        /// set it as current file now. The file to be opened (identified by URL) should be
+        /// preferably the file that was actively open at the end of last KBibTeX session.
+        /// Slightly delaying the actually opening of files is necessary to give precendence
+        /// to bibliography files passed as command line arguments (see program.cpp) over files
+        /// that where open when the previous KBibTeX session was quit.
+        /// See KDE bug 417164.
+        /// TODO still necessary to refactor the whole 'file opening' control flow to avoid hacks like this one
+        if (d->currentFileInfo == nullptr) {
+            OpenFileInfo *ofiToUse = nullptr;
+            /// Go over the list of files that are flagged as 'open' ...
+            for (auto *ofi : const_cast<const OpenFileInfoManager::OpenFileInfoList &>(d->openFileInfoList))
+                if (ofi->flags().testFlag(OpenFileInfo::StatusFlag::Open) && (ofiToUse == nullptr || (recentlyOpenURL.isValid() && ofi->url() == recentlyOpenURL)))
+                    ofiToUse = ofi;
+            if (ofiToUse != nullptr)
+                setCurrentFile(ofiToUse);
+        }
+    });
 }
 
 OpenFileInfoManager &OpenFileInfoManager::instance() {
@@ -547,8 +578,8 @@ bool OpenFileInfoManager::changeUrl(OpenFileInfo *openFileInfo, const QUrl &url)
     OpenFileInfo *previouslyContained = contains(url);
 
     /// check if old url differs from new url and old url is valid
-    if (previouslyContained != nullptr && previouslyContained->flags().testFlag(OpenFileInfo::Open) && previouslyContained != openFileInfo) {
-        qCWarning(LOG_KBIBTEX_PROGRAM) << "Open file with same URL already exists, forcefully closing it" << endl;
+    if (previouslyContained != nullptr && previouslyContained->flags().testFlag(OpenFileInfo::StatusFlag::Open) && previouslyContained != openFileInfo) {
+        qCWarning(LOG_KBIBTEX_PROGRAM) << "Open file with same URL already exists, forcefully closing it";
         close(previouslyContained);
     }
 
@@ -559,20 +590,20 @@ bool OpenFileInfoManager::changeUrl(OpenFileInfo *openFileInfo, const QUrl &url)
         /// current document was most probabily renamed (e.g. due to "Save As")
         /// add old URL to recently used files, but exclude the open files list
         OpenFileInfo *ofi = open(oldUrl); // krazy:exclude=syscalls
-        OpenFileInfo::StatusFlags statusFlags = (openFileInfo->flags() & (~OpenFileInfo::Open)) | OpenFileInfo::RecentlyUsed;
+        OpenFileInfo::StatusFlags statusFlags = (openFileInfo->flags() & ~static_cast<int>(OpenFileInfo::StatusFlag::Open)) | OpenFileInfo::StatusFlag::RecentlyUsed;
         ofi->setFlags(statusFlags);
     }
     if (previouslyContained != nullptr) {
         /// keep Favorite flag if set in file that have previously same URL
-        if (previouslyContained->flags().testFlag(OpenFileInfo::Favorite))
-            openFileInfo->setFlags(openFileInfo->flags() | OpenFileInfo::Favorite);
+        if (previouslyContained->flags().testFlag(OpenFileInfo::StatusFlag::Favorite))
+            openFileInfo->setFlags(openFileInfo->flags() | OpenFileInfo::StatusFlag::Favorite);
 
         /// remove the old entry with the same url has it will be replaced by the new one
         d->openFileInfoList.remove(d->openFileInfoList.indexOf(previouslyContained));
         previouslyContained->deleteLater();
-        OpenFileInfo::StatusFlags statusFlags = OpenFileInfo::Open;
-        statusFlags |= OpenFileInfo::RecentlyUsed;
-        statusFlags |= OpenFileInfo::Favorite;
+        OpenFileInfo::StatusFlags statusFlags = OpenFileInfo::StatusFlag::Open;
+        statusFlags |= OpenFileInfo::StatusFlag::RecentlyUsed;
+        statusFlags |= OpenFileInfo::StatusFlag::Favorite;
         emit flagsChanged(statusFlags);
     }
 
@@ -599,11 +630,11 @@ bool OpenFileInfoManager::close(OpenFileInfo *openFileInfo)
         if (!isClosing && ofi == openFileInfo && openFileInfo->close()) {
             isClosing = true;
             /// Mark file as closed (i.e. not open)
-            openFileInfo->removeFlags(OpenFileInfo::Open);
+            openFileInfo->removeFlags(OpenFileInfo::StatusFlag::Open);
             /// If file has a filename, remember as recently used
-            if (openFileInfo->flags().testFlag(OpenFileInfo::HasName))
-                openFileInfo->addFlags(OpenFileInfo::RecentlyUsed);
-        } else if (nextCurrent == nullptr && ofi->flags().testFlag(OpenFileInfo::Open))
+            if (openFileInfo->flags().testFlag(OpenFileInfo::StatusFlag::HasName))
+                openFileInfo->addFlags(OpenFileInfo::StatusFlag::RecentlyUsed);
+        } else if (nextCurrent == nullptr && ofi->flags().testFlag(OpenFileInfo::StatusFlag::Open))
             nextCurrent = ofi;
     }
 
@@ -625,14 +656,14 @@ bool OpenFileInfoManager::queryCloseAll()
     /// For each file known ...
     for (OpenFileInfo *openFileInfo : const_cast<const OpenFileInfoManager::OpenFileInfoList &>(d->openFileInfoList)) {
         /// Check only open file (ignore recently used, favorites, ...)
-        if (openFileInfo->flags().testFlag(OpenFileInfo::Open)) {
+        if (openFileInfo->flags().testFlag(OpenFileInfo::StatusFlag::Open)) {
             if (openFileInfo->close()) {
                 /// If file could be closed without user canceling the operation ...
                 /// Mark file as closed (i.e. not open)
-                openFileInfo->removeFlags(OpenFileInfo::Open);
+                openFileInfo->removeFlags(OpenFileInfo::StatusFlag::Open);
                 /// If file has a filename, remember as recently used
-                if (openFileInfo->flags().testFlag(OpenFileInfo::HasName))
-                    openFileInfo->addFlags(OpenFileInfo::RecentlyUsed);
+                if (openFileInfo->flags().testFlag(OpenFileInfo::StatusFlag::HasName))
+                    openFileInfo->addFlags(OpenFileInfo::StatusFlag::RecentlyUsed);
                 /// Remember file as to be marked as open later
                 restoreLaterList.append(openFileInfo);
             } else {
@@ -651,7 +682,7 @@ bool OpenFileInfoManager::queryCloseAll()
         /// restarted again (assuming that this function was
         /// called when KBibTeX is exiting).
         for (OpenFileInfo *openFileInfo : const_cast<const OpenFileInfoManager::OpenFileInfoList &>(restoreLaterList)) {
-            openFileInfo->addFlags(OpenFileInfo::Open);
+            openFileInfo->addFlags(OpenFileInfo::StatusFlag::Open);
         }
 
         d->writeConfig();
@@ -674,7 +705,7 @@ void OpenFileInfoManager::setCurrentFile(OpenFileInfo *openFileInfo, KService::P
     d->currentFileInfo = openFileInfo;
 
     if (d->currentFileInfo != nullptr) {
-        d->currentFileInfo->addFlags(OpenFileInfo::Open);
+        d->currentFileInfo->addFlags(OpenFileInfo::StatusFlag::Open);
         d->currentFileInfo->setLastAccess();
     }
     if (hasChanged) {
@@ -684,19 +715,19 @@ void OpenFileInfoManager::setCurrentFile(OpenFileInfo *openFileInfo, KService::P
         emit currentChanged(openFileInfo, servicePtr);
 }
 
-OpenFileInfoManager::OpenFileInfoList OpenFileInfoManager::filteredItems(OpenFileInfo::StatusFlags required, OpenFileInfo::StatusFlags forbidden)
+OpenFileInfoManager::OpenFileInfoList OpenFileInfoManager::filteredItems(OpenFileInfo::StatusFlag required, OpenFileInfo::StatusFlags forbidden)
 {
     OpenFileInfoList result;
 
     for (OpenFileInfoList::Iterator it = d->openFileInfoList.begin(); it != d->openFileInfoList.end(); ++it) {
         OpenFileInfo *ofi = *it;
-        if ((ofi->flags() & required) == required && (ofi->flags() & forbidden) == 0)
+        if (ofi->flags().testFlag(required) && (ofi->flags() & forbidden) == 0)
             result << ofi;
     }
 
-    if (required == OpenFileInfo::RecentlyUsed)
+    if (required == OpenFileInfo::StatusFlag::RecentlyUsed)
         std::sort(result.begin(), result.end(), OpenFileInfoManagerPrivate::byLRULessThan);
-    else if (required == OpenFileInfo::Favorite || required == OpenFileInfo::Open)
+    else if (required == OpenFileInfo::StatusFlag::Favorite || required == OpenFileInfo::StatusFlag::Open)
         std::sort(result.begin(), result.end(), OpenFileInfoManagerPrivate::byNameLessThan);
 
     return result;
@@ -704,13 +735,8 @@ OpenFileInfoManager::OpenFileInfoList OpenFileInfoManager::filteredItems(OpenFil
 
 void OpenFileInfoManager::deferredListsChanged()
 {
-    OpenFileInfo::StatusFlags statusFlags = OpenFileInfo::Open;
-    statusFlags |= OpenFileInfo::RecentlyUsed;
-    statusFlags |= OpenFileInfo::Favorite;
+    OpenFileInfo::StatusFlags statusFlags = OpenFileInfo::StatusFlag::Open;
+    statusFlags |= OpenFileInfo::StatusFlag::RecentlyUsed;
+    statusFlags |= OpenFileInfo::StatusFlag::Favorite;
     emit flagsChanged(statusFlags);
-}
-
-void OpenFileInfoManager::delayedReadConfig()
-{
-    d->readConfig();
 }

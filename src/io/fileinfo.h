@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,9 +40,9 @@ public:
     static const QString mimetypeRIS;
     static const QString mimetypePDF;
 
-    enum TestExistence {
-        TestExistenceYes, ///< Test if file exists
-        TestExistenceNo ///< Skip test if file exists
+    enum class TestExistence {
+        Yes, ///< Test if file exists
+        No ///< Skip test if file exists
     };
 
     /**

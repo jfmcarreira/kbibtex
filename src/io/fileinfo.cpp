@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -130,12 +132,16 @@ void FileInfo::urlsInText(const QString &text, const TestExistence testExistence
             internalText = internalText.left(pos) + internalText.mid(pos + doiMatch.length());
     }
 
+#if QT_VERSION >= 0x050e00
+    const QStringList fileList = internalText.split(KBibTeX::fileListSeparatorRegExp, Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
     const QStringList fileList = internalText.split(KBibTeX::fileListSeparatorRegExp, QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
     for (const QString &text : fileList) {
         internalText = text;
 
         /// If testing for the actual existence of a filename found in the text ...
-        if (testExistence == TestExistenceYes) {
+        if (testExistence == TestExistence::Yes) {
             /// If a base directory (e.g. the location of the parent .bib file) is given
             /// and the potential filename fragment is NOT an absolute path, ...
             if (internalText.startsWith(QStringLiteral("~") + QDir::separator())) {
@@ -182,7 +188,7 @@ void FileInfo::urlsInText(const QString &text, const TestExistence testExistence
             pos = urlRegExpMatch.capturedStart(0);
             const QString match = urlRegExpMatch.captured(0);
             QUrl url(match);
-            if (url.isValid() && (testExistence == TestExistenceNo || !url.isLocalFile() || QFileInfo::exists(url.toLocalFile())) && !result.contains(url))
+            if (url.isValid() && (testExistence == TestExistence::No || !url.isLocalFile() || QFileInfo::exists(url.toLocalFile())) && !result.contains(url))
                 result << url;
             /// remove match from internal text to avoid duplicates
             internalText = internalText.left(pos) + internalText.mid(pos + match.length());
@@ -193,10 +199,11 @@ void FileInfo::urlsInText(const QString &text, const TestExistence testExistence
         QRegularExpressionMatch domainNameRegExpMatch;
         while ((domainNameRegExpMatch = KBibTeX::domainNameRegExp.match(internalText, pos)).hasMatch()) {
             pos = domainNameRegExpMatch.capturedStart(0);
+            /// URL ends either at space or at string's end
             int pos2 = internalText.indexOf(QStringLiteral(" "), pos + 1);
             if (pos2 < 0) pos2 = internalText.length();
             QString match = internalText.mid(pos, pos2 - pos);
-            const QUrl url(QStringLiteral("http://") + match); // FIXME what about HTTPS?
+            const QUrl url(QStringLiteral("https://") + match);
             if (url.isValid() && !result.contains(url))
                 result << url;
             /// remove match from internal text to avoid duplicates
@@ -211,7 +218,7 @@ void FileInfo::urlsInText(const QString &text, const TestExistence testExistence
             const QString match = fileRegExpMatch.captured(0);
             const QFileInfo fi(match);
             const QUrl url = QUrl::fromLocalFile(!match.startsWith(QStringLiteral("/")) && !match.startsWith(QStringLiteral("http")) && fi.isRelative() && !baseDirectory.isEmpty() ? baseDirectory + QStringLiteral("/") + match : match);
-            if (url.isValid() && (testExistence == TestExistenceNo || QFileInfo::exists(url.toLocalFile())) && !result.contains(url))
+            if (url.isValid() && (testExistence == TestExistence::No || QFileInfo::exists(url.toLocalFile())) && !result.contains(url))
                 result << url;
             /// remove match from internal text to avoid duplicates
             internalText = internalText.left(pos) + internalText.mid(pos + match.length());
@@ -248,7 +255,7 @@ QSet<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const Q
     if (entry->contains(etEPrint)) {
         const QString eprint = PlainTextValue::text(entry->value(etEPrint));
         if (!eprint.isEmpty()) {
-            QUrl url(QStringLiteral("http://arxiv.org/search?query=") + eprint);
+            QUrl url(QStringLiteral("https://arxiv.org/search?query=") + eprint);
             result.insert(url);
         }
     }
@@ -287,20 +294,23 @@ QSet<QUrl> FileInfo::entryUrls(const QSharedPointer<const Entry> &entry, const Q
             }
         }
 
-        /// check if in the same directory as the BibTeX file there is a subdirectory
+        /// Check if in the same directory as the BibTeX file there is a subdirectory
         /// similar to the BibTeX file's name and which contains a PDF file exists
         /// which filename is based on the entry's id
-        static const QRegularExpression filenameExtension(QStringLiteral("\\.[^.]{2,5}$"));
-        const QString basename = bibTeXUrl.fileName().remove(filenameExtension);
-        QString directory = baseDirectory + QDir::separator() + basename;
-        for (const QString &extension : documentFileExtensions) {
-            const QFileInfo fi(directory + QDir::separator() + entry->id() + extension);
-            if (fi.exists()) {
-                const QUrl url = QUrl::fromLocalFile(fi.canonicalFilePath());
-                if (!result.contains(url))
-                    result << url;
+        const QFileInfo filenameInfo(bibTeXUrl.fileName());
+        const QString ending = filenameInfo.completeSuffix();
+        QString directory = baseDirectory + QDir::separator() + bibTeXUrl.fileName();
+        directory.chop(ending.length() + 1);
+        const QFileInfo fi(directory);
+        if (fi.isDir())
+            for (const QString &extension : documentFileExtensions) {
+                const QFileInfo fi(directory + QDir::separator() + entry->id() + extension);
+                if (fi.exists()) {
+                    const QUrl url = QUrl::fromLocalFile(fi.canonicalFilePath());
+                    if (!result.contains(url))
+                        result << url;
+                }
             }
-        }
     }
 
     return result;

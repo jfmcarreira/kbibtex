@@ -1,19 +1,21 @@
-/*****************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
- *                                                                           *
- *   This program is free software; you can redistribute it and/or modify    *
- *   it under the terms of the GNU General Public License as published by    *
- *   the Free Software Foundation; either version 2 of the License, or       *
- *   (at your option) any later version.                                     *
- *                                                                           *
- *   This program is distributed in the hope that it will be useful,         *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
- *   GNU General Public License for more details.                            *
- *                                                                           *
- *   You should have received a copy of the GNU General Public License       *
- *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
- *****************************************************************************/
+/***************************************************************************
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
+ ***************************************************************************/
 
 #include "filesettingswidget.h"
 
@@ -47,53 +49,41 @@ void FileSettingsWidget::loadProperties(File *file)
     if (m_file == nullptr) return; /// Nothing to do
 
     if (file->hasProperty(File::Encoding)) {
-        m_comboBoxEncodings->blockSignals(true);
+        QSignalBlocker comboBoxEncodingsSignalBlocker(m_comboBoxEncodings);
         const QString encoding = file->property(File::Encoding).toString();
         const int row = GUIHelper::selectValue(m_comboBoxEncodings->model(), encoding);
         m_comboBoxEncodings->setCurrentIndex(row);
-        m_comboBoxEncodings->blockSignals(false);
     }
     if (file->hasProperty(File::StringDelimiter)) {
-        m_comboBoxStringDelimiters->blockSignals(true);
+        QSignalBlocker comboBoxStringDelimitersSignalBlocker(m_comboBoxStringDelimiters);
         const QString stringDelimiter = file->property(File::StringDelimiter).toString();
         const int row = GUIHelper::selectValue(m_comboBoxStringDelimiters->model(), createDelimiterString(stringDelimiter[0], stringDelimiter[1]));
         m_comboBoxStringDelimiters->setCurrentIndex(row);
-        m_comboBoxStringDelimiters->blockSignals(false);
     }
     if (file->hasProperty(File::QuoteComment)) {
-        m_comboBoxQuoteComment->blockSignals(true);
+        QSignalBlocker comboBoxQuoteCommentSignalBlocker(m_comboBoxQuoteComment);
         const Preferences::QuoteComment quoteComment = static_cast<Preferences::QuoteComment>(file->property(File::QuoteComment).toInt());
         const int row = qMax(0, GUIHelper::selectValue(m_comboBoxQuoteComment->model(), static_cast<int>(quoteComment), Qt::UserRole));
         m_comboBoxQuoteComment->setCurrentIndex(row);
-        m_comboBoxQuoteComment->blockSignals(false);
     }
     if (file->hasProperty(File::KeywordCasing)) {
-        m_comboBoxKeywordCasing->blockSignals(true);
+        QSignalBlocker comboBoxKeywordCasingSignalBlocker(m_comboBoxKeywordCasing);
         const KBibTeX::Casing keywordCasing = static_cast<KBibTeX::Casing>(file->property(File::KeywordCasing).toInt());
         m_comboBoxKeywordCasing->setCurrentIndex(static_cast<int>(keywordCasing));
-        m_comboBoxKeywordCasing->blockSignals(false);
     }
     if (file->hasProperty(File::ProtectCasing)) {
-        m_checkBoxProtectCasing->blockSignals(true);
+        QSignalBlocker checkBoxProtectCasingSignalBlocker(m_checkBoxProtectCasing);
         m_checkBoxProtectCasing->setCheckState(static_cast<Qt::CheckState>(file->property(File::ProtectCasing).toInt()));
-        m_checkBoxProtectCasing->blockSignals(false);
     }
     if (file->hasProperty(File::NameFormatting)) {
-        m_comboBoxPersonNameFormatting->blockSignals(true);
+        QSignalBlocker comboBoxPersonNameFormattingSignalBlocker(m_comboBoxPersonNameFormatting);
         const int row = GUIHelper::selectValue(m_comboBoxPersonNameFormatting->model(), file->property(File::NameFormatting).toString(), ItalicTextItemModel::IdentifierRole);
         m_comboBoxPersonNameFormatting->setCurrentIndex(row);
-        m_comboBoxPersonNameFormatting->blockSignals(false);
     }
     if (file->hasProperty(File::ListSeparator)) {
-        m_comboBoxListSeparator->blockSignals(true);
+        QSignalBlocker comboBoxListSeparatorSignalBlocker(m_comboBoxListSeparator);
         m_comboBoxListSeparator->setCurrentIndex(m_comboBoxListSeparator->findData(file->property(File::ListSeparator)));
-        m_comboBoxListSeparator->blockSignals(false);
     }
-}
-
-void FileSettingsWidget::applyProperties()
-{
-    saveProperties(m_file);
 }
 
 void FileSettingsWidget::saveProperties(File *file)

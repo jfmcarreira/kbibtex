@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -171,7 +173,9 @@ public:
         referenceWidget = new ReferenceWidget(p);
         referenceWidget->setApplyElementInterface(this);
         connect(referenceWidget, &ElementWidget::modified, p, &ElementEditor::childModified);
-        connect(referenceWidget, &ReferenceWidget::entryTypeChanged, p, &ElementEditor::updateReqOptWidgets);
+        connect(referenceWidget, &ReferenceWidget::entryTypeChanged, p, [this]() {
+            updateReqOptWidgets();
+        });
         vLayout->addWidget(referenceWidget, 0);
         widgets << referenceWidget;
 
@@ -199,12 +203,16 @@ public:
         buttonOptions->setMenu(menuOptions);
 
         /// Option to show all fields or only those require for current entry type
-        actionForceShowAllWidgets = menuOptions->addAction(i18n("Show all fields"), p, SLOT(updateReqOptWidgets()));
+        actionForceShowAllWidgets = menuOptions->addAction(i18n("Show all fields"), p, [this]() {
+            updateReqOptWidgets();
+        });
         actionForceShowAllWidgets->setCheckable(true);
         actionForceShowAllWidgets->setChecked(showAll);
 
         /// Option to disable tab key focus to reach/visit various non-editable widgets
-        actionLimitKeyboardTabStops = menuOptions->addAction(i18n("Tab key visits only editable fields"), p, SLOT(limitKeyboardTabStops()));
+        actionLimitKeyboardTabStops = menuOptions->addAction(i18n("Tab key visits only editable fields"), p, [this]() {
+            this->limitKeyboardTabStops(); /// naming conflict between local variable 'limitKeyboardTabStops' and function 'limitKeyboardTabStops'
+        });
         actionLimitKeyboardTabStops->setCheckable(true);
         actionLimitKeyboardTabStops->setChecked(limitKeyboardTabStops);
 
@@ -212,13 +220,16 @@ public:
 
         buttonCheckWithBibTeX = new QPushButton(QIcon::fromTheme(QStringLiteral("tools-check-spelling")), i18n("Check with BibTeX"), p);
         hLayout->addWidget(buttonCheckWithBibTeX, 0);
-        connect(buttonCheckWithBibTeX, &QPushButton::clicked, p, &ElementEditor::checkBibTeX);
+        connect(buttonCheckWithBibTeX, &QPushButton::clicked, p, [this]() {
+            checkBibTeX();
+        });
 
         addTabWidgets();
     }
 
     void updateTabVisibility() {
-        disconnect(tab, &HidingTabWidget::currentChanged, p, &ElementEditor::tabChanged);
+        const QSignalBlocker blocker(tab);
+
         if (element.isNull()) {
             p->setEnabled(false);
         } else {
@@ -243,7 +254,6 @@ public:
             if (firstEnabledTab < 1024)
                 tab->setCurrentIndex(firstEnabledTab);
         }
-        connect(tab, &HidingTabWidget::currentChanged, p, &ElementEditor::tabChanged);
     }
 
     /**
@@ -292,13 +302,15 @@ public:
             /// Very simple if source view is active: BibTeX code contains
             /// all necessary data
             if (!e.isNull())
-                sourceWidget->setElementClass(SourceWidget::elementEntry);
+                sourceWidget->setElementClass(SourceWidget::ElementClass::Entry);
             else if (!m.isNull())
-                sourceWidget->setElementClass(SourceWidget::elementMacro);
+                sourceWidget->setElementClass(SourceWidget::ElementClass::Macro);
             else if (!p.isNull())
-                sourceWidget->setElementClass(SourceWidget::elementPreamble);
+                sourceWidget->setElementClass(SourceWidget::ElementClass::Preamble);
+            else if (!c.isNull())
+                sourceWidget->setElementClass(SourceWidget::ElementClass::Comment);
             else
-                sourceWidget->setElementClass(SourceWidget::elementInvalid);
+                sourceWidget->setElementClass(SourceWidget::ElementClass::Invalid);
             sourceWidget->apply(element);
         } else {
             /// Start by assigning the current internal element's
@@ -370,22 +382,22 @@ public:
         QSharedPointer<const Entry> e = element.dynamicCast<const Entry>();
         if (!e.isNull()) {
             internalEntry = QSharedPointer<Entry>(new Entry(*e.data()));
-            sourceWidget->setElementClass(SourceWidget::elementEntry);
+            sourceWidget->setElementClass(SourceWidget::ElementClass::Entry);
         } else {
             QSharedPointer<const Macro> m = element.dynamicCast<const Macro>();
             if (!m.isNull()) {
                 internalMacro = QSharedPointer<Macro>(new Macro(*m.data()));
-                sourceWidget->setElementClass(SourceWidget::elementMacro);
+                sourceWidget->setElementClass(SourceWidget::ElementClass::Macro);
             } else {
                 QSharedPointer<const Comment> c = element.dynamicCast<const Comment>();
                 if (!c.isNull()) {
                     internalComment = QSharedPointer<Comment>(new Comment(*c.data()));
-                    sourceWidget->setElementClass(SourceWidget::elementComment);
+                    sourceWidget->setElementClass(SourceWidget::ElementClass::Comment);
                 } else {
                     QSharedPointer<const Preamble> p = element.dynamicCast<const Preamble>();
                     if (!p.isNull()) {
                         internalPreamble = QSharedPointer<Preamble>(new Preamble(*p.data()));
-                        sourceWidget->setElementClass(SourceWidget::elementPreamble);
+                        sourceWidget->setElementClass(SourceWidget::ElementClass::Preamble);
                     } else
                         Q_ASSERT_X(element.isNull(), "ElementEditor::ElementEditorPrivate::reset(QSharedPointer<const Element> element)", "element is not NULL but could not be cast on a valid Element sub-class");
                 }
@@ -663,7 +675,7 @@ void ElementEditor::switchToTab(const QString &tabIdentifier)
     else if (tabIdentifier == QStringLiteral("external"))
         setCurrentPage(d->filesWidget);
     else {
-        for (ElementWidget *widget : d->widgets) {
+        for (ElementWidget *widget : const_cast<const ElementEditor::ElementEditorPrivate::WidgetList &>(d->widgets)) {
             EntryConfiguredWidget *ecw = qobject_cast<EntryConfiguredWidget *>(widget);
             if (ecw != nullptr && ecw->identifier() == tabIdentifier) {
                 setCurrentPage(ecw);
@@ -673,11 +685,6 @@ void ElementEditor::switchToTab(const QString &tabIdentifier)
     }
 }
 
-void ElementEditor::checkBibTeX()
-{
-    d->checkBibTeX();
-}
-
 void ElementEditor::childModified(bool m)
 {
     if (m) {
@@ -685,14 +692,4 @@ void ElementEditor::childModified(bool m)
         d->referenceWidgetSetEntryIdByDefault();
     }
     emit modified(m);
-}
-
-void ElementEditor::updateReqOptWidgets()
-{
-    d->updateReqOptWidgets();
-}
-
-void ElementEditor::limitKeyboardTabStops()
-{
-    d->limitKeyboardTabStops();
 }

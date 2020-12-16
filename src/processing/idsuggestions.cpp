@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,12 +40,12 @@ public:
         /// nothing
     }
 
-    QString normalizeText(const QString &input) const {
+    static QString normalizeText(const QString &input) {
         static const QRegularExpression unwantedChars(QStringLiteral("[^-_:/=+a-zA-Z0-9]+"));
         return Encoder::instance().convertToPlainAscii(input).remove(unwantedChars);
     }
 
-    int numberFromEntry(const Entry &entry, const QString &field) const {
+    static int numberFromEntry(const Entry &entry, const QString &field) {
         static const QRegularExpression firstDigits(QStringLiteral("^[0-9]+"));
         const QString text = PlainTextValue::text(entry.value(field));
         const QRegularExpressionMatch match = firstDigits.match(text);
@@ -54,7 +56,7 @@ public:
         return ok ? result : -1;
     }
 
-    QString pageNumberFromEntry(const Entry &entry) const {
+    static QString pageNumberFromEntry(const Entry &entry) {
         static const QRegularExpression whitespace(QStringLiteral("[ \t]+"));
         static const QRegularExpression pageNumber(QStringLiteral("[a-z0-9+:]+"), QRegularExpression::CaseInsensitiveOption);
         const QString text = PlainTextValue::text(entry.value(Entry::ftPages)).remove(whitespace).remove(QStringLiteral("mbox"));
@@ -63,16 +65,21 @@ public:
         return match.captured(0);
     }
 
-    QString translateTitleToken(const Entry &entry, const struct IdSuggestionTokenInfo &tti, bool removeSmallWords) const {
+    static QString translateTitleToken(const Entry &entry, const struct IdSuggestionTokenInfo &tti, bool removeSmallWords) {
         QString result;
         bool first = true;
-        static const QRegularExpression sequenceOfSpaces(QStringLiteral("\\s+"));
-        const QStringList titleWords = PlainTextValue::text(entry.value(Entry::ftTitle)).split(sequenceOfSpaces, QString::SkipEmptyParts);
+        static const QRegularExpression wordSeparator(QStringLiteral("\\W+"), QRegularExpression::UseUnicodePropertiesOption);
+#if QT_VERSION >= 0x050e00
+        const QStringList titleWords = PlainTextValue::text(entry.value(Entry::ftTitle)).split(wordSeparator, Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
+        const QStringList titleWords = PlainTextValue::text(entry.value(Entry::ftTitle)).split(wordSeparator, QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         int index = 0;
-        for (QStringList::ConstIterator it = titleWords.begin(); it != titleWords.end(); ++it, ++index) {
+        for (QStringList::ConstIterator it = titleWords.begin(); it != titleWords.end(); ++it) {
             const QString lowerText = normalizeText(*it).toLower();
             if ((removeSmallWords && smallWords.contains(lowerText)) || index < tti.startWord || index > tti.endWord)
                 continue;
+            ++index; ///< only increase index if actually considering current title word (not a 'small word')
 
             if (first)
                 first = false;
@@ -80,22 +87,22 @@ public:
                 result.append(tti.inBetween);
 
             QString titleComponent = lowerText.left(tti.len);
-            if (tti.caseChange == IdSuggestions::ccToCamelCase)
+            if (tti.caseChange == IdSuggestions::CaseChange::ToCamelCase)
                 titleComponent = titleComponent[0].toUpper() + titleComponent.mid(1);
 
             result.append(titleComponent);
         }
 
         switch (tti.caseChange) {
-        case IdSuggestions::ccToUpper:
+        case IdSuggestions::CaseChange::ToUpper:
             result = result.toUpper();
             break;
-        case IdSuggestions::ccToLower:
+        case IdSuggestions::CaseChange::ToLower:
             result = result.toLower();
             break;
-        case IdSuggestions::ccToCamelCase:
-            /// already processed above
-        case IdSuggestions::ccNoChange:
+        case IdSuggestions::CaseChange::ToCamelCase:
+        /// already processed above
+        case IdSuggestions::CaseChange::None:
             /// nothing
             break;
         }
@@ -103,7 +110,7 @@ public:
         return result;
     }
 
-    QString translateAuthorsToken(const Entry &entry, const struct IdSuggestionTokenInfo &ati) const {
+    static QString translateAuthorsToken(const Entry &entry, const struct IdSuggestionTokenInfo &ati) {
         QString result;
         /// Already some author inserted into result?
         bool firstInserted = false;
@@ -116,9 +123,13 @@ public:
             /// Get current author, normalize name (remove unwanted characters), cut to maximum length
             QString author = normalizeText(*it).left(ati.len);
             /// Check if camel case is requests
-            if (ati.caseChange == IdSuggestions::ccToCamelCase) {
+            if (ati.caseChange == IdSuggestions::CaseChange::ToCamelCase) {
                 /// Get components of the author's last name
+#if QT_VERSION >= 0x050e00
+                const QStringList nameComponents = author.split(QStringLiteral(" "), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
                 const QStringList nameComponents = author.split(QStringLiteral(" "), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
                 QStringList newNameComponents;
                 newNameComponents.reserve(nameComponents.size());
                 /// Camel-case each name component
@@ -140,16 +151,16 @@ public:
         }
 
         switch (ati.caseChange) {
-        case IdSuggestions::ccToUpper:
+        case IdSuggestions::CaseChange::ToUpper:
             result = result.toUpper();
             break;
-        case IdSuggestions::ccToLower:
+        case IdSuggestions::CaseChange::ToLower:
             result = result.toLower();
             break;
-        case IdSuggestions::ccToCamelCase:
+        case IdSuggestions::CaseChange::ToCamelCase:
             /// already processed above
             break;
-        case IdSuggestions::ccNoChange:
+        case IdSuggestions::CaseChange::None:
             /// nothing
             break;
         }
@@ -157,11 +168,15 @@ public:
         return result;
     }
 
-    QString translateJournalToken(const Entry &entry, const struct IdSuggestionTokenInfo &jti, bool removeSmallWords) const {
-        static const QRegularExpression sequenceOfSpaces(QStringLiteral("\\s+"));
+    static QString translateJournalToken(const Entry &entry, const struct IdSuggestionTokenInfo &jti, bool removeSmallWords) {
+        static const QRegularExpression wordSeparator(QStringLiteral("\\W+"), QRegularExpression::UseUnicodePropertiesOption);
         QString journalName = PlainTextValue::text(entry.value(Entry::ftJournal));
         journalName = JournalAbbreviations::instance().toShortName(journalName);
-        const QStringList journalWords = journalName.split(sequenceOfSpaces, QString::SkipEmptyParts);
+#if QT_VERSION >= 0x050e00
+        const QStringList journalWords = journalName.split(wordSeparator, Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
+        const QStringList journalWords = journalName.split(wordSeparator, QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         bool first = true;
         int index = 0;
         QString result;
@@ -182,22 +197,22 @@ public:
             while (journalComponent[countCaptialCharsAtStart].isUpper()) ++countCaptialCharsAtStart;
             journalComponent = journalComponent.left(qMax(jti.len, countCaptialCharsAtStart));
 
-            if (jti.caseChange == IdSuggestions::ccToCamelCase)
+            if (jti.caseChange == IdSuggestions::CaseChange::ToCamelCase)
                 journalComponent = journalComponent[0].toUpper() + journalComponent.mid(1);
 
             result.append(journalComponent);
         }
 
         switch (jti.caseChange) {
-        case IdSuggestions::ccToUpper:
+        case IdSuggestions::CaseChange::ToUpper:
             result = result.toUpper();
             break;
-        case IdSuggestions::ccToLower:
+        case IdSuggestions::CaseChange::ToLower:
             result = result.toLower();
             break;
-        case IdSuggestions::ccToCamelCase:
-            /// already processed above
-        case IdSuggestions::ccNoChange:
+        case IdSuggestions::CaseChange::ToCamelCase:
+        /// already processed above
+        case IdSuggestions::CaseChange::None:
             /// nothing
             break;
         }
@@ -205,15 +220,15 @@ public:
         return result;
     }
 
-    QString translateTypeToken(const Entry &entry, const struct IdSuggestionTokenInfo &eti) const {
+    static QString translateTypeToken(const Entry &entry, const struct IdSuggestionTokenInfo &eti) {
         QString entryType(entry.type());
 
         switch (eti.caseChange) {
-        case IdSuggestions::ccToUpper:
+        case IdSuggestions::CaseChange::ToUpper:
             return entryType.toUpper().left(eti.len);
-        case IdSuggestions::ccToLower:
+        case IdSuggestions::CaseChange::ToLower:
             return entryType.toLower().left(eti.len);
-        case IdSuggestions::ccToCamelCase:
+        case IdSuggestions::CaseChange::ToCamelCase:
         {
             if (entryType.isEmpty()) return QString(); ///< empty entry type? Return immediately to avoid problems with entryType[0]
             /// Apply some heuristic replacements to make the entry type look like CamelCase
@@ -229,24 +244,24 @@ public:
         }
     }
 
-    QString translateToken(const Entry &entry, const QString &token) const {
+    static QString translateToken(const Entry &entry, const QString &token) {
         switch (token[0].toLatin1()) {
         case 'a': ///< deprecated but still supported case
         {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo ati
-            struct IdSuggestionTokenInfo ati = p->evalToken(token.mid(1));
+            struct IdSuggestionTokenInfo ati = IdSuggestions::evalToken(token.mid(1));
             ati.startWord = ati.endWord = 0; ///< only first author
             return translateAuthorsToken(entry, ati);
         }
         case 'A': {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo ati
-            const struct IdSuggestionTokenInfo ati = p->evalToken(token.mid(1));
+            const struct IdSuggestionTokenInfo ati = IdSuggestions::evalToken(token.mid(1));
             return translateAuthorsToken(entry, ati);
         }
         case 'z': ///< deprecated but still supported case
         {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo ati
-            struct IdSuggestionTokenInfo ati = p->evalToken(token.mid(1));
+            struct IdSuggestionTokenInfo ati = IdSuggestions::evalToken(token.mid(1));
             /// All but first author
             ati.startWord = 1;
             ati.endWord = std::numeric_limits<int>::max();
@@ -267,18 +282,18 @@ public:
         case 't':
         case 'T': {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo jti
-            const struct IdSuggestionTokenInfo tti = p->evalToken(token.mid(1));
+            const struct IdSuggestionTokenInfo tti = IdSuggestions::evalToken(token.mid(1));
             return translateTitleToken(entry, tti, token[0].isUpper());
         }
         case 'j':
         case 'J': {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo jti
-            const struct IdSuggestionTokenInfo jti = p->evalToken(token.mid(1));
+            const struct IdSuggestionTokenInfo jti = IdSuggestions::evalToken(token.mid(1));
             return translateJournalToken(entry, jti, token[0].isUpper());
         }
         case 'e': {
             /// Evaluate the token string, store information in struct IdSuggestionTokenInfo eti
-            const struct IdSuggestionTokenInfo eti = p->evalToken(token.mid(1));
+            const struct IdSuggestionTokenInfo eti = IdSuggestions::evalToken(token.mid(1));
             return translateTypeToken(entry, eti);
         }
         case 'v': {
@@ -296,42 +311,40 @@ public:
 
 /// List of small words taken from OCLC:
 /// https://www.oclc.org/developer/develop/web-services/worldcat-search-api/bibliographic-resource.en.html
-const QStringList IdSuggestions::IdSuggestionsPrivate::smallWords = i18nc("Small words that can be removed from titles when generating id suggestions; separated by pipe symbol", "a|als|am|an|are|as|at|auf|aus|be|but|by|das|dass|de|der|des|dich|dir|du|er|es|for|from|had|have|he|her|his|how|ihr|ihre|ihres|im|in|is|ist|it|kein|la|le|les|mein|mich|mir|mit|of|on|sein|sie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|yousie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|you").split(QStringLiteral("|"), QString::SkipEmptyParts);
+const QStringList IdSuggestions::IdSuggestionsPrivate::smallWords = i18nc("Small words that can be removed from titles when generating id suggestions; separated by pipe symbol", "a|als|am|an|are|as|at|auf|aus|be|but|by|das|dass|de|der|des|dich|dir|du|er|es|for|from|had|have|he|her|his|how|ihr|ihre|ihres|im|in|is|ist|it|kein|la|le|les|mein|mich|mir|mit|of|on|sein|sie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|yousie|that|the|this|to|un|une|von|was|wer|which|wie|wird|with|you|und|and|ein|eine|einer|eines").split(QStringLiteral("|"),
+#if QT_VERSION >= 0x050e00
+  Qt::SkipEmptyParts
+#else // QT_VERSION < 0x050e00
+  QString::SkipEmptyParts
+#endif // QT_VERSION >= 0x050e00
+);
 
-
-IdSuggestions::IdSuggestions()
-        : d(new IdSuggestionsPrivate(this))
-{
-    /// nothing
-}
-
-IdSuggestions::~IdSuggestions()
-{
-    delete d;
-}
-
-QString IdSuggestions::formatId(const Entry &entry, const QString &formatStr) const
+QString IdSuggestions::formatId(const Entry &entry, const QString &formatStr)
 {
     QString id;
+#if QT_VERSION >= 0x050e00
+    const QStringList tokenList = formatStr.split(QStringLiteral("|"), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
     const QStringList tokenList = formatStr.split(QStringLiteral("|"), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
     for (const QString &token : tokenList) {
-        id.append(d->translateToken(entry, token));
+        id.append(IdSuggestionsPrivate::translateToken(entry, token));
     }
 
     return id;
 }
 
-QString IdSuggestions::defaultFormatId(const Entry &entry) const
+QString IdSuggestions::defaultFormatId(const Entry &entry)
 {
     return formatId(entry, Preferences::instance().activeIdSuggestionFormatString());
 }
 
-bool IdSuggestions::hasDefaultFormat() const
+bool IdSuggestions::hasDefaultFormat()
 {
     return !Preferences::instance().activeIdSuggestionFormatString().isEmpty();
 }
 
-bool IdSuggestions::applyDefaultFormatId(Entry &entry) const
+bool IdSuggestions::applyDefaultFormatId(Entry &entry)
 {
     const QString dfs = Preferences::instance().activeIdSuggestionFormatString();
     if (!dfs.isEmpty()) {
@@ -341,7 +354,7 @@ bool IdSuggestions::applyDefaultFormatId(Entry &entry) const
         return false;
 }
 
-QStringList IdSuggestions::formatIdList(const Entry &entry) const
+QStringList IdSuggestions::formatIdList(const Entry &entry)
 {
     const QStringList formatStrings = Preferences::instance().idSuggestionFormatStrings();
     QStringList result;
@@ -352,10 +365,14 @@ QStringList IdSuggestions::formatIdList(const Entry &entry) const
     return result;
 }
 
-QStringList IdSuggestions::formatStrToHuman(const QString &formatStr) const
+QStringList IdSuggestions::formatStrToHuman(const QString &formatStr)
 {
     QStringList result;
+#if QT_VERSION >= 0x050e00
+    const QStringList tokenList = formatStr.split(QStringLiteral("|"), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
     const QStringList tokenList = formatStr.split(QStringLiteral("|"), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
     for (const QString &token : tokenList) {
         QString text;
         if (token[0] == 'a' || token[0] == 'A' || token[0] == 'z') {
@@ -371,16 +388,16 @@ QStringList IdSuggestions::formatStrToHuman(const QString &formatStr) const
             if (info.len > 0 && info.len < std::numeric_limits<int>::max()) text.append(i18np(", but only first letter of each last name", ", but only first %1 letters of each last name", info.len));
 
             switch (info.caseChange) {
-            case IdSuggestions::ccToUpper:
+            case IdSuggestions::CaseChange::ToUpper:
                 text.append(i18n(", in upper case"));
                 break;
-            case IdSuggestions::ccToLower:
+            case IdSuggestions::CaseChange::ToLower:
                 text.append(i18n(", in lower case"));
                 break;
-            case IdSuggestions::ccToCamelCase:
+            case IdSuggestions::CaseChange::ToCamelCase:
                 text.append(i18n(", in CamelCase"));
                 break;
-            case IdSuggestions::ccNoChange:
+            case IdSuggestions::CaseChange::None:
                 break;
             }
 
@@ -403,16 +420,16 @@ QStringList IdSuggestions::formatStrToHuman(const QString &formatStr) const
                 text.append(i18np(", but only first letter of each word", ", but only first %1 letters of each word", info.len));
 
             switch (info.caseChange) {
-            case IdSuggestions::ccToUpper:
+            case IdSuggestions::CaseChange::ToUpper:
                 text.append(i18n(", in upper case"));
                 break;
-            case IdSuggestions::ccToLower:
+            case IdSuggestions::CaseChange::ToLower:
                 text.append(i18n(", in lower case"));
                 break;
-            case IdSuggestions::ccToCamelCase:
+            case IdSuggestions::CaseChange::ToCamelCase:
                 text.append(i18n(", in CamelCase"));
                 break;
-            case IdSuggestions::ccNoChange:
+            case IdSuggestions::CaseChange::None:
                 break;
             }
 
@@ -425,16 +442,16 @@ QStringList IdSuggestions::formatStrToHuman(const QString &formatStr) const
             if (info.len > 0 && info.len < std::numeric_limits<int>::max())
                 text.append(i18np(", but only first letter of each word", ", but only first %1 letters of each word", info.len));
             switch (info.caseChange) {
-            case IdSuggestions::ccToUpper:
+            case IdSuggestions::CaseChange::ToUpper:
                 text.append(i18n(", in upper case"));
                 break;
-            case IdSuggestions::ccToLower:
+            case IdSuggestions::CaseChange::ToLower:
                 text.append(i18n(", in lower case"));
                 break;
-            case IdSuggestions::ccToCamelCase:
+            case IdSuggestions::CaseChange::ToCamelCase:
                 text.append(i18n(", in CamelCase"));
                 break;
-            case IdSuggestions::ccNoChange:
+            case IdSuggestions::CaseChange::None:
                 break;
             }
         } else if (token[0] == 'e') {
@@ -443,13 +460,13 @@ QStringList IdSuggestions::formatStrToHuman(const QString &formatStr) const
             if (info.len > 0 && info.len < std::numeric_limits<int>::max())
                 text.append(i18np(", but only first letter of each word", ", but only first %1 letters of each word", info.len));
             switch (info.caseChange) {
-            case IdSuggestions::ccToUpper:
+            case IdSuggestions::CaseChange::ToUpper:
                 text.append(i18n(", in upper case"));
                 break;
-            case IdSuggestions::ccToLower:
+            case IdSuggestions::CaseChange::ToLower:
                 text.append(i18n(", in lower case"));
                 break;
-            case IdSuggestions::ccToCamelCase:
+            case IdSuggestions::CaseChange::ToCamelCase:
                 text.append(i18n(", in CamelCase"));
                 break;
             default:
@@ -504,14 +521,14 @@ QString IdSuggestions::formatAuthorRange(int minValue, int maxValue, bool lastAu
     }
 }
 
-struct IdSuggestions::IdSuggestionTokenInfo IdSuggestions::evalToken(const QString &token) const {
+IdSuggestions::IdSuggestionTokenInfo IdSuggestions::evalToken(const QString &token) {
     int pos = 0;
     struct IdSuggestionTokenInfo result;
     result.len = std::numeric_limits<int>::max();
     result.startWord = 0;
     result.endWord = std::numeric_limits<int>::max();
     result.lastWord = false;
-    result.caseChange = IdSuggestions::ccNoChange;
+    result.caseChange = IdSuggestions::CaseChange::None;
     result.inBetween = QString();
 
     if (token.length() > pos) {
@@ -525,19 +542,19 @@ struct IdSuggestions::IdSuggestionTokenInfo IdSuggestions::evalToken(const QStri
     if (token.length() > pos) {
         switch (token[pos].unicode()) {
         case 0x006c: // 'l'
-            result.caseChange = IdSuggestions::ccToLower;
+            result.caseChange = IdSuggestions::CaseChange::ToLower;
             ++pos;
             break;
         case 0x0075: // 'u'
-            result.caseChange = IdSuggestions::ccToUpper;
+            result.caseChange = IdSuggestions::CaseChange::ToUpper;
             ++pos;
             break;
         case 0x0063: // 'c'
-            result.caseChange = IdSuggestions::ccToCamelCase;
+            result.caseChange = IdSuggestions::CaseChange::ToCamelCase;
             ++pos;
             break;
         default:
-            result.caseChange = IdSuggestions::ccNoChange;
+            result.caseChange = IdSuggestions::CaseChange::None;
         }
     }
 

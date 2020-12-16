@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2018 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,6 +23,7 @@
 #include <QStringList>
 
 #include <Entry>
+#include <KBibTeX>
 #include "logging_io.h"
 
 FileExporterRIS::FileExporterRIS(QObject *parent)
@@ -34,12 +37,11 @@ FileExporterRIS::~FileExporterRIS()
     /// nothing
 }
 
-bool FileExporterRIS::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterRIS::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile)
 {
     Q_UNUSED(bibtexfile)
-    Q_UNUSED(errorLog)
 
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCDebug(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -52,15 +54,12 @@ bool FileExporterRIS::save(QIODevice *iodevice, const QSharedPointer<const Eleme
     if (!entry.isNull())
         result = writeEntry(stream, entry.data());
 
-    iodevice->close();
     return result && !m_cancelFlag;
 }
 
-bool FileExporterRIS::save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterRIS::save(QIODevice *iodevice, const File *bibtexfile)
 {
-    Q_UNUSED(errorLog)
-
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCDebug(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -79,7 +78,6 @@ bool FileExporterRIS::save(QIODevice *iodevice, const File *bibtexfile, QStringL
         }
     }
 
-    iodevice->close();
     return result && !m_cancelFlag;
 }
 
@@ -126,7 +124,7 @@ bool FileExporterRIS::writeEntry(QTextStream &stream, const Entry *entry)
                 if (!person.isNull())
                     result &= writeKeyValue(stream, QStringLiteral("AU"), PlainTextValue::text(**it));
                 else
-                    qCWarning(LOG_KBIBTEX_IO) << "Cannot write value " << PlainTextValue::text(**it) << " for field AU (author), not supported by RIS format" << endl;
+                    qCWarning(LOG_KBIBTEX_IO) << "Cannot write value " << PlainTextValue::text(**it) << " for field AU (author), not supported by RIS format";
             }
         } else if (key.toLower() == Entry::ftEditor) {
             for (Value::ConstIterator it = value.constBegin(); result && it != value.constEnd(); ++it) {
@@ -134,7 +132,7 @@ bool FileExporterRIS::writeEntry(QTextStream &stream, const Entry *entry)
                 if (!person.isNull())
                     result &= writeKeyValue(stream, QStringLiteral("ED"), PlainTextValue::text(**it));
                 else
-                    qCWarning(LOG_KBIBTEX_IO) << "Cannot write value " << PlainTextValue::text(**it) << " for field ED (editor), not supported by RIS format" << endl;
+                    qCWarning(LOG_KBIBTEX_IO) << "Cannot write value " << PlainTextValue::text(**it) << " for field ED (editor), not supported by RIS format";
             }
         } else if (key == Entry::ftTitle)
             result &= writeKeyValue(stream, QStringLiteral("TI"), PlainTextValue::text(value));
@@ -189,11 +187,22 @@ bool FileExporterRIS::writeEntry(QTextStream &stream, const Entry *entry)
     }
 
     if (!year.isEmpty() || !month.isEmpty()) {
-        result &= writeKeyValue(stream, QStringLiteral("PY"), QString(QStringLiteral("%1/%2//")).arg(year, month));
+        int monthAsInt = -1;
+        for (int i = 0; monthAsInt < 0 && i < 12; ++i)
+            if (KBibTeX::MonthsTriple[i] == month)
+                monthAsInt = i + 1;
+        if (monthAsInt > 0)
+            result &= writeKeyValue(stream, QStringLiteral("PY"), QString(QStringLiteral("%1/%2//")).arg(year).arg(monthAsInt, 2, 10, QLatin1Char('0')));
+        else
+            result &= writeKeyValue(stream, QStringLiteral("PY"), QString(QStringLiteral("%1///%2")).arg(year, month));
     }
 
     result &= writeKeyValue(stream, QStringLiteral("ER"), QString());
+#if QT_VERSION >= 0x050e00
+    stream << Qt::endl;
+#else // QT_VERSION < 0x050e00
     stream << endl;
+#endif // QT_VERSION >= 0x050e00
 
     return result;
 }
@@ -203,7 +212,11 @@ bool FileExporterRIS::writeKeyValue(QTextStream &stream, const QString &key, con
     stream << key << "  - ";
     if (!value.isEmpty())
         stream << value;
+#if QT_VERSION >= 0x050e00
+    stream << Qt::endl;
+#else // QT_VERSION < 0x050e00
     stream << endl;
+#endif // QT_VERSION >= 0x050e00
 
     return true;
 }

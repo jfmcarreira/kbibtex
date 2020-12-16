@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -146,13 +148,13 @@ public:
     }
 #endif // HAVE_QTWIDGETS
 
-    QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
+    QUrl buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults) {
         QString url = QStringLiteral("https://www.bibsonomy.org/bib/");
 
-        const bool hasFreeText = !query[queryKeyFreeText].isEmpty();
-        const bool hasTitle = !query[queryKeyTitle].isEmpty();
-        const bool hasAuthor = !query[queryKeyAuthor].isEmpty();
-        const bool hasYear = !query[queryKeyYear].isEmpty();
+        const bool hasFreeText = !query[QueryKey::FreeText].isEmpty();
+        const bool hasTitle = !query[QueryKey::Title].isEmpty();
+        const bool hasAuthor = !query[QueryKey::Author].isEmpty();
+        const bool hasYear = !query[QueryKey::Year].isEmpty();
 
         QString searchType = QStringLiteral("search");
         if (hasAuthor && !hasFreeText && !hasTitle && !hasYear) {
@@ -162,7 +164,7 @@ public:
         }
 
         QStringList queryFragments;
-        for (QMap<QString, QString>::ConstIterator it = query.constBegin(); it != query.constEnd(); ++it) {
+        for (QMap<QueryKey, QString>::ConstIterator it = query.constBegin(); it != query.constEnd(); ++it) {
             queryFragments << OnlineSearchAbstract::encodeURL(it.value());
         }
 
@@ -195,7 +197,7 @@ OnlineSearchBibsonomy::~OnlineSearchBibsonomy()
     delete d;
 }
 
-void OnlineSearchBibsonomy::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchBibsonomy::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     m_hasBeenCanceled = false;
     emit progress(curStep = 0, numSteps = 1);
@@ -231,11 +233,6 @@ QString OnlineSearchBibsonomy::label() const
     //= onlinesearch-bibsonomy-label
     return QObject::tr("Bibsonomy");
 #endif // HAVE_KF5
-}
-
-QString OnlineSearchBibsonomy::favIconUrl() const
-{
-    return QStringLiteral("https://www.bibsonomy.org/resources/image/favicon.png");
 }
 
 #ifdef HAVE_QTWIDGETS

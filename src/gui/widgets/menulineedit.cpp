@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -195,8 +197,11 @@ MenuLineEdit::MenuLineEdit(bool isMultiLine, QWidget *parent)
 {
     if (d->m_singleLineEditText != nullptr) {
         /// Only for single-line variants stretch buttons vertically
-        QTimer::singleShot(250, this, &MenuLineEdit::slotVerticallyStretchButtons);
+        QTimer::singleShot(250, this, [this]() {
+            d->verticallyStretchButtons();
+        });
     }
+    connect(this, &MenuLineEdit::textChanged, this, &MenuLineEdit::modified);
 }
 
 MenuLineEdit::~MenuLineEdit()
@@ -286,6 +291,14 @@ void MenuLineEdit::setInnerWidgetsTransparency(bool makeInnerWidgetsTransparent)
     d->setStyleSheet(makeInnerWidgetsTransparent);
 }
 
+void MenuLineEdit::clear()
+{
+    if (d->m_singleLineEditText != nullptr)
+        d->m_singleLineEditText->clear();
+    else if (d->m_multiLineEditText != nullptr)
+        d->m_multiLineEditText->document()->clear();
+}
+
 bool MenuLineEdit::isModified() const
 {
     if (d->m_singleLineEditText != nullptr)
@@ -313,9 +326,4 @@ void MenuLineEdit::slotTextChanged()
 {
     Q_ASSERT_X(d->m_multiLineEditText != nullptr, "MenuLineEdit::slotTextChanged", "d->m_multiLineEditText is NULL");
     emit textChanged(d->m_multiLineEditText->toPlainText());
-}
-
-void MenuLineEdit::slotVerticallyStretchButtons()
-{
-    d->verticallyStretchButtons();
 }

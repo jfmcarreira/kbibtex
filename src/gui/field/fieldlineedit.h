@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -44,6 +46,7 @@ public:
     bool reset(const Value &value);
     bool apply(Value &value) const;
     bool validate(QWidget **widgetWithIssue, QString &message) const;
+    void clear() override;
     void setReadOnly(bool) override;
 
     void setFile(const File *file);
@@ -57,7 +60,6 @@ protected:
 private:
     bool m_incompleteRepresentation;
 
-
     KBibTeX::TypeFlag typeFlag();
     KBibTeX::TypeFlag setTypeFlag(KBibTeX::TypeFlag typeFlag);
 
@@ -66,10 +68,6 @@ private:
 
     class FieldLineEditPrivate;
     FieldLineEdit::FieldLineEditPrivate *d;
-
-private slots:
-    void slotTextChanged(const QString &);
-    void slotOpenUrl();
 };
 
 #endif // KBIBTEX_GUI_FIELDLINEEDIT_H

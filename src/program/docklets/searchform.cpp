@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -34,14 +36,19 @@
 #include <QIcon>
 #include <QPushButton>
 
+#include <kio_version.h>
 #include <KLocalizedString>
+#if KIO_VERSION >= 0x054700 // >= 5.71.0
+#include <KIO/OpenUrlJob>
+#include <KIO/JobUiDelegate>
+#else // < 5.71.0
 #include <KRun>
+#endif // KIO_VERSION >= 0x054700
 #include <KMessageBox>
 #include <KParts/Part>
 #include <KParts/ReadOnlyPart>
 #include <KConfigGroup>
 #include <KSharedConfig>
-#include <kio_version.h>
 
 #include <Element>
 #include <File>
@@ -57,7 +64,9 @@
 #include <onlinesearch/OnlineSearchScienceDirect>
 #include <onlinesearch/OnlineSearchSpringerLink>
 #include <onlinesearch/OnlineSearchArXiv>
+#ifdef HAVE_WEBENGINEWIDGETS
 #include <onlinesearch/OnlineSearchJStor>
+#endif // HAVE_WEBENGINEWIDGETS
 #include <onlinesearch/OnlineSearchMathSciNet>
 #include <onlinesearch/OnlineSearchMRLookup>
 #include <onlinesearch/OnlineSearchInspireHep>
@@ -140,7 +149,9 @@ public:
         whichEnginesLabel->setWordWrap(true);
         vLayout->addWidget(whichEnginesLabel);
         vLayout->setStretchFactor(whichEnginesLabel, 0);
-        connect(whichEnginesLabel, &QLabel::linkActivated, p, &SearchForm::switchToEngines);
+        connect(whichEnginesLabel, &QLabel::linkActivated, p, [this]() {
+            switchToEngines();
+        });
 
         vLayout->addSpacing(8);
 
@@ -168,11 +179,15 @@ public:
         enginesList = new QListWidget(listContainer);
         layout->addWidget(enginesList, 0, 0, 1, 1);
         connect(enginesList, &QListWidget::itemChanged, p, &SearchForm::itemCheckChanged);
-        connect(enginesList, &QListWidget::currentItemChanged, p, &SearchForm::enginesListCurrentChanged);
+        connect(enginesList, &QListWidget::currentItemChanged, p, [this](QListWidgetItem * current, QListWidgetItem *) {
+            enginesListCurrentChanged(current);
+        });
         enginesList->setSelectionMode(QAbstractItemView::NoSelection);
 
         actionOpenHomepage = new QAction(QIcon::fromTheme(QStringLiteral("internet-web-browser")), i18n("Go to Homepage"), p);
-        connect(actionOpenHomepage, &QAction::triggered, p, &SearchForm::openHomepage);
+        connect(actionOpenHomepage, &QAction::triggered, p, [this]() {
+            openHomepage();
+        });
         enginesList->addAction(actionOpenHomepage);
         enginesList->setContextMenuPolicy(Qt::ActionsContextMenu);
 
@@ -198,7 +213,9 @@ public:
         QWidget *listContainer = createEnginesGUI(tabWidget);
         tabWidget->addTab(listContainer, QIcon::fromTheme(QStringLiteral("applications-engineering")), i18n("Engines"));
 
-        connect(tabWidget, &QTabWidget::currentChanged, p, &SearchForm::tabSwitched);
+        connect(tabWidget, &QTabWidget::currentChanged, p, [this]() {
+            updateGUI();
+        });
 
         useEntryButton = new QPushButton(QIcon::fromTheme(QStringLiteral("go-up")), i18n("Use Entry"), p);
         layout->addWidget(useEntryButton, 1, 0, 1, 1);
@@ -227,7 +244,9 @@ public:
         addEngine(new OnlineSearchGoogleScholar(p));
         addEngine(new OnlineSearchIEEEXplore(p));
         addEngine(new OnlineSearchIngentaConnect(p));
+#ifdef HAVE_WEBENGINEWIDGETS
         addEngine(new OnlineSearchJStor(p));
+#endif // HAVE_WEBENGINEWIDGETS
         addEngine(new OnlineSearchMathSciNet(p));
         addEngine(new OnlineSearchMRLookup(p));
         addEngine(new OnlineSearchInspireHep(p));
@@ -249,7 +268,7 @@ public:
         KConfigGroup configGroup(config, configGroupName);
 
         /// Disable signals while updating the widget and its items
-        enginesList->blockSignals(true);
+        QSignalBlocker enginesListSignalBlocker(enginesList);
 
         QListWidgetItem *item = new QListWidgetItem(engine->label(), enginesList);
         static const QSet<QString> enginesEnabledByDefault {QStringLiteral("GoogleScholar"), QStringLiteral("Bibsonomy")};
@@ -268,12 +287,11 @@ public:
         }
 
         itemToOnlineSearch.insert(item, engine);
-        connect(engine, &OnlineSearchAbstract::foundEntry, p, &SearchForm::foundEntry);
+        connect(engine, &OnlineSearchAbstract::foundEntry, p, [this](QSharedPointer<Entry> entry) {
+            sr->insertElement(entry);
+        });
         connect(engine, &OnlineSearchAbstract::stoppedSearch, p, &SearchForm::stoppedSearch);
         connect(engine, &OnlineSearchAbstract::progress, p, &SearchForm::updateProgress);
-
-        /// Re-enable signals after updating the widget and its items
-        enginesList->blockSignals(false);
     }
 
     void switchToSearch() {
@@ -344,7 +362,13 @@ public:
             QMimeType mimeType = FileInfo::mimeTypeForUrl(url);
             const QString mimeTypeName = mimeType.name();
             /// Ask KDE subsystem to open url in viewer matching mime type
+#if KIO_VERSION < 0x054700 // < 5.71.0
             KRun::runUrl(url, mimeTypeName, p, KRun::RunFlags());
+#else // KIO_VERSION < 0x054700 // >= 5.71.0
+            KIO::OpenUrlJob *job = new KIO::OpenUrlJob(url, mimeTypeName);
+            job->setUiDelegate(new KIO::JobUiDelegate());
+            job->start();
+#endif // KIO_VERSION < 0x054700
         }
     }
 
@@ -365,20 +389,10 @@ SearchForm::~SearchForm()
     delete d;
 }
 
-void SearchForm::updatedConfiguration()
-{
-    d->loadEngines();
-}
-
 void SearchForm::setElement(QSharedPointer<Element> element, const File *)
 {
     d->currentEntry = element.dynamicCast<const Entry>();
     d->useEntryButton->setEnabled(!d->currentEntry.isNull() && d->tabWidget->currentIndex() == 0);
-}
-
-void SearchForm::switchToEngines()
-{
-    d->switchToEngines();
 }
 
 void SearchForm::startSearch()
@@ -399,7 +413,7 @@ void SearchForm::startSearch()
     if (currentForm == d->generalQueryTermsForm) {
         /// start search using the general-purpose form's values
 
-        QMap<QString, QString> queryTerms = d->generalQueryTermsForm->getQueryTerms();
+        QMap<OnlineSearchAbstract::QueryKey, QString> queryTerms = d->generalQueryTermsForm->getQueryTerms();
         int numResults = d->generalQueryTermsForm->getNumResults();
         for (QMap<QListWidgetItem *, OnlineSearchAbstract *>::ConstIterator it = d->itemToOnlineSearch.constBegin(); it != d->itemToOnlineSearch.constEnd(); ++it)
             if (it.key()->checkState() == Qt::Checked) {
@@ -427,11 +441,6 @@ void SearchForm::startSearch()
     d->switchToCancel();
 }
 
-void SearchForm::foundEntry(QSharedPointer<Entry> entry)
-{
-    d->sr->insertElement(entry);
-}
-
 void SearchForm::stoppedSearch(int)
 {
     OnlineSearchAbstract *engine = static_cast<OnlineSearchAbstract *>(sender());
@@ -455,12 +464,6 @@ void SearchForm::stoppedSearch(int)
     }
 }
 
-void SearchForm::tabSwitched(int newTab)
-{
-    Q_UNUSED(newTab)
-    d->updateGUI();
-}
-
 void SearchForm::itemCheckChanged(QListWidgetItem *item)
 {
     int numCheckedEngines = 0;
@@ -476,16 +479,6 @@ void SearchForm::itemCheckChanged(QListWidgetItem *item)
         configGroup.writeEntry(name, item->checkState() == Qt::Checked);
         d->config->sync();
     }
-}
-
-void SearchForm::openHomepage()
-{
-    d->openHomepage();
-}
-
-void SearchForm::enginesListCurrentChanged(QListWidgetItem *current, QListWidgetItem *)
-{
-    d->enginesListCurrentChanged(current);
 }
 
 void SearchForm::copyFromEntry()

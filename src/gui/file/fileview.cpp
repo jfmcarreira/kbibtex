@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -17,6 +19,7 @@
 
 #include "fileview.h"
 
+#include <QMimeData>
 #include <QDropEvent>
 #include <QTimer>
 #include <QDialog>
@@ -34,6 +37,7 @@
 
 #include <Entry>
 #include <Macro>
+#include <file/Clipboard>
 #include <models/FileModel>
 #include <FileExporterBibTeX>
 #include "element/elementeditor.h"
@@ -78,29 +82,25 @@ public:
         boxLayout->addWidget(this->elementEditor);
     }
 
-protected:
-    void closeEvent(QCloseEvent *e) override {
-        /// strangely enough, close events have always to be rejected ...
-        e->setAccepted(false);
-        QDialog::closeEvent(e);
+public:
+    void reject() override {
+        /// If there unapplied changes in the editor widget ask user for consent
+        /// to discard changes; only then allow to close this dialog
+        if (!elementEditor->elementUnapplied() || KMessageBox::warningContinueCancel(this, i18n("The current entry has been modified. Do you want to discard your changes?"), i18n("Discard changes?"), KStandardGuiItem::discard(), KGuiItem(i18n("Continue Editing"), QStringLiteral("edit-rename"))) == KMessageBox::Continue)
+            QDialog::reject();
     }
 
-private:
-    bool allowedToClose() {
-        /// save window size
+protected:
+    void closeEvent(QCloseEvent *) override {
+        /// Save window size
         KWindowConfig::saveWindowSize(windowHandle(), configGroup);
-
-        /// if there unapplied changes in the editor widget ...
-        /// ... ask user for consent to discard changes ...
-        /// only the allow to close this dialog
-        return !elementEditor->elementUnapplied() || KMessageBox::warningContinueCancel(this, i18n("The current entry has been modified. Do you want do discard your changes?"), i18n("Discard changes?"), KStandardGuiItem::discard(), KGuiItem(i18n("Continue Editing"), QStringLiteral("edit-rename"))) == KMessageBox::Continue;
     }
 };
 
 const QString ElementEditorDialog::configGroupNameWindowSize = QStringLiteral("ElementEditorDialog");
 
 FileView::FileView(const QString &name, QWidget *parent)
-        : BasicFileView(name, parent), m_isReadOnly(false), m_current(QSharedPointer<Element>()), m_filterBar(nullptr), m_lastEditorPage(nullptr), m_elementEditorDialog(nullptr), m_elementEditor(nullptr), m_dbb(nullptr)
+        : BasicFileView(name, parent), m_isReadOnly(false), m_current(QSharedPointer<Element>()), m_filterBar(nullptr), m_clipboard(nullptr), m_lastEditorPage(nullptr), m_elementEditorDialog(nullptr), m_elementEditor(nullptr), m_dbb(nullptr)
 {
     connect(this, &FileView::doubleClicked, this, &FileView::itemActivated);
 }
@@ -112,7 +112,7 @@ void FileView::viewCurrentElement()
 
 void FileView::viewElement(const QSharedPointer<Element> element)
 {
-    prepareEditorDialog(DialogTypeView);
+    prepareEditorDialog(DialogType::View);
     FileModel *model = fileModel();
     File *bibliographyFile = model != nullptr ? model->bibliographyFile() : nullptr;
     m_elementEditor->setElement(element, bibliographyFile);
@@ -129,13 +129,13 @@ void FileView::editCurrentElement()
 
 bool FileView::editElement(QSharedPointer<Element> element)
 {
-    prepareEditorDialog(DialogTypeEdit);
+    prepareEditorDialog(DialogType::Edit);
     FileModel *model = fileModel();
     File *bibliographyFile = model != nullptr ? model->bibliographyFile() : nullptr;
     m_elementEditor->setElement(element, bibliographyFile);
 
     m_elementEditor->setCurrentPage(m_lastEditorPage);
-    m_elementEditorDialog->exec();
+    m_elementEditorDialog->exec(); ///< no need to take of result code, got handled in FileView::dialogButtonClicked
     m_lastEditorPage = m_elementEditor->currentPage();
 
     if (!isReadOnly()) {
@@ -266,6 +266,11 @@ void FileView::setFilterBar(FilterBar *filterBar)
     m_filterBar = filterBar;
 }
 
+void FileView::setClipboard(Clipboard *clipboard)
+{
+    m_clipboard = clipboard;
+}
+
 void FileView::setFilterBarFilter(const SortFilterFileModel::FilterQuery &fq)
 {
     if (m_filterBar != nullptr)
@@ -274,23 +279,26 @@ void FileView::setFilterBarFilter(const SortFilterFileModel::FilterQuery &fq)
 
 void FileView::mouseMoveEvent(QMouseEvent *event)
 {
-    emit editorMouseEvent(event);
+    if (m_clipboard != nullptr)
+        m_clipboard->editorMouseEvent(event);
 }
 
 void FileView::dragEnterEvent(QDragEnterEvent *event)
 {
-    emit editorDragEnterEvent(event);
+    if (m_clipboard != nullptr)
+        m_clipboard->editorDragEnterEvent(event);
 }
 
 void FileView::dropEvent(QDropEvent *event)
 {
-    if (event->source() != this)
-        emit editorDropEvent(event);
+    if (event->source() != this && m_clipboard != nullptr)
+        m_clipboard->editorDropEvent(event);
 }
 
 void FileView::dragMoveEvent(QDragMoveEvent *event)
 {
-    emit editorDragMoveEvent(event);
+    if (m_clipboard != nullptr)
+        m_clipboard->editorDragMoveEvent(event);
 }
 
 void FileView::itemActivated(const QModelIndex &index)
@@ -300,9 +308,9 @@ void FileView::itemActivated(const QModelIndex &index)
 
 void FileView::prepareEditorDialog(DialogType dialogType)
 {
-    if (dialogType != DialogTypeView && isReadOnly()) {
+    if (dialogType != DialogType::View && isReadOnly()) {
         qCWarning(LOG_KBIBTEX_GUI) << "In read-only mode, you may only view elements, not edit them";
-        dialogType = DialogTypeView;
+        dialogType = DialogType::View;
     }
 
     /// Create both the dialog window and the editing widget only once
@@ -317,18 +325,18 @@ void FileView::prepareEditorDialog(DialogType dialogType)
         m_dbb = nullptr;
     }
 
-    if (dialogType == DialogTypeView) {
+    if (dialogType == DialogType::View) {
         /// View mode, as use in read-only situations
         m_elementEditor->setReadOnly(true);
-        m_elementEditorDialog->setWindowTitle(i18n("View Element"));
+        m_elementEditorDialog->setWindowTitle(i18nc("@title:window", "View Element"));
         m_dbb = new QDialogButtonBox(QDialogButtonBox::Close, m_elementEditorDialog);
         QBoxLayout *boxLayout = qobject_cast<QBoxLayout *>(m_elementEditorDialog->layout());
         boxLayout->addWidget(m_dbb);
         connect(m_dbb, &QDialogButtonBox::clicked, this, &FileView::dialogButtonClicked);
-    } else if (dialogType == DialogTypeEdit) {
+    } else if (dialogType == DialogType::Edit) {
         /// Edit mode, used in normal operations
         m_elementEditor->setReadOnly(false);
-        m_elementEditorDialog->setWindowTitle(i18n("Edit Element"));
+        m_elementEditorDialog->setWindowTitle(i18nc("@title:window", "Edit Element"));
         m_dbb = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel | QDialogButtonBox::Reset, m_elementEditorDialog);
         QBoxLayout *boxLayout = qobject_cast<QBoxLayout *>(m_elementEditorDialog->layout());
         boxLayout->addWidget(m_dbb);
@@ -352,8 +360,14 @@ void FileView::dialogButtonClicked(QAbstractButton *button) {
         if (m_elementEditor->validate())
             m_elementEditor->apply();
         break;
-    case QDialogButtonBox::Close: ///< fall-through is intentional
+    case QDialogButtonBox::Close:
+        /// Close button exists only in read-only mode. Reject/close immediately.
+        m_elementEditorDialog->reject();
+        break;
     case QDialogButtonBox::Cancel:
+        /// Trigger ElementEditorDialog::reject which in its turn checks
+        /// if there are unapplied modifications. If user does not want to
+        /// discard changes, stop closing this dialog and do not reject changes.
         m_elementEditorDialog->reject();
         break;
     case QDialogButtonBox::Reset:

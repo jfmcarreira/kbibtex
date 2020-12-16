@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -25,6 +27,7 @@
 #include <QPushButton>
 #include <QLineEdit>
 #include <QMenu>
+#include <QRandomGenerator>
 
 #include <KColorButton>
 #include <KActionMenu>
@@ -341,9 +344,6 @@ public:
 SettingsColorLabelWidget::SettingsColorLabelWidget(QWidget *parent)
         : SettingsAbstractWidget(parent), d(new Private(this))
 {
-    /// Seed random number generator
-    qsrand(time(nullptr));
-
     /// Setup GUI elements
     d->setupGUI();
     /// Connect signals
@@ -384,7 +384,8 @@ void SettingsColorLabelWidget::addColor()
 {
     /// Create a randomized color, but guarantee
     /// some minimum value for each color component
-    const QColor newColor((qrand() & 0xff) | 0x30, (qrand() & 0xff) | 0x30, (qrand() & 0xff) | 0x30);
+    const auto randomBits = QRandomGenerator::global()->generate();
+    const QColor newColor((randomBits & 0xff) | 0x30, ((randomBits >> 8) & 0xff) | 0x30, ((randomBits >> 16) & 0xff) | 0x30);
     /// Set the new label to be the color's hex string
     const QString newColorName(newColor.name().remove(QLatin1Char('#')));
     /// Add new color-label pair to model's data

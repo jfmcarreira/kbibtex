@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -85,7 +87,7 @@ public:
         if (!line.startsWith(QStringLiteral("ER  -")) && textStream.atEnd()) {
             qCWarning(LOG_KBIBTEX_IO) << "Expected that entry that starts with 'TY' ends with 'ER' but instead met end of file";
             /// Instead of an 'emit' ...
-            QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, SeverityWarning), Q_ARG(QString, QStringLiteral("Expected that entry that starts with 'TY' ends with 'ER' but instead met end of file")));
+            QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, MessageSeverity::Warning), Q_ARG(QString, QStringLiteral("Expected that entry that starts with 'TY' ends with 'ER' but instead met end of file")));
         }
         if (!value.isEmpty()) {
             RISitem item;
@@ -153,7 +155,11 @@ public:
             } else if ((*it).key == QStringLiteral("KW")) {
                 QString text = (*it).value;
                 const QRegularExpression splitRegExp(text.contains(QStringLiteral(";")) ? QStringLiteral("\\s*[;\\n]\\s*") : (text.contains(QStringLiteral(",")) ? QStringLiteral("\\s*[,\\n]\\s*") : QStringLiteral("\\n")));
+#if QT_VERSION >= 0x050e00
+                QStringList newKeywords = text.split(splitRegExp, Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
                 QStringList newKeywords = text.split(splitRegExp, QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
                 for (QStringList::Iterator it = newKeywords.begin(); it != newKeywords.end(); ++it)
                     appendValue(entry, Entry::ftKeywords, QSharedPointer<Keyword>(new Keyword(*it)));
             } else if ((*it).key == QStringLiteral("TI") || (*it).key == QStringLiteral("T1")) {
@@ -191,7 +197,7 @@ public:
                 fieldValue.replace(QStringLiteral("<Go to ISI>://"), QStringLiteral("isi://"));
                 const QRegularExpressionMatch doiRegExpMatch = KBibTeX::doiRegExp.match(fieldValue);
                 const QRegularExpressionMatch urlRegExpMatch = KBibTeX::urlRegExp.match(fieldValue);
-                const QString fieldName = doiRegExpMatch.hasMatch() ? Entry::ftDOI : (KBibTeX::urlRegExp.match((*it).value).hasMatch() ? Entry::ftUrl : (Preferences::instance().bibliographySystem() == Preferences::BibTeX ? Entry::ftLocalFile : Entry::ftFile));
+                const QString fieldName = doiRegExpMatch.hasMatch() ? Entry::ftDOI : (KBibTeX::urlRegExp.match((*it).value).hasMatch() ? Entry::ftUrl : (Preferences::instance().bibliographySystem() == Preferences::BibliographySystem::BibTeX ? Entry::ftLocalFile : Entry::ftFile));
                 fieldValue = doiRegExpMatch.hasMatch() ? doiRegExpMatch.captured() : (urlRegExpMatch.hasMatch() ? urlRegExpMatch.captured() : fieldValue);
                 if (fieldValue.startsWith(QStringLiteral("file:///"))) fieldValue = fieldValue.mid(7);
                 appendValue(entry, fieldName, QSharedPointer<VerbatimText>(new VerbatimText(fieldValue)));
@@ -226,7 +232,11 @@ public:
             entry->insert(Entry::ftPages, value);
         }
 
+#if QT_VERSION >= 0x050e00
+        QStringList dateFragments = date.split(QStringLiteral("/"), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
         QStringList dateFragments = date.split(QStringLiteral("/"), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         if (dateFragments.count() > 0) {
             bool ok;
             int year = dateFragments[0].toInt(&ok);
@@ -237,7 +247,7 @@ public:
             } else {
                 qCWarning(LOG_KBIBTEX_IO) << "Invalid year: " << dateFragments[0];
                 /// Instead of an 'emit' ...
-                QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, SeverityWarning), Q_ARG(QString, QString(QStringLiteral("Invalid year: '%1'")).arg(dateFragments[0])));
+                QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, MessageSeverity::Warning), Q_ARG(QString, QString(QStringLiteral("Invalid year: '%1'")).arg(dateFragments[0])));
             }
         }
         if (dateFragments.count() > 1) {
@@ -250,7 +260,7 @@ public:
             } else {
                 qCWarning(LOG_KBIBTEX_IO) << "Invalid month: " << dateFragments[1];
                 /// Instead of an 'emit' ...
-                QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, SeverityWarning), Q_ARG(QString, QString(QStringLiteral("Invalid month: '%1'")).arg(dateFragments[1])));
+                QMetaObject::invokeMethod(parent, "message", Qt::DirectConnection, QGenericReturnArgument(), Q_ARG(FileImporter::MessageSeverity, MessageSeverity::Warning), Q_ARG(QString, QString(QStringLiteral("Invalid month: '%1'")).arg(dateFragments[1])));
             }
         }
 
@@ -292,8 +302,12 @@ File *FileImporterRIS::load(QIODevice *iodevice)
 {
     if (!iodevice->isReadable() && !iodevice->open(QIODevice::ReadOnly)) {
         qCWarning(LOG_KBIBTEX_IO) << "Input device not readable";
-        emit message(SeverityError, QStringLiteral("Input device not readable"));
+        emit message(MessageSeverity::Error, QStringLiteral("Input device not readable"));
         return nullptr;
+    } else if (iodevice->atEnd() || iodevice->size() <= 0) {
+        qCWarning(LOG_KBIBTEX_IO) << "Input device at end or does not contain any data";
+        emit message(MessageSeverity::Warning, QStringLiteral("Input device at end or does not contain any data"));
+        return new File();
     }
 
     d->cancelFlag = false;

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -19,6 +21,8 @@
 
 #include <QString>
 #include <QRegularExpression>
+#include <QHash>
+#include <QDebug>
 
 const QString KBibTeX::extensionTeX = QStringLiteral(".tex");
 const QString KBibTeX::extensionAux = QStringLiteral(".aux");
@@ -39,8 +43,8 @@ const QString KBibTeX::MonthsTriple[] = {
 
 const QRegularExpression KBibTeX::fileListSeparatorRegExp(QStringLiteral("[ \\t]*[;\\n]+[ \\t]*"));
 const QRegularExpression KBibTeX::fileRegExp(QStringLiteral("(\\bfile:)?[^{}\\t]+\\.\\w{2,4}\\b"), QRegularExpression::CaseInsensitiveOption);
-const QRegularExpression KBibTeX::urlRegExp(QStringLiteral("\\b(http|s?ftp|webdav|file)s?://[^ {}\"]+(\\b|[/])"), QRegularExpression::CaseInsensitiveOption);
-const QRegularExpression KBibTeX::doiRegExp(QStringLiteral("10([.][0-9]+)+/[/-a-z0-9.()<>_:;\\\\]+"), QRegularExpression::CaseInsensitiveOption);
+const QRegularExpression KBibTeX::urlRegExp(QStringLiteral("\\b((http|s?ftp|(web)?dav|imap|ipp|ldap|rtsp|sip|stun|turn)s?|mailto|jabber|xmpp|info|file)://[^ {}\"]+(\\b|[/])"), QRegularExpression::CaseInsensitiveOption);
+const QRegularExpression KBibTeX::doiRegExp(QStringLiteral("10([.][0-9]+)+/[-/a-z0-9.()<>_:;\\\\]+"), QRegularExpression::CaseInsensitiveOption);
 const QRegularExpression KBibTeX::arXivRegExpWithPrefix(QStringLiteral("arXiv:(([0-9]+[.][0-9]+|[a-z-]+/[0-9]+)(v[0-9]+)?)"));
 const QRegularExpression KBibTeX::arXivRegExpWithoutPrefix(QStringLiteral("([0-9]+[.][0-9]+|[a-z-]+/[0-9]+)(v[0-9]+)?"));
 const QRegularExpression KBibTeX::mendeleyFileRegExp(QStringLiteral(":(.*):pdf"), QRegularExpression::CaseInsensitiveOption);
@@ -48,38 +52,42 @@ const QRegularExpression KBibTeX::domainNameRegExp(QStringLiteral("[a-z0-9.-]+\\
 const QRegularExpression KBibTeX::htmlRegExp(QStringLiteral("</?(a|pre|p|br|span|i|b|italic)\\b[^>{}]{,32}>"), QRegularExpression::CaseInsensitiveOption);
 const QString KBibTeX::doiUrlPrefix(QStringLiteral("https://dx.doi.org/")); ///< for internal use in FileInfo::doiUrlPrefix, use FileInfo::doiUrlPrefix() instead
 
-bool KBibTeX::isLocalOrRelative(const QUrl &url)
+QDebug operator<<(QDebug dbg, const KBibTeX::TypeFlag &typeFlag)
 {
-    return url.isLocalFile() || url.isRelative() || url.scheme().isEmpty();
+    static const auto pairs = QHash<int, const char *> {
+        {static_cast<int>(KBibTeX::TypeFlag::Invalid), "Invalid"},
+        {static_cast<int>(KBibTeX::TypeFlag::PlainText), "PlainText"},
+        {static_cast<int>(KBibTeX::TypeFlag::Reference), "Reference"},
+        {static_cast<int>(KBibTeX::TypeFlag::Person), "Person"},
+        {static_cast<int>(KBibTeX::TypeFlag::Keyword), "Keyword"},
+        {static_cast<int>(KBibTeX::TypeFlag::Verbatim), "Verbatim"},
+        {static_cast<int>(KBibTeX::TypeFlag::Source), "Source"}
+    };
+    dbg.nospace();
+    const int typeFlagInt = static_cast<int>(typeFlag);
+    dbg << (pairs.contains(typeFlagInt) ? pairs[typeFlagInt] : "???");
+    return dbg;
 }
 
-/**
- * Poor man's variant of a text-squeezing function.
- * Effect is similar as observed in KSqueezedTextLabel:
- * If the text is longer as n characters, the middle part
- * will be cut away and replaced by "..." to get a
- * string of max n characters.
- */
-QString KBibTeX::squeezeText(const QString &text, int n)
+QDebug operator<<(QDebug dbg, const KBibTeX::TypeFlags &typeFlags)
 {
-    return text.length() <= n ? text : text.left(n / 2 - 1) + QStringLiteral("...") + text.right(n / 2 - 2);
-}
-
-QString KBibTeX::leftSqueezeText(const QString &text, int n)
-{
-    return text.length() <= n ? text : text.left(n) + QStringLiteral("...");
-}
-
-int KBibTeX::validateCurlyBracketContext(const QString &text)
-{
-    int openingCB = 0, closingCB = 0;
-
-    for (int i = 0; i < text.length(); ++i) {
-        if (i == 0 || text[i - 1] != QLatin1Char('\\')) {
-            if (text[i] == QLatin1Char('{')) ++openingCB;
-            else if (text[i] == QLatin1Char('}')) ++closingCB;
+    static const auto pairs = QHash<const char *, KBibTeX::TypeFlag> {
+        {"Invalid", KBibTeX::TypeFlag::Invalid},
+        {"PlainText", KBibTeX::TypeFlag::PlainText},
+        {"Reference", KBibTeX::TypeFlag::Reference},
+        {"Person", KBibTeX::TypeFlag::Person},
+        {"Keyword", KBibTeX::TypeFlag::Keyword},
+        {"Verbatim", KBibTeX::TypeFlag::Verbatim},
+        {"Source", KBibTeX::TypeFlag::Source}
+    };
+    dbg.nospace();
+    bool first = true;
+    for (QHash<const char *, KBibTeX::TypeFlag>::ConstIterator it = pairs.constBegin(); it != pairs.constEnd(); ++it) {
+        if (typeFlags.testFlag(it.value())) {
+            if (first) dbg << "|";
+            dbg << it.key();
+            first = false;
         }
     }
-
-    return openingCB - closingCB;
+    return dbg;
 }

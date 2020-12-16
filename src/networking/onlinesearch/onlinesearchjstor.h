@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -14,6 +16,8 @@
  *   You should have received a copy of the GNU General Public License     *
  *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
  ***************************************************************************/
+
+#ifdef HAVE_WEBENGINEWIDGETS
 
 #ifndef KBIBTEX_NETWORKING_ONLINESEARCHJSTOR_H
 #define KBIBTEX_NETWORKING_ONLINESEARCHJSTOR_H
@@ -35,12 +39,11 @@ public:
     explicit OnlineSearchJStor(QObject *parent);
     ~OnlineSearchJStor() override;
 
-    void startSearch(const QMap<QString, QString> &query, int numResults) override;
+    void startSearch(const QMap<QueryKey, QString> &query, int numResults) override;
     QString label() const override;
     QUrl homepage() const override;
 
 protected:
-    QString favIconUrl() const override;
     void sanitizeEntry(QSharedPointer<Entry> entry) override;
 
 private slots:
@@ -54,3 +57,5 @@ private:
 };
 
 #endif // KBIBTEX_NETWORKING_ONLINESEARCHJSTOR_H
+
+#endif // HAVE_WEBENGINEWIDGETS

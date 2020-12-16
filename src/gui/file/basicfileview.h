@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -41,6 +43,11 @@ public:
 
 signals:
     void searchFor(const QString &);
+    /**
+     * Signal emitted if this view's selection changes.
+     * @param hasSelection true if at least one row is selected, false otherwise
+     */
+    void hasSelectionChanged(bool hasSelection);
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
@@ -51,8 +58,7 @@ private:
     Private *d;
 
 private slots:
-    void headerActionToggled();
-    void headerResetToDefaults();
+    void headerColumnVisibilityToggled();
     void sort(int, Qt::SortOrder);
     void noSorting();
     void showHeaderContextMenu(const QPoint &pos);

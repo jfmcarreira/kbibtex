@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -21,19 +23,20 @@
 #include <QFontMetrics>
 #include <QPainter>
 #include <QColorDialog>
+#include <QSignalBlocker>
 
 #include <KLocalizedString>
 
 #include <NotificationHub>
 #include <Preferences>
 
-static const QColor NoColor = Qt::black;
-
 class ColorLabelComboBoxModel : public QAbstractItemModel
 {
     Q_OBJECT
 
 public:
+    static const QColor NoColor;
+
     enum ColorLabelComboBoxModelRole {
         /// Color of a color-label pair
         ColorRole = Qt::UserRole + 1721
@@ -115,6 +118,9 @@ public:
     }
 };
 
+const QColor ColorLabelComboBoxModel::NoColor = Qt::black;
+
+
 class ColorLabelWidget::ColorLabelWidgetPrivate : private NotificationListener
 {
 private:
@@ -133,15 +139,12 @@ public:
     void notificationEvent(int eventId) override {
         if (eventId == NotificationHub::EventConfigurationChanged) {
             /// Avoid triggering signal when current index is set by the program
-            disconnect(parent, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), parent, &ColorLabelWidget::slotCurrentIndexChanged);
+            const QSignalBlocker blocker(parent);
 
             const QColor currentColor = parent->currentColor();
             model->reset();
-            model->userColor = NoColor;
+            model->userColor = ColorLabelComboBoxModel::NoColor;
             selectColor(currentColor);
-
-            /// Re-enable triggering signal after setting current index
-            connect(parent, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), parent, &ColorLabelWidget::slotCurrentIndexChanged);
         }
     }
 
@@ -153,7 +156,7 @@ public:
     int selectColor(const QColor &color)
     {
         int rowIndex = 0;
-        if (color != NoColor) {
+        if (color != ColorLabelComboBoxModel::NoColor) {
             /// Find row that matches given color
             for (rowIndex = 0; rowIndex < model->rowCount(); ++rowIndex)
                 if (model->data(model->index(rowIndex, 0, QModelIndex()), ColorLabelComboBoxModel::ColorRole).value<QColor>() == color)
@@ -184,13 +187,10 @@ ColorLabelWidget::~ColorLabelWidget()
 void ColorLabelWidget::clear()
 {
     /// Avoid triggering signal when current index is set by the program
-    disconnect(this, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &ColorLabelWidget::slotCurrentIndexChanged);
+    const QSignalBlocker blocker(this);
 
-    d->model->userColor = NoColor;
+    d->model->userColor = ColorLabelComboBoxModel::NoColor;
     setCurrentIndex(0); ///< index 0 should be "no color"
-
-    /// Re-enable triggering signal after setting current index
-    connect(this, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &ColorLabelWidget::slotCurrentIndexChanged);
 }
 
 QColor ColorLabelWidget::currentColor() const
@@ -201,7 +201,7 @@ QColor ColorLabelWidget::currentColor() const
 bool ColorLabelWidget::reset(const Value &value)
 {
     /// Avoid triggering signal when current index is set by the program
-    disconnect(this, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &ColorLabelWidget::slotCurrentIndexChanged);
+    const QSignalBlocker blocker(this);
 
     QSharedPointer<VerbatimText> verbatimText;
     int rowIndex = 0;
@@ -211,9 +211,6 @@ bool ColorLabelWidget::reset(const Value &value)
     }
     setCurrentIndex(rowIndex);
 
-    /// Re-enable triggering signal after setting current index
-    connect(this, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &ColorLabelWidget::slotCurrentIndexChanged);
-
     return true;
 }
 
@@ -221,7 +218,7 @@ bool ColorLabelWidget::apply(Value &value) const
 {
     const QColor color = currentColor();
     value.clear();
-    if (color != NoColor)
+    if (color != ColorLabelComboBoxModel::NoColor)
         value.append(QSharedPointer<VerbatimText>(new VerbatimText(color.name())));
     return true;
 }

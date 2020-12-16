@@ -1,27 +1,26 @@
-/*****************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de>   *
- *                                                                           *
- *                                                                           *
- *   This program is free software; you can redistribute it and/or modify    *
- *   it under the terms of the GNU General Public License as published by    *
- *   the Free Software Foundation; either version 2 of the License, or       *
- *   (at your option) any later version.                                     *
- *                                                                           *
- *   This program is distributed in the hope that it will be useful,         *
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of          *
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the           *
- *   GNU General Public License for more details.                            *
- *                                                                           *
- *   You should have received a copy of the GNU General Public License       *
- *   along with this program; if not, see <https://www.gnu.org/licenses/>.   *
- *****************************************************************************/
+/***************************************************************************
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 2 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, see <https://www.gnu.org/licenses/>. *
+ ***************************************************************************/
 
 #ifndef KBIBTEX_GUI_STARRATING_H
 #define KBIBTEX_GUI_STARRATING_H
 
 #include <QWidget>
-
-#include <KIconLoader>
 
 #include <Value>
 
@@ -31,8 +30,6 @@ class QLabel;
 class QPaintEvent;
 class QMouseEvent;
 class QPushButton;
-
-// TODO replace StarRating and StarRatingFieldInput with KRatingWidget and KRatingPainter
 
 /**
  * A widget which shows a number of stars in a horizonal row.
@@ -55,6 +52,7 @@ public:
      * @param parent parent widget
      */
     explicit StarRating(int maxNumberOfStars, QWidget *parent = nullptr);
+    ~StarRating();
 
     /**
      * Get the current rating in percent (i.e >=0.0 and <=100.0).
@@ -83,17 +81,6 @@ public:
      * @param isReadOnly @c true if widget is to be read-only, @c false if modifyable
      */
     void setReadOnly(bool isReadOnly);
-
-    /**
-     * Paint a horizonal sequence of stars on a painter.
-     *
-     * @param painter painter to draw on
-     * @param defaultState how icons shall be drawn; common values are KIconLoader::DefaultState and KIconLoader::DisabledState
-     * @param numTotalStars maximum/total number of stars
-     * @param percent percent value of "glowing" starts, to be >=0.0 and <= 100.0
-     * @param inside fit and paint stars inside this rectangle on the painter
-     */
-    static void paintStars(QPainter *painter, KIconLoader::States defaultState, int numTotalStars, double percent, const QRect inside);
 
 signals:
     void modified();

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -91,12 +93,12 @@ QVector<Value> EntryClique::chosenValues(const QString &field) const
 void EntryClique::setChosenValue(const QString &field, const Value &value, ValueOperation valueOperation)
 {
     switch (valueOperation) {
-    case SetValue: {
+    case ValueOperation::SetValue: {
         chosenValueMap[field].clear();
         chosenValueMap[field] << value;
         break;
     }
-    case AddValue: {
+    case ValueOperation::AddValue: {
         QString text = PlainTextValue::text(value);
         for (const Value &value : const_cast<const QVector<Value> &>(chosenValueMap[field]))
             if (PlainTextValue::text(value) == text)
@@ -104,7 +106,7 @@ void EntryClique::setChosenValue(const QString &field, const Value &value, Value
         chosenValueMap[field] << value;
         break;
     }
-    case RemoveValue: {
+    case ValueOperation::RemoveValue: {
         QString text = PlainTextValue::text(value);
         for (QVector<Value>::Iterator it = chosenValueMap[field].begin(); it != chosenValueMap[field].end(); ++it)
             if (PlainTextValue::text(*it) == text) {
@@ -224,7 +226,7 @@ public:
 
     /**
       * Determine the Levenshtein distance between two words.
-      * See also http://en.wikipedia.org/wiki/Levenshtein_distance
+      * See also https://en.wikipedia.org/wiki/Levenshtein_distance
       * @param s first word, all chars already in lower case
       * @param t second word, all chars already in lower case
       * @return distance between both words
@@ -257,7 +259,7 @@ public:
 
     /**
      * Determine the Levenshtein distance between two sentences (list of words).
-     * See also http://en.wikipedia.org/wiki/Levenshtein_distance
+     * See also https://en.wikipedia.org/wiki/Levenshtein_distance
      * @param s first sentence
      * @param t second sentence
      * @return distance between both sentences
@@ -295,7 +297,7 @@ public:
     /**
      * Determine the Levenshtein distance between two sentences,
      * where each sentence is in a string (not split into single words).
-     * See also http://en.wikipedia.org/wiki/Levenshtein_distance
+     * See also https://en.wikipedia.org/wiki/Levenshtein_distance
      * @param s first sentence
      * @param t second sentence
      * @return distance between both sentences
@@ -303,7 +305,11 @@ public:
     double levenshteinDistance(const QString &s, const QString &t) {
         static const QRegularExpression nonWordRegExp(QStringLiteral("[^a-z']+"), QRegularExpression::CaseInsensitiveOption);
         if (s.isEmpty() || t.isEmpty()) return 1.0;
+#if QT_VERSION >= 0x050e00
+        return levenshteinDistance(s.toLower().split(nonWordRegExp, Qt::SkipEmptyParts), t.toLower().split(nonWordRegExp, Qt::SkipEmptyParts));
+#else // QT_VERSION < 0x050e00
         return levenshteinDistance(s.toLower().split(nonWordRegExp, QString::SkipEmptyParts), t.toLower().split(nonWordRegExp, QString::SkipEmptyParts));
+#endif // QT_VERSION >= 0x050e00
     }
 
     /**
@@ -377,7 +383,7 @@ bool FindDuplicates::findDuplicateEntries(File *file, QVector<EntryClique *> &en
     QApplication::setOverrideCursor(Qt::WaitCursor);
     QScopedPointer<QProgressDialog> progressDlg(new QProgressDialog(i18n("Searching ..."), i18n("Cancel"), 0, 100000 /* to be set later to actual value */, d->widget));
     progressDlg->setModal(true);
-    progressDlg->setWindowTitle(i18n("Finding Duplicates"));
+    progressDlg->setWindowTitle(i18nc("@title:window", "Finding Duplicates"));
     progressDlg->setMinimumWidth(d->widget->fontMetrics().averageCharWidth() * 48);
     progressDlg->setAutoReset(false);
     entryCliqueList.clear();

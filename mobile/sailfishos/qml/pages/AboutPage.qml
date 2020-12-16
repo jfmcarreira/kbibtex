@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2016-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2016-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -41,28 +43,25 @@ Page {
 
                 PageHeader {
                     id: header
-                    //% "About BibSearch"
-                    title: qsTrId("bibsearch-application-about")
+                    title: qsTr("About BibSearch")
                 }
 
                 Image {
-                    source: "qrc:/icons/128/harbour-bibsearch.png"
+                    source: "qrc:/icons/172/harbour-bibsearch.png"
                     anchors {
                         horizontalCenter: parent.horizontalCenter
                     }
                 }
 
                 Label {
-                    //% "Version %1"
-                    text: qsTrId("bibsearch-version").arg("0.6")
+                    text: qsTr("Version %1").arg("0.6")
                     anchors {
                         horizontalCenter: parent.horizontalCenter
                     }
                 }
 
                 Label {
-                    //% "\u00a9 2016\u20132019 Thomas Fischer"
-                    text: qsTrId("bibsearch-copyright-line")
+                    text: qsTr("(C) 2016--2020 Thomas Fischer")
                     anchors {
                         horizontalCenter: parent.horizontalCenter
                     }
@@ -75,8 +74,7 @@ Page {
                 }
 
                 Label {
-                    //% "This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version."
-                    text: qsTrId("bibsearch-under-gpl")
+                    text: qsTr("This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.")
                     width: parent.width - 2 * x
                     x: Theme.horizontalPageMargin
                     font.pointSize: Theme.fontSizeTiny
@@ -85,16 +83,14 @@ Page {
 
                 Button {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    //% "Project Homepage"
-                    text: qsTrId("bibsearch-link-label-project-hompage")
+                    text: qsTr("Project Homepage")
                     onClicked: {
                         Qt.openUrlExternally("https://gitlab.com/tfischer/BibSearch")
                     }
                 }
 
                 Label {
-                    //% "This program is sharing its code base with KBibTeX, the bibliography editor using KDE technology."
-                    text: qsTrId("bibsearch-based-on-kbibtex")
+                    text: qsTr("This program is sharing its code base with KBibTeX, the bibliography editor using KDE technology.")
                     width: parent.width - 2 * x
                     x: Theme.horizontalPageMargin
                     font.pointSize: Theme.fontSizeTiny
@@ -103,8 +99,7 @@ Page {
 
                 Button {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    //% "KBibTeX's Homepage"
-                    text: qsTrId("bibsearch-link-label-kbibtex-homepage")
+                    text: qsTr("KBibTeX's Homepage")
                     onClicked: {
                         Qt.openUrlExternally("https://userbase.kde.org/KBibTeX")
                     }
@@ -112,10 +107,9 @@ Page {
 
                 Button {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    //% "Git Repository"
-                    text: qsTrId("bibsearch-link-label-git-repository")
+                    text: qsTr("Git Repository")
                     onClicked: {
-                        Qt.openUrlExternally("https://cgit.kde.org/kbibtex.git")
+                        Qt.openUrlExternally("https://invent.kde.org/office/kbibtex")
                     }
                 }
 
@@ -130,8 +124,7 @@ Page {
         PullDownMenu {
             MenuItem {
                 id: menuItemIssueTracker
-                //% "Report Issue"
-                text: qsTrId("bibsearch-link-label-report-issue")
+                text: qsTr("Report Issue")
                 onClicked: {
                     Qt.openUrlExternally("https://gitlab.com/tfischer/BibSearch/issues")
                 }

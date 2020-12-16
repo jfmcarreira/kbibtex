@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -53,10 +55,7 @@ public:
     class Form;
 #endif // HAVE_QTWIDGETS
 
-    static const QString queryKeyFreeText;
-    static const QString queryKeyTitle;
-    static const QString queryKeyAuthor;
-    static const QString queryKeyYear;
+    enum class QueryKey {FreeText, Title, Author, Year};
 
     static const int resultCancelled;
     static const int resultNoError;
@@ -68,11 +67,11 @@ public:
 #ifdef HAVE_QTWIDGETS
     virtual void startSearchFromForm();
 #endif // HAVE_QTWIDGETS
-    virtual void startSearch(const QMap<QString, QString> &query, int numResults) = 0;
+    virtual void startSearch(const QMap<QueryKey, QString> &query, int numResults) = 0;
     virtual QString label() const = 0;
     QString name();
 #ifdef HAVE_QTWIDGETS
-    virtual QIcon icon(QListWidgetItem *listWidgetItem = nullptr);
+    virtual QIcon icon(QListWidgetItem *listWidgetItem);
     virtual OnlineSearchAbstract::Form *customWidget(QWidget *parent);
 #endif // HAVE_QTWIDGETS
     virtual QUrl homepage() const = 0;
@@ -86,8 +85,6 @@ protected:
     bool m_hasBeenCanceled;
 
     int numSteps, curStep;
-
-    virtual QString favIconUrl() const = 0;
 
     /**
      * Split a string along spaces, but keep text in quotation marks together
@@ -109,6 +106,7 @@ protected:
     * this function will notify the user if necessary (KMessageBox), emit a
     * "stoppedSearch" signal (by invoking "stopSearch"), and return false.
     * @see handleErrors(KJob*)
+    * @param reply The reply the function will handle errors for
     * @param newUrl will be set to the new URL if reply contains a redirection, otherwise reply's original URL
     */
     bool handleErrors(QNetworkReply *reply, QUrl &newUrl);
@@ -120,9 +118,7 @@ protected:
 
     static QString decodeURL(QString rawText);
 
-    QMap<QString, QString> formParameters(const QString &htmlText, int startPos) const;
-
-    void dumpToFile(const QString &filename, const QString &text);
+    QMultiMap<QString, QString> formParameters(const QString &htmlText, int startPos) const;
 
     /**
      * Delay sending of stop signal by a few milliseconds.
@@ -177,12 +173,6 @@ private:
 
     QString htmlAttribute(const QString &htmlCode, const int startPos, const QString &attribute) const;
     bool htmlAttributeIsSelected(const QString &htmlCode, const int startPos, const QString &attribute) const;
-
-private slots:
-#ifdef HAVE_QTWIDGETS
-    void iconDownloadFinished();
-#endif // HAVE_QTWIDGETS
-    void delayedStoppedSearchTimer();
 
 signals:
     void foundEntry(QSharedPointer<Entry>);

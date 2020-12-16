@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -157,7 +159,7 @@ public:
                 else if (fieldName == QStringLiteral("^type"))
                     return i18n("Type");
                 else
-                    return BibTeXEntries::instance().format(fieldName, KBibTeX::cUpperCamelCase);
+                    return BibTeXEntries::instance().format(fieldName, KBibTeX::Casing::UpperCamelCase);
             case RadioButtonTreeView::IsRadioRole:
                 /// this is not to be a radio widget
                 return QVariant::fromValue(false);
@@ -183,7 +185,7 @@ public:
                 if (index.row() < values.count()) {
                     QString text = PlainTextValue::text(values.at(index.row()));
                     if (fieldName == QStringLiteral("^type"))
-                        text = BibTeXEntries::instance().format(text, KBibTeX::cUpperCamelCase);
+                        text = BibTeXEntries::instance().format(text, KBibTeX::Casing::UpperCamelCase);
 
                     /// textual representation of the alternative's value
                     return text;
@@ -260,9 +262,9 @@ public:
                 return true;
             } else if (role == Qt::CheckStateRole && isInt && selectionType(fieldName) == SelectionTypeCheck) {
                 if (checkState == Qt::Checked)
-                    currentClique->setChosenValue(fieldName, values[index.row()], EntryClique::AddValue);
+                    currentClique->setChosenValue(fieldName, values[index.row()], EntryClique::ValueOperation::AddValue);
                 else if (checkState == Qt::Unchecked)
-                    currentClique->setChosenValue(fieldName, values[index.row()], EntryClique::RemoveValue);
+                    currentClique->setChosenValue(fieldName, values[index.row()], EntryClique::ValueOperation::RemoveValue);
                 else
                     return false; ///< tertium non datur
 
@@ -707,7 +709,7 @@ void FindDuplicatesUI::startDuplicatesSearch()
         /// Why is a QPointer used here you may wonder? Check here in case the link still works:
         ///   https://blogs.kde.org/2009/03/26/how-crash-almost-every-qtkde-application-and-how-fix-it-0
         QPointer<QDialog> dlg = new QDialog(d->part->widget());
-        dlg->setWindowTitle(i18n("Merge Duplicates"));
+        dlg->setWindowTitle(i18nc("@title:window", "Merge Duplicates"));
         MergeWidget *mw = new MergeWidget(workingSetFile, cliques, dlg);
         mw->layout()->setMargin(0);
         QBoxLayout *layout = new QVBoxLayout(dlg);

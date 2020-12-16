@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -35,7 +37,7 @@ class File;
 class KBIBTEXDATA_EXPORT ValueItem
 {
 public:
-    enum ReplaceMode {CompleteMatch, AnySubstring};
+    enum class ReplaceMode {CompleteMatch, AnySubstring};
 
     ValueItem();
     virtual ~ValueItem();
@@ -284,7 +286,7 @@ public:
     static QString text(const QSharedPointer<const ValueItem> &valueItem);
 
 private:
-    enum ValueItemType { VITOther = 0, VITPerson, VITKeyword};
+    enum class ValueItemType { Other = 0, Person, Keyword};
 
     static QString text(const ValueItem &valueItem, ValueItemType &vit);
 };

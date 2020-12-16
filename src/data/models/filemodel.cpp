@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -64,8 +66,6 @@ void FileModel::notificationEvent(int eventId)
     } else if (eventId == NotificationHub::EventBibliographySystemChanged) {
         beginResetModel();
         endResetModel();
-        emit headerDataChanged(Qt::Horizontal, 0, 0xffff);
-        emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1));
     }
 }
 
@@ -74,6 +74,11 @@ void FileModel::readConfiguration()
     colorToLabel.clear();
     for (QVector<QPair<QColor, QString>>::ConstIterator it = Preferences::instance().colorCodes().constBegin(); it != Preferences::instance().colorCodes().constEnd(); ++it)
         colorToLabel.insert(it->first.name(), it->second);
+}
+
+QString FileModel::leftSqueezeText(const QString &text, int n)
+{
+    return text.length() <= n ? text : text.left(n) + QStringLiteral("...");
 }
 
 QString FileModel::entryText(const Entry *entry, const QString &raw, const QString &rawAlt, const QStringList &rawAliases, int role, bool followCrossRef) const
@@ -125,7 +130,7 @@ QString FileModel::entryText(const Entry *entry, const QString &raw, const QStri
             return text.toLower();
         else if (role == Qt::ToolTipRole) {
             // TODO: find a better solution, such as line-wrapping tooltips
-            return KBibTeX::leftSqueezeText(text, 128);
+            return leftSqueezeText(text, 128);
         } else
             return text;
     }

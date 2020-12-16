@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -38,7 +40,7 @@
 
 //#include <onlinesearchieeexplore.h>
 
-int maxDepth = 5;
+static const int maxDepth = 5;
 static const char *depthProperty = "depth";
 static const char *termProperty = "term";
 static const char *originProperty = "origin";
@@ -222,7 +224,7 @@ public:
             resultItem.tempFilename = new QTemporaryFile(QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QDir::separator() + QStringLiteral("kbibtex_findpdf_XXXXXX.pdf"));
             resultItem.tempFilename->setAutoRemove(true);
             if (resultItem.tempFilename->open()) {
-                const int lenDataWritten = resultItem.tempFilename->write(data);
+                const int lenDataWritten = static_cast<int>(resultItem.tempFilename->write(data));
                 resultItem.tempFilename->close();
                 if (lenDataWritten != data.length()) {
                     /// Failed to write to temporary file
@@ -246,7 +248,7 @@ public:
                 delete page;
             }
             resultItem.textPreview.remove(QStringLiteral("Microsoft Word - ")); ///< Some word processors need to put their name everywhere ...
-            resultItem.downloadMode = NoDownload;
+            resultItem.downloadMode = DownloadMode::No;
             resultItem.relevance = origin == Entry::ftDOI ? 1.0 : (origin == QStringLiteral("eprint") ? 0.75 : 0.5);
             result << resultItem;
             progress = true;
@@ -263,14 +265,14 @@ public:
             return url;
 
         /// Assuming URL looks like this:
-        ///    http://ieeexplore.ieee.org/document/8092651/
-        static const QRegularExpression documentIdRegExp(QStringLiteral("/(\\d{6,})/$"));
+        ///    https://ieeexplore.ieee.org/document/8092651
+        static const QRegularExpression documentIdRegExp(QStringLiteral("/(\\d{6,})[/]?$"));
         const QRegularExpressionMatch documentIdRegExpMatch = documentIdRegExp.match(url.path());
         if (!documentIdRegExpMatch.hasMatch())
             return url;
 
         /// Use document id extracted above to build URL to PDF file
-        return QUrl(QStringLiteral("http://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=") + documentIdRegExpMatch.captured(1));
+        return QUrl(QStringLiteral("https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=") + documentIdRegExpMatch.captured(1));
     }
 };
 
@@ -300,7 +302,11 @@ bool FindPDF::search(const Entry &entry)
     /// Generate a string which contains the title's beginning
     QString searchWords;
     if (entry.contains(Entry::ftTitle)) {
+#if QT_VERSION >= 0x050e00
+        const QStringList titleChunks = PlainTextValue::text(entry.value(Entry::ftTitle)).split(QStringLiteral(" "), Qt::SkipEmptyParts);
+#else // QT_VERSION < 0x050e00
         const QStringList titleChunks = PlainTextValue::text(entry.value(Entry::ftTitle)).split(QStringLiteral(" "), QString::SkipEmptyParts);
+#endif // QT_VERSION >= 0x050e00
         if (!titleChunks.isEmpty()) {
             searchWords = titleChunks[0];
             for (int i = 1; i < titleChunks.count() && searchWords.length() < 64; ++i)
@@ -337,7 +343,7 @@ bool FindPDF::search(const Entry &entry)
         /// check eprint fields as used for arXiv
         const QString eprintId = PlainTextValue::text(entry.value(QStringLiteral("eprint")));
         if (!eprintId.isEmpty()) {
-            const QUrl arxivUrl = QUrl::fromUserInput(QStringLiteral("http://arxiv.org/find/all/1/all:+") + eprintId + QStringLiteral("/0/1/0/all/0/1"));
+            const QUrl arxivUrl = QUrl::fromUserInput(QStringLiteral("https://arxiv.org/search/advanced?terms-0-term=") + eprintId + QStringLiteral("&terms-0-field=report_num&size=50&order=-announced_date_first"));
             d->queueUrl(arxivUrl, eprintId, QStringLiteral("eprint"), maxDepth);
         }
     }
@@ -359,7 +365,7 @@ bool FindPDF::search(const Entry &entry)
         d->queueUrl(bingUrl, searchWords, QStringLiteral("bing"), maxDepth);
 
         /// Search in CiteSeerX
-        const QUrl citeseerXurl = QUrl::fromUserInput(QStringLiteral("http://citeseerx.ist.psu.edu/search?submit=Search&sort=rlv&t=doc&q=") + searchWords);
+        const QUrl citeseerXurl = QUrl::fromUserInput(QStringLiteral("https://citeseerx.ist.psu.edu/search?submit=Search&sort=rlv&t=doc&q=") + searchWords);
         d->queueUrl(citeseerXurl, searchWords, QStringLiteral("citeseerx"), maxDepth);
 
         /// Search in StartPage

@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -41,7 +43,7 @@ public:
         bibStyle = QStringLiteral("plain");
     }
 
-    bool generateHTML(QIODevice *iodevice, QStringList *errorLog) {
+    bool generateHTML(QIODevice *iodevice) {
         if (!checkBSTexists(iodevice)) return false;
         if (!checkBibTeX2HTMLexists(iodevice)) return false;
 
@@ -59,7 +61,7 @@ public:
         args << QStringLiteral("-debug"); /// verbose mode (to find incorrect BibTeX entries)
         args << bibTeXFilename;
 
-        bool result = p->runProcess(QStringLiteral("bibtex2html"), args, errorLog) && p->writeFileToIODevice(outputFilename, iodevice, errorLog);
+        bool result = p->runProcess(QStringLiteral("bibtex2html"), args) && p->writeFileToIODevice(outputFilename, iodevice);
 
         return result;
     }
@@ -71,7 +73,11 @@ public:
         QTextStream ts(iodevice);
         ts << QStringLiteral("<div style=\"color: red; background: white;\">");
         ts << i18n("The program <strong>bibtex2html</strong> is not available.");
+#if QT_VERSION >= 0x050e00
+        ts << QStringLiteral("</div>") << Qt::endl;
+#else // QT_VERSION < 0x050e00
         ts << QStringLiteral("</div>") << endl;
+#endif // QT_VERSION >= 0x050e00
         ts.flush();
         return false;
     }
@@ -84,7 +90,11 @@ public:
         QTextStream ts(iodevice);
         ts << QStringLiteral("<div style=\"color: red; background: white;\">");
         ts << i18n("The BibTeX style <strong>%1</strong> is not available.", bibStyle);
+#if QT_VERSION >= 0x050e00
+        ts << QStringLiteral("</div>") << Qt::endl;
+#else // QT_VERSION < 0x050e00
         ts << QStringLiteral("</div>") << endl;
+#endif // QT_VERSION >= 0x050e00
         ts.flush();
         return false;
     }
@@ -101,9 +111,9 @@ FileExporterBibTeX2HTML::~FileExporterBibTeX2HTML()
     delete d;
 }
 
-bool FileExporterBibTeX2HTML::save(QIODevice *iodevice, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterBibTeX2HTML::save(QIODevice *iodevice, const File *bibtexfile)
 {
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -114,20 +124,19 @@ bool FileExporterBibTeX2HTML::save(QIODevice *iodevice, const File *bibtexfile, 
     if (output.open(QIODevice::WriteOnly)) {
         FileExporterBibTeX bibtexExporter(this);
         bibtexExporter.setEncoding(QStringLiteral("latex"));
-        result = bibtexExporter.save(&output, bibtexfile, errorLog);
+        result = bibtexExporter.save(&output, bibtexfile);
         output.close();
     }
 
     if (result)
-        result = d->generateHTML(iodevice, errorLog);
+        result = d->generateHTML(iodevice);
 
-    iodevice->close();
     return result;
 }
 
-bool FileExporterBibTeX2HTML::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile, QStringList *errorLog)
+bool FileExporterBibTeX2HTML::save(QIODevice *iodevice, const QSharedPointer<const Element> element, const File *bibtexfile)
 {
-    if (!iodevice->isWritable() && !iodevice->open(QIODevice::WriteOnly)) {
+    if (!iodevice->isWritable() && !iodevice->isWritable()) {
         qCWarning(LOG_KBIBTEX_IO) << "Output device not writable";
         return false;
     }
@@ -138,18 +147,29 @@ bool FileExporterBibTeX2HTML::save(QIODevice *iodevice, const QSharedPointer<con
     if (output.open(QIODevice::WriteOnly)) {
         FileExporterBibTeX bibtexExporter(this);
         bibtexExporter.setEncoding(QStringLiteral("latex"));
-        result = bibtexExporter.save(&output, element, bibtexfile, errorLog);
+        result = bibtexExporter.save(&output, element, bibtexfile);
         output.close();
     }
 
     if (result)
-        result = d->generateHTML(iodevice, errorLog);
+        result = d->generateHTML(iodevice);
 
-    iodevice->close();
     return result;
 }
 
 void FileExporterBibTeX2HTML::setLaTeXBibliographyStyle(const QString &bibStyle)
 {
     d->bibStyle = bibStyle;
+}
+
+QStringList FileExporterBibTeX2HTML::availableLaTeXBibliographyStyles()
+{
+    static QStringList listOfBibStyles;
+    if (listOfBibStyles.isEmpty()) {
+        static const QStringList stylesToTestFor {QStringLiteral("abbrv"), QStringLiteral("acm"), QStringLiteral("alpha"), QStringLiteral("apalike"), QStringLiteral("ieeetr"), QStringLiteral("plain"), QStringLiteral("siam"), QStringLiteral("unsrt")};
+        for (const QString &bibStyle : stylesToTestFor)
+            if (kpsewhich(bibStyle + ".bst"))
+                listOfBibStyles.append(bibStyle);
+    }
+    return listOfBibStyles;
 }

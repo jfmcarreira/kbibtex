@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -30,7 +32,7 @@ class KBIBTEXNETWORKING_EXPORT UrlChecker : public QObject
 {
     Q_OBJECT
 public:
-    enum Status {UrlValid = 0, UnexpectedFileType, Error404, NetworkError, UnknownError};
+    enum class Status {UrlValid = 0, UnexpectedFileType, Error404, NetworkError, UnknownError};
 
     explicit UrlChecker(QObject *parent = nullptr);
     ~UrlChecker();

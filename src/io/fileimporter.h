@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2019 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -37,16 +39,27 @@ class KBIBTEXIO_EXPORT FileImporter : public QObject
     Q_OBJECT
 
 public:
-    enum MessageSeverity {
-        SeverityInfo, ///< Messages that are of informative type, such as additional comma for last key-value pair in BibTeX entry
-        SeverityWarning, ///< Messages that are of warning type, such as automatic corrections of BibTeX code without loss of information
-        SeverityError ///< Messages that are of error type, which point to issue where information may get lost, e.g. invalid syntax or incomplete data
+    enum class MessageSeverity {
+        Info, ///< Messages that are of informative type, such as additional comma for last key-value pair in BibTeX entry
+        Warning, ///< Messages that are of warning type, such as automatic corrections of BibTeX code without loss of information
+        Error ///< Messages that are of error type, which point to issue where information may get lost, e.g. invalid syntax or incomplete data
     };
 
     explicit FileImporter(QObject *parent);
     ~FileImporter() override;
 
-    File *fromString(const QString &text);
+    /**
+     * @brief Load a bibliography from a textual representation.
+     * @param text textual representation of the bibliography
+     * @return bibliography object if sucessful, @c nullptr on failure
+     */
+    virtual File *fromString(const QString &text);
+
+    /**
+     * @brief Load a bibliography from a @c QIODevice like file.
+     * @param iodevice Device to read the bibliography's data from
+     * @return bibliography object if sucessful, @c nullptr on failure
+     */
     virtual File *load(QIODevice *iodevice) = 0;
 
     /**

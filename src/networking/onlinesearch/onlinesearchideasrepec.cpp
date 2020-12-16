@@ -1,5 +1,7 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -35,30 +37,30 @@ class OnlineSearchIDEASRePEc::OnlineSearchIDEASRePEcPrivate
 public:
     QSet<const QUrl> publicationLinks;
 
-    QUrl buildQueryUrl(const QMap<QString, QString> &query, int numResults) {
+    QUrl buildQueryUrl(const QMap<QueryKey, QString> &query, int numResults) {
         QString urlBase = QStringLiteral("https://ideas.repec.org/cgi-bin/htsearch?cmd=Search%21&form=extended&m=all&fmt=url&wm=wrd&sp=1&sy=1&dt=range");
 
-        bool hasFreeText = !query[queryKeyFreeText].isEmpty();
-        bool hasTitle = !query[queryKeyTitle].isEmpty();
-        bool hasAuthor = !query[queryKeyAuthor].isEmpty();
-        bool hasYear = QRegularExpression(QStringLiteral("^(19|20)[0-9]{2}$")).match(query[queryKeyYear]).hasMatch();
+        bool hasFreeText = !query[QueryKey::FreeText].isEmpty();
+        bool hasTitle = !query[QueryKey::Title].isEmpty();
+        bool hasAuthor = !query[QueryKey::Author].isEmpty();
+        bool hasYear = QRegularExpression(QStringLiteral("^(19|20)[0-9]{2}$")).match(query[QueryKey::Year]).hasMatch();
 
         QString fieldWF = QStringLiteral("4BFF"); ///< search whole record by default
         QString fieldQ, fieldDB, fieldDE;
         if (hasAuthor && !hasFreeText && !hasTitle) {
             /// If only the author field is used, search explictly for author
             fieldWF = QStringLiteral("000F");
-            fieldQ = query[queryKeyAuthor];
+            fieldQ = query[QueryKey::Author];
         } else if (!hasAuthor && !hasFreeText && hasTitle) {
             /// If only the title field is used, search explictly for title
             fieldWF = QStringLiteral("00F0");
-            fieldQ = query[queryKeyTitle];
+            fieldQ = query[QueryKey::Title];
         } else {
-            fieldQ = query[queryKeyFreeText] + QLatin1Char(' ') + query[queryKeyTitle] + QLatin1Char(' ') + query[queryKeyAuthor] + QLatin1Char(' ');
+            fieldQ = query[QueryKey::FreeText] + QLatin1Char(' ') + query[QueryKey::Title] + QLatin1Char(' ') + query[QueryKey::Author] + QLatin1Char(' ');
         }
         if (hasYear) {
-            fieldDB = QStringLiteral("01/01/") + query[queryKeyYear];
-            fieldDE = QStringLiteral("31/12/") + query[queryKeyYear];
+            fieldDB = QStringLiteral("01/01/") + query[QueryKey::Year];
+            fieldDE = QStringLiteral("31/12/") + query[QueryKey::Year];
         }
 
         QUrl url(urlBase);
@@ -86,7 +88,7 @@ OnlineSearchIDEASRePEc::~OnlineSearchIDEASRePEc()
     delete d;
 }
 
-void OnlineSearchIDEASRePEc::startSearch(const QMap<QString, QString> &query, int numResults)
+void OnlineSearchIDEASRePEc::startSearch(const QMap<QueryKey, QString> &query, int numResults)
 {
     const QUrl url = d->buildQueryUrl(query, numResults);
     emit progress(curStep = 0, numSteps = 2 * numResults + 1);
@@ -104,11 +106,6 @@ void OnlineSearchIDEASRePEc::startSearch(const QMap<QString, QString> &query, in
 QString OnlineSearchIDEASRePEc::label() const
 {
     return i18n("IDEAS (RePEc)");
-}
-
-QString OnlineSearchIDEASRePEc::favIconUrl() const
-{
-    return QStringLiteral("https://ideas.repec.org/favicon.ico");
 }
 
 QUrl OnlineSearchIDEASRePEc::homepage() const
@@ -181,19 +178,18 @@ void OnlineSearchIDEASRePEc::downloadPublicationDone()
         QString downloadUrl;
         static const QString downloadFormStart = QStringLiteral("<FORM METHOD=GET ACTION=\"/cgi-bin/get_doc.pl\"");
         if (htmlCode.contains(downloadFormStart)) {
-            QMap<QString, QString> form = formParameters(htmlCode, htmlCode.indexOf(downloadFormStart, Qt::CaseInsensitive));
-            downloadUrl = form[QStringLiteral("url")];
+            QMultiMap<QString, QString> form = formParameters(htmlCode, htmlCode.indexOf(downloadFormStart, Qt::CaseInsensitive));
+            downloadUrl = form.value(QStringLiteral("url"));
         }
 
-        QMap<QString, QString> form = formParameters(htmlCode, htmlCode.indexOf(QStringLiteral("<form method=\"post\" action=\"/cgi-bin/refs.cgi\""), Qt::CaseInsensitive));
-        form[QStringLiteral("output")] = QStringLiteral("2"); ///< enforce BibTeX output
+        QMultiMap<QString, QString> form = formParameters(htmlCode, htmlCode.indexOf(QStringLiteral("<form method=\"post\" action=\"/cgi-bin/refs.cgi\""), Qt::CaseInsensitive));
+        form.replace(QStringLiteral("output"), QStringLiteral("2")); ///< enforce BibTeX output
 
         QString body;
-        QMap<QString, QString>::ConstIterator it = form.constBegin();
-        while (it != form.constEnd()) {
+        for (const QString &key : form.keys()) {
             if (!body.isEmpty()) body += QLatin1Char('&');
-            body += it.key() + QLatin1Char('=') + QString(QUrl::toPercentEncoding(it.value()));
-            ++it;
+            for (const QString &value : form.values(key))
+                body += key + QLatin1Char('=') + QString(QUrl::toPercentEncoding(value));
         }
 
         const QUrl url = QUrl(QStringLiteral("https://ideas.repec.org/cgi-bin/refs.cgi"));

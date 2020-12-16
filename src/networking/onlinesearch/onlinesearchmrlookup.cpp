@@ -1,7 +1,9 @@
 /***************************************************************************
- *   Copyright (C) 2004-2018 by Thomas Fischer <fischer@unix-ag.uni-kl.de> *
- *                 2014 Pavel Zorin-Kranich <pzorin@math.uni-bonn.de>      *
- *                 2018 Alexander Dunlap <alexander.dunlap@gmail.com>      *
+ *   SPDX-License-Identifier: GPL-2.0-or-later
+ *                                                                         *
+ *   SPDX-FileCopyrightText: 2004-2019 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *   SPDX-FileCopyrightText: 2014 Pavel Zorin-Kranich <pzorin@math.uni-bonn.de>
+ *   SPDX-FileCopyrightText: 2018 Alexander Dunlap <alexander.dunlap@gmail.com>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -40,7 +42,7 @@ OnlineSearchMRLookup::OnlineSearchMRLookup(QObject *parent)
     /// nothing
 }
 
-void OnlineSearchMRLookup::startSearch(const QMap<QString, QString> &query, int)
+void OnlineSearchMRLookup::startSearch(const QMap<QueryKey, QString> &query, int)
 {
     m_hasBeenCanceled = false;
     emit progress(curStep = 0, numSteps = 1);
@@ -48,13 +50,13 @@ void OnlineSearchMRLookup::startSearch(const QMap<QString, QString> &query, int)
     QUrl url(queryUrlStem);
     QUrlQuery q(url);
 
-    const QString title = query[queryKeyTitle];
+    const QString title = query[QueryKey::Title];
     q.addQueryItem(QStringLiteral("ti"), title);
 
-    const QString authors = query[queryKeyAuthor];
+    const QString authors = query[QueryKey::Author];
     q.addQueryItem(QStringLiteral("au"), authors);
 
-    const QString year = query[queryKeyYear];
+    const QString year = query[QueryKey::Year];
     if (!year.isEmpty())
         q.addQueryItem(QStringLiteral("year"), year);
 
@@ -72,11 +74,6 @@ void OnlineSearchMRLookup::startSearch(const QMap<QString, QString> &query, int)
 QString OnlineSearchMRLookup::label() const
 {
     return i18n("MR Lookup");
-}
-
-QString OnlineSearchMRLookup::favIconUrl() const
-{
-    return QStringLiteral("http://www.ams.org/favicon.ico");
 }
 
 QUrl OnlineSearchMRLookup::homepage() const
@@ -136,7 +133,7 @@ void OnlineSearchMRLookup::sanitizeEntry(QSharedPointer<Entry> entry)
     /// Remove URL from entry if contains a DOI and the DOI field is present
     if (entry->contains(Entry::ftDOI) && entry->contains(Entry::ftUrl)) {
         Value v = entry->value(Entry::ftUrl);
-        if (v.containsPattern(QStringLiteral("http://dx.doi.org"))) {
+        if (v.containsPattern(QStringLiteral("https://dx.doi.org"))) {
             entry->remove(Entry::ftUrl);
         }
     }
