@@ -1,7 +1,7 @@
 /***************************************************************************
  *   SPDX-License-Identifier: GPL-2.0-or-later
  *                                                                         *
- *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *   SPDX-FileCopyrightText: 2004-2021 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -59,8 +59,6 @@ public:
     }
 
     Entry *entryFromJsonObject(const QJsonObject &object) const {
-        QJsonDocument doc(object);
-
         /// Assemble information which key-value pairs are contained in JSON object
         /// but not evalued in this code. Debug output reported here should be send
         /// to KBibTeX's authors along with information which ACM records were search
@@ -72,7 +70,7 @@ public:
         for (const QString &unusedValue : unusedValues) {
             const QString valueString = object.value(unusedValue).toString();
             if (!valueString.isEmpty())
-                qDebug(LOG_KBIBTEX_NETWORKING) << "unused value:" << unusedValue << "=" << valueString;
+                qCDebug(LOG_KBIBTEX_NETWORKING) << "unused value:" << unusedValue << "=" << valueString;
         }
 
         QString doi = object.value(QStringLiteral("DOI")).toString();

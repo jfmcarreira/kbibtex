@@ -1,7 +1,7 @@
 /***************************************************************************
  *   SPDX-License-Identifier: GPL-2.0-or-later
  *                                                                         *
- *   SPDX-FileCopyrightText: 2004-2020 Thomas Fischer <fischer@unix-ag.uni-kl.de>
+ *   SPDX-FileCopyrightText: 2004-2021 Thomas Fischer <fischer@unix-ag.uni-kl.de>
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -1237,6 +1237,8 @@ File *FileImporterBibTeX::fromString(const QString &rawText)
     if (!gotAtLeastOneElement) {
         qCWarning(LOG_KBIBTEX_IO) << "In non-empty input, did not find a single BibTeX element";
         emit message(MessageSeverity::Error, QStringLiteral("In non-empty input, did not find a single BibTeX element"));
+        delete result;
+        result = nullptr;
     }
 
     emit progress(100, 100);
@@ -1419,7 +1421,7 @@ File *FileImporterBibTeX::load(QIODevice *iodevice)
 
     encoding = encoding.toLower();
     if (encoding == QStringLiteral("us-ascii")) {
-        qDebug(LOG_KBIBTEX_IO) << "Replacing deprecated encoding 'US-ASCII' with 'LaTeX'";
+        qCDebug(LOG_KBIBTEX_IO) << "Replacing deprecated encoding 'US-ASCII' with 'LaTeX'";
         encoding = QStringLiteral("latex"); //< encoding 'US-ASCII' is deprecated in favour of 'LaTeX'
     }
     // For encoding 'LaTeX', fall back to encoding 'UTF-8' when creating
